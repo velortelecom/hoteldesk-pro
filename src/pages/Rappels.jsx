@@ -4,6 +4,12 @@ import { useAuth } from '../hooks/useAuth'
 import { format, formatDistanceToNow, isPast, isToday, isTomorrow } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
+function toLocalISO(str) {
+  if (!str) return null
+  // Converts datetime-local string (local time) to ISO UTC string
+  return new Date(str).toISOString()
+}
+
 const PRIO_CFG = {
   urgente: { bg: '#FCEBEB', text: '#A32D2D', icon: '🚨' },
   normale:  { bg: '#FAEEDA', text: '#854F0B', icon: '🔔' },
@@ -66,7 +72,7 @@ export default function Rappels() {
   async function save() {
     if (!form.titre.trim() || !form.date_rappel) return
     setSaving(true)
-    await supabase.from('rappels').insert({ ...form, cree_par: profile.id, assigne_a: form.assigne_a || null })
+    await supabase.from('rappels').insert({ ...form, date_rappel: toLocalISO(form.date_rappel), cree_par: profile.id, assigne_a: form.assigne_a || null })
     await fetchRappels()
     setShowModal(false)
     setForm(empty)
