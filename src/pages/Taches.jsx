@@ -4,6 +4,12 @@ import { useAuth } from '../hooks/useAuth'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
+function toLocalISO(str) {
+  if (!str) return null
+  // Converts datetime-local string (local time) to ISO UTC string
+  return new Date(str).toISOString()
+}
+
 const CATS = ['menage', 'maintenance', 'accueil', 'admin', 'urgence']
 const PRIOS = ['haute', 'moyenne', 'basse']
 const STATUTS = ['planifiee', 'en_cours', 'terminee', 'annulee']
@@ -43,7 +49,7 @@ export default function Taches() {
   async function save() {
     if (!form.titre.trim()) return
     setSaving(true)
-    const payload = { ...form, cree_par: profile.id, assigne_a: form.assigne_a || null, date_echeance: form.date_echeance || null }
+    const payload = { ...form, cree_par: profile.id, assigne_a: form.assigne_a || null, date_echeance: toLocalISO(form.date_echeance) }
     if (editId) await supabase.from('taches').update(payload).eq('id', editId)
     else await supabase.from('taches').insert(payload)
     await fetchTaches()
