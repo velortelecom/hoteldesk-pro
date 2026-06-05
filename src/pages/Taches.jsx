@@ -90,6 +90,28 @@ export default function Taches() {
     setShowModal(true)
   }
 
+  function imprimer() {
+    const dateStr = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    const win = window.open('', '_blank')
+    const rows = filtrees.map(t => {
+      const asn = t.assignee ? (t.assignee.prenom || '') + ' ' + (t.assignee.nom || '') : '-'
+      const ech = t.date_echeance ? new Date(t.date_echeance).toLocaleDateString('fr-FR') : '-'
+      const statut = STATUT_LABELS[t.statut] || t.statut
+      const prio = t.priorite || '-'
+      const ch = t.chambre ? ' Ch.' + t.chambre : ''
+      return '<tr><td>' + t.titre + ch + '</td><td>' + t.categorie + '</td><td>' + prio + '</td><td>' + statut + '</td><td>' + asn + '</td><td>' + ech + '</td></tr>'
+    }).join('')
+    win.document.write('<html><head><title>Taches - ' + dateStr + '</title><style>body{font-family:Arial,sans-serif;margin:20px;font-size:12px}h1{font-size:16px;margin-bottom:4px}p{color:#666;margin:0 0 12px}table{width:100%;border-collapse:collapse}th{background:#185FA5;color:#fff;padding:6px 8px;text-align:left}td{padding:5px 8px;border-bottom:1px solid #eee}tr:nth-child(even){background:#f9f9f9}@media print{button{display:none}}</style></head><body>')
+    win.document.write('<h1>Feuille de taches - HotelDesk Pro</h1>')
+    win.document.write('<p>' + dateStr + (filtre !== 'Tout' ? ' — Filtre: ' + filtre : '') + ' — ' + filtrees.length + ' tache(s)</p>')
+    win.document.write('<table><thead><tr><th>Tache</th><th>Categorie</th><th>Priorite</th><th>Statut</th><th>Assigne</th><th>Echeance</th></tr></thead><tbody>' + rows + '</tbody></table>')
+    win.document.write('<br><button onclick="window.print()">Imprimer / Enregistrer PDF</button>')
+    win.document.write('</body></html>')
+    win.document.close()
+    win.focus()
+    setTimeout(() => win.print(), 500)
+  }
+
   const filtrees = filtre === 'Tout' ? taches : taches.filter(t => t.categorie === filtre || t.priorite === filtre || t.statut === filtre)
 
   const grouped = filtrees.reduce((acc, t) => {
@@ -115,89 +137,85 @@ export default function Taches() {
             </button>
           ))}
         </div>
+        <button onClick={imprimer} style={{ padding: '8px 14px', background: '#fff', color: '#185FA5', border: '1px solid #185FA5', borderRadius: 8, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          Imprimer / PDF
+        </button>
         <button onClick={() => { setForm(empty); setEditId(null); setShowModal(true) }} style={{ padding: '8px 14px', background: '#185FA5', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>+ Nouvelle tache</button>
       </div>
 
-      {filtrees.length === 0 && <div style={{ textAlign: 'center', color: '#aaa', padding: 40, fontSize: 14 }}>Aucune tache</div>}
-
-      {sortedKeys.map(key => {
-        const dayTaches = grouped[key]
-        const label = key === 'nodate' ? 'Sans date' : getDayLabel(dayTaches[0].date_echeance)
-        const allDone = dayTaches.every(t => t.statut === 'terminee')
-        return (
-          <div key={key} style={{ marginBottom: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: allDone ? '#aaa' : '#185FA5', textTransform: 'capitalize', textDecoration: allDone ? 'line-through' : 'none' }}>{label}</span>
-              <span style={{ fontSize: 11, color: '#aaa', background: '#f0efe8', borderRadius: 10, padding: '1px 7px' }}>{dayTaches.filter(t => t.statut === 'terminee').length}/{dayTaches.length}</span>
-              <div style={{ flex: 1, height: 1, background: '#e0dfd8' }}></div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {dayTaches.map(t => (
-                <div key={t.id} style={{ background: t.statut === 'terminee' ? '#f8f8f6' : '#fff', border: '0.5px solid', borderColor: t.statut === 'terminee' ? '#e8e8e0' : '#e0dfd8', borderRadius: 10, padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 12, opacity: t.statut === 'terminee' ? 0.7 : 1 }}>
-                  <div onClick={() => toggleStatut(t)} style={{ width: 22, height: 22, borderRadius: '50%', border: t.statut === 'terminee' ? 'none' : '1.5px solid #d0cfc8', background: t.statut === 'terminee' ? '#1D9E75' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                    {t.statut === 'terminee' && <span style={{ color: '#fff', fontSize: 13 }}>✓</span>}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500, color: t.statut === 'terminee' ? '#aaa' : '#222', textDecoration: t.statut === 'terminee' ? 'line-through' : 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.titre}</div>
-                    <div style={{ fontSize: 12, color: '#888', marginTop: 3, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                      {t.date_echeance && <span>{format(new Date(t.date_echeance), 'HH:mm', { locale: fr })}</span>}
-                      {t.assignee && <span>{t.assignee.prenom}</span>}
-                      {t.chambre && <span>Ch. {t.chambre}</span>}
+      {sortedKeys.map(key => (
+        <div key={key} style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#185FA5', textTransform: 'capitalize', marginBottom: 6, paddingLeft: 4, borderLeft: '3px solid #185FA5', paddingLeft: 8 }}>
+            {getDayLabel(key === 'nodate' ? null : grouped[key][0].date_echeance)}
+            <span style={{ fontWeight: 400, color: '#888', marginLeft: 6 }}>({grouped[key].length})</span>
+          </div>
+          {grouped[key].map(t => {
+            const sc = STATUT_COLORS[t.statut] || STATUT_COLORS.planifiee
+            const asn = t.assignee ? (t.assignee.prenom || t.assignee.nom || '') : null
+            return (
+              <div key={t.id} style={{ background: '#fff', borderRadius: 10, padding: '10px 12px', marginBottom: 8, border: '0.5px solid #e0dfc4', opacity: t.statut === 'annulee' ? 0.6 : 1 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <input type="checkbox" checked={t.statut === 'terminee'} onChange={() => toggleStatut(t)} style={{ marginTop: 3, accentColor: '#185FA5', cursor: 'pointer', width: 16, height: 16 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', textDecoration: t.statut === 'terminee' ? 'line-through' : 'none', color: t.statut === 'terminee' ? '#888' : '#1e293b' }}>
+                      {t.titre}
+                      {t.chambre && <span style={{ fontSize: 11, color: '#185FA5', marginLeft: 6, background: '#EFF6FF', borderRadius: 4, padding: '1px 5px' }}>Ch.{t.chambre}</span>}
+                    </div>
+                    {t.description && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{t.description}</div>}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 10, background: sc.bg, color: sc.text, fontWeight: 600 }}>{STATUT_LABELS[t.statut]}</span>
+                      <span style={{ fontSize: 11, color: PRIO_COLORS[t.priorite], fontWeight: 600 }}>{t.priorite}</span>
+                      <span style={{ fontSize: 11, color: '#888', background: '#f1f5f9', padding: '2px 6px', borderRadius: 8 }}>{t.categorie}</span>
+                      {asn && <span style={{ fontSize: 11, color: '#185FA5' }}>@{asn}</span>}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: PRIO_COLORS[t.priorite] }}></div>
-                    <span style={{ fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 10, background: STATUT_COLORS[t.statut]?.bg, color: STATUT_COLORS[t.statut]?.text }}>{STATUT_LABELS[t.statut]}</span>
-                    <button onClick={() => editTache(t)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#888', fontSize: 14, padding: '2px 4px' }}>✏️</button>
-                    <button onClick={() => deleteTache(t.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#E24B4A', fontSize: 14, padding: '2px 4px' }}>🗑</button>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <button onClick={() => editTache(t)} style={{ background: 'none', border: '0.5px solid #d0cfc8', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: '#555' }}>Edit</button>
+                    <button onClick={() => deleteTache(t.id)} style={{ background: 'none', border: '0.5px solid #fca5a5', borderRadius: 6, padding: '3px 8px', fontSize: 11, cursor: 'pointer', color: '#dc2626' }}>X</button>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )
-      })}
+              </div>
+            )
+          })}
+        </div>
+      ))}
+
+      {filtrees.length === 0 && (
+        <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 14, paddingTop: 40 }}>Aucune tache</div>
+      )}
 
       {showModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 18 }}>{editId ? 'Modifier' : 'Nouvelle tache'}</div>
-            {[['Titre', 'titre', 'text', 'Ex: Nettoyage ch. 208'],['Description', 'description', 'text', 'Details...'],['Chambre', 'chambre', 'text', 'Ex: 208']].map(([l, k, type, ph]) => (
-              <div key={k} style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>{l}</label>
-                <input type={type} value={form[k]} onChange={e => set(k, e.target.value)} placeholder={ph} style={inp} />
-              </div>
-            ))}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-              {[['Cat.', 'categorie', CATS], ['Prio.', 'priorite', PRIOS], ['Statut', 'statut', STATUTS]].map(([l, k, opts]) => (
-                <div key={k}>
-                  <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>{l}</label>
-                  <select value={form[k]} onChange={e => set(k, e.target.value)} style={inp}>
-                    {opts.map(o => <option key={o} value={o}>{o.charAt(0).toUpperCase() + o.slice(1).replace('_', ' ')}</option>)}
-                  </select>
-                </div>
-              ))}
-              <div>
-                <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Date/heure</label>
-                <input type="datetime-local" value={form.date_echeance} onChange={e => set('date_echeance', e.target.value)} style={inp} />
-              </div>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div style={{ background: '#fff', borderRadius: '16px 16px 0 0', padding: 20, width: '100%', maxWidth: 500, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ margin: 0, fontSize: 16 }}>{editId ? 'Modifier' : 'Nouvelle tache'}</h3>
+              <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#888' }}>x</button>
             </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Assigner a</label>
-              <select value={form.assigne_a} onChange={e => set('assigne_a', e.target.value)} style={inp}>
-                <option value="">-- Non assigne --</option>
-                {employes.map(e => <option key={e.id} value={e.id}>{e.prenom}</option>)}
+            <input placeholder="Titre *" value={form.titre} onChange={e => set('titre', e.target.value)} style={{ width: '100%', padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, marginBottom: 10, boxSizing: 'border-box' }} />
+            <textarea placeholder="Description" value={form.description} onChange={e => set('description', e.target.value)} rows={2} style={{ width: '100%', padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, marginBottom: 10, boxSizing: 'border-box', resize: 'none' }} />
+            <input placeholder="Chambre (ex: 301)" value={form.chambre} onChange={e => set('chambre', e.target.value)} style={{ width: '100%', padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, marginBottom: 10, boxSizing: 'border-box' }} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+              <select value={form.categorie} onChange={e => set('categorie', e.target.value)} style={{ padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13 }}>
+                {CATS.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+              </select>
+              <select value={form.priorite} onChange={e => set('priorite', e.target.value)} style={{ padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13 }}>
+                {PRIOS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
+              </select>
+              <select value={form.statut} onChange={e => set('statut', e.target.value)} style={{ padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13 }}>
+                {STATUTS.map(s => <option key={s} value={s}>{STATUT_LABELS[s]}</option>)}
+              </select>
+              <select value={form.assigne_a} onChange={e => set('assigne_a', e.target.value)} style={{ padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13 }}>
+                <option value="">Non assigne</option>
+                {employes.map(e => <option key={e.id} value={e.id}>{(e.prenom || '') + ' ' + (e.nom || '')}</option>)}
               </select>
             </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => { setShowModal(false); setForm(empty); setEditId(null) }} style={{ padding: '8px 16px', border: '0.5px solid #d0cfc8', borderRadius: 8, background: 'none', cursor: 'pointer', fontSize: 13 }}>Annuler</button>
-              <button onClick={save} disabled={saving} style={{ padding: '8px 16px', background: '#185FA5', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>{saving ? '...' : editId ? 'Modifier' : 'Creer'}</button>
-            </div>
+            <input type="datetime-local" value={form.date_echeance} onChange={e => set('date_echeance', e.target.value)} style={{ width: '100%', padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, marginBottom: 14, boxSizing: 'border-box' }} />
+            <button onClick={save} disabled={saving} style={{ width: '100%', padding: 12, background: '#185FA5', color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, cursor: 'pointer', fontWeight: 600 }}>
+              {saving ? 'Enregistrement...' : editId ? 'Mettre a jour' : 'Creer la tache'}
+            </button>
           </div>
         </div>
       )}
     </div>
   )
-}
-
-const inp = { width: '100%', padding: '8px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 13, outline: 'none', background: '#fafaf8', boxSizing: 'border-box' }
+                                          }
