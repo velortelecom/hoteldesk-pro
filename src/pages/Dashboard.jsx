@@ -9,12 +9,12 @@ const COULEURS_STATUT = {
   annulee:   { bg: '#FEF2F2', color: '#991B1B', label: 'Annulees' },
 }
 
-const COULEURS_DEP = {
+const COULEURS_CAT = {
   accueil:      '#185FA5',
   menage:       '#7C3AED',
   maintenance:  '#D97706',
-  restauration: '#059669',
-  direction:    '#DC2626',
+  admin:        '#059669',
+  urgence:      '#DC2626',
 }
 
 export default function Dashboard() {
@@ -23,7 +23,7 @@ export default function Dashboard() {
 
   const [stats, setStats]       = useState({ total:0, planifiee:0, en_cours:0, terminee:0, annulee:0 })
   const [urgentes, setUrgentes] = useState(0)
-  const [depStats, setDepStats] = useState([])
+  const [catStats, setCatStats] = useState([])
   const [equipe, setEquipe]     = useState([])
   const [recentes, setRecentes] = useState([])
   const [loading, setLoading]   = useState(true)
@@ -42,19 +42,19 @@ export default function Dashboard() {
   }
 
   async function fetchStats() {
-    const { data } = await supabase.from('taches').select('statut, priorite, departement')
-    if (!data) return
+    const { data, error } = await supabase.from('taches').select('statut, priorite, categorie')
+    if (error || !data) return
     const s = { total: data.length, planifiee:0, en_cours:0, terminee:0, annulee:0 }
     data.forEach(t => { if (s[t.statut] !== undefined) s[t.statut]++ })
     setStats(s)
-    setUrgentes(data.filter(t => t.priorite === 'urgente' && t.statut !== 'terminee').length)
-    const deps = {}
+    setUrgentes(data.filter(t => t.priorite === 'haute' && t.statut !== 'terminee').length)
+    const cats = {}
     data.forEach(t => {
-      if (!deps[t.departement]) deps[t.departement] = { total:0, terminee:0 }
-      deps[t.departement].total++
-      if (t.statut === 'terminee') deps[t.departement].terminee++
+      if (!cats[t.categorie]) cats[t.categorie] = { total:0, terminee:0 }
+      cats[t.categorie].total++
+      if (t.statut === 'terminee') cats[t.categorie].terminee++
     })
-    setDepStats(Object.entries(deps).map(([dep, v]) => ({ dep, ...v, pct: v.total ? Math.round(v.terminee/v.total*100) : 0 })))
+    setCatStats(Object.entries(cats).map(([cat, v]) => ({ cat, ...v, pct: v.total ? Math.round(v.terminee/v.total*100) : 0 })))
   }
 
   async function fetchEquipe() {
@@ -66,7 +66,7 @@ export default function Dashboard() {
   async function fetchRecentes() {
     const { data } = await supabase
       .from('taches')
-      .select('id, titre, statut, priorite, departement, created_at')
+      .select('id, titre, statut, priorite, categorie, created_at')
       .order('created_at', { ascending: false })
       .limit(5)
     setRecentes(data || [])
@@ -74,7 +74,7 @@ export default function Dashboard() {
 
   if (loading) return (
     <div style={{ display:'flex', justifyContent:'center', alignItems:'center', height:300, fontSize:16, color:'#6b7280' }}>
-      Chargement du tableau de bord...
+      Chargement...
     </div>
   )
 
@@ -82,16 +82,18 @@ export default function Dashboard() {
 
   return (
     <div style={{ padding:16, maxWidth:800, margin:'0 auto' }}>
+
       <div style={{ marginBottom:20 }}>
         <h2 style={{ fontSize:20, fontWeight:700, color:'#1e293b', margin:0 }}>
           Bonjour, {prenom}
         </h2>
         <p style={{ fontSize:13, color:'#64748b', margin:'4px 0 0' }}>{today}</p>
       </div>
+
       <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:12, marginBottom:20 }}>
         {[
           { label:'Total taches',  value: stats.total,      bg:'#EFF6FF', color:'#1d4ed8' },
-          { label:'Urgentes',      value: urgentes,         bg:'#FFF1F2', color:'#be123c' },
+          { label:'Priorite haute',value: urgentes,          bg:'#FFF1F2', color:'#be123c' },
           { label:'En cours',      value: stats.en_cours,   bg:'#FFFBEB', color:'#b45309' },
           { label:'Terminees',     value: stats.terminee,   bg:'#F0FDF4', color:'#15803d' },
         ].map(c => (
@@ -101,12 +103,13 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
       {stats.total > 0 && (
         <div style={{ background:'#fff', borderRadius:12, padding:16, marginBottom:16, border:'0.5px solid #e0dfc4' }}>
           <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:10 }}>Avancement global</div>
           <div style={{ display:'flex', gap:4, height:12, borderRadius:6, overflow:'hidden' }}>
             {Object.entries(COULEURS_STATUT).map(([s,c]) => (
-              stats[s] > 0 && <div key={s} style={{ flex: stats[s], background: c.color, opacity:0.8 }} />
+              stats[s] > 0 ? <div key={s} style={{ flex: stats[s], background: c.color, opacity:0.8 }} /> : null
             ))}
           </div>
           <div style={{ display:'flex', gap:12, marginTop:8, flexWrap:'wrap' }}>
@@ -119,35 +122,37 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-      {depStats.length > 0 && (
+
+      {catStats.length > 0 && (
         <div style={{ background:'#fff', borderRadius:12, padding:16, marginBottom:16, border:'0.5px solid #e0dfc4' }}>
-          <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:10 }}>Par departement</div>
-          {depStats.map(d => (
-            <div key={d.dep} style={{ marginBottom:10 }}>
+          <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:10 }}>Par categorie</div>
+          {catStats.map(d => (
+            <div key={d.cat} style={{ marginBottom:10 }}>
               <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'#374151', marginBottom:3 }}>
-                <span style={{ textTransform:'capitalize', fontWeight:500 }}>{d.dep}</span>
-                <span style={{ color: COULEURS_DEP[d.dep] || '#6b7280' }}>{d.terminee}/{d.total} ({d.pct}%)</span>
+                <span style={{ textTransform:'capitalize', fontWeight:500 }}>{d.cat}</span>
+                <span style={{ color: COULEURS_CAT[d.cat] || '#6b7280' }}>{d.terminee}/{d.total} ({d.pct}%)</span>
               </div>
               <div style={{ height:8, background:'#f1f5f9', borderRadius:4, overflow:'hidden' }}>
-                <div style={{ height:'100%', width: d.pct+'%', background: COULEURS_DEP[d.dep] || '#6b7280', borderRadius:4 }} />
+                <div style={{ height:'100%', width: d.pct+'%', background: COULEURS_CAT[d.cat] || '#6b7280', borderRadius:4 }} />
               </div>
             </div>
           ))}
         </div>
       )}
+
       {isAdmin && equipe.length > 0 && (
         <div style={{ background:'#fff', borderRadius:12, padding:16, marginBottom:16, border:'0.5px solid #e0dfc4' }}>
           <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:10 }}>Equipe ({equipe.length})</div>
           <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
             {equipe.map(m => {
               const initials = ((m.prenom?.[0]||'') + (m.nom?.[0]||'')).toUpperCase() || '?'
-              const col = COULEURS_DEP[m.departement] || '#6b7280'
+              const col = COULEURS_CAT[m.departement] || '#185FA5'
               return (
                 <div key={m.id} style={{ display:'flex', alignItems:'center', gap:6, background:'#f8fafc', borderRadius:8, padding:'6px 10px', border:'0.5px solid #e2e8f0' }}>
                   <div style={{ width:28, height:28, borderRadius:'50%', background:col, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700 }}>{initials}</div>
                   <div>
                     <div style={{ fontSize:12, fontWeight:600, color:'#1e293b' }}>{m.prenom} {m.nom}</div>
-                    <div style={{ fontSize:10, color:'#64748b', textTransform:'capitalize' }}>{m.role} · {m.departement}</div>
+                    <div style={{ fontSize:10, color:'#64748b', textTransform:'capitalize' }}>{m.role} - {m.departement}</div>
                   </div>
                 </div>
               )
@@ -155,6 +160,7 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
       {recentes.length > 0 && (
         <div style={{ background:'#fff', borderRadius:12, padding:16, border:'0.5px solid #e0dfc4' }}>
           <div style={{ fontSize:13, fontWeight:600, color:'#374151', marginBottom:10 }}>Taches recentes</div>
@@ -164,7 +170,7 @@ export default function Dashboard() {
               <div key={t.id} style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:13, fontWeight:500, color:'#1e293b' }}>{t.titre}</div>
-                  <div style={{ fontSize:11, color:'#64748b', textTransform:'capitalize' }}>{t.departement}</div>
+                  <div style={{ fontSize:11, color:'#64748b', textTransform:'capitalize' }}>{t.categorie}</div>
                 </div>
                 <span style={{ fontSize:11, padding:'2px 8px', borderRadius:20, background:c.bg, color:c.color, fontWeight:600, whiteSpace:'nowrap' }}>
                   {c.label}
@@ -174,6 +180,7 @@ export default function Dashboard() {
           })}
         </div>
       )}
+
     </div>
   )
-}
+    }
