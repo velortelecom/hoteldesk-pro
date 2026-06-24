@@ -1,12 +1,23 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../hooks/useAuth'
 import { format, startOfWeek, addDays, isToday } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
 const HEURES = ['07h','08h','09h','10h','11h','12h','13h','14h','15h','16h','17h','18h','19h','20h']
-const CAT_COLORS = { menage: { bg: '#EAF3DE', text: '#27500A' }, maintenance: { bg: '#FCEBEB', text: '#791F1F' }, accueil: { bg: '#FAEEDA', text: '#633806' }, admin: { bg: '#E6F1FB', text: '#0C447C' }, urgence: { bg: '#FEE2E2', text: '#991B1B' } }
+const CAT_COLORS = { menage: { bg: '#EAF3DE', text: '#27500A' }, maintenance: { bg: '#FCEBEB', text: '#791F1F' }, accueil: { bg: '#FAEEDA', text: '#633806' }, admin: { bg: '#E6F1FB', text: '#0C447C' }, urgence: { bg: '#F5E6FB', text: '#5B0B7C' } }
+
+// Mapping departement -> categories visibles dans le planning
+const DEPT_CATS_PLANNING = {
+  menage: ['menage'],
+  maintenance: ['maintenance'],
+  reception: ['accueil'],
+  restauration: ['admin'],
+  direction: ['menage', 'maintenance', 'accueil', 'admin', 'urgence']
+}
 
 export default function Planning() {
+  const { profile } = useAuth()
   const [taches, setTaches] = useState([])
   const [employes, setEmployes] = useState([])
   const [weekStart, setWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }))
@@ -14,8 +25,19 @@ export default function Planning() {
   const [filtreEmp, setFiltreEmp] = useState('tous')
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
 
+  const userRole = profile?.role || 'employe'
+  const userDept = profile?.departement || ''
+  const catsVisibles = userRole === 'admin' ? null : (DEPT_CATS_PLANNING[userDept] || [])
+
   useEffect(() => {
-    supabase.from('profiles').select('id,nom,prenom,couleur,avatar_initiales').eq('actif', true).then(({ data }) => setEmployes(data || []))
+    // For planning: employes visible depend on role
+    const empQuery = supabase.from('profiles').select('id,nom,prenom,couleur,avatar_initiales,departement').eq('actif', true)
+    if (userRole === 'responsable') {
+      empQuery.eq('departement', userDept)
+    } else if (userRole === 'employe') {
+      empQuery.eq('id', profile?.id)
+    }
+    empQuery.then(({ data }) => setEmployes(data || []))
   }, [])
 
   useEffect(() => {
@@ -29,22 +51,22 @@ export default function Planning() {
       .then(({ data }) => setTaches(data || []))
   }, [weekStart])
 
-  function getChipStyle(t) {
-    if (modeColor === 'personne' && t.assignee?.couleur) {
-      const c = t.assignee.couleur
-      return { background: c + '28', color: c, borderLeft: `3px solid ${c}` }
-    }
-    const cc = CAT_COLORS[t.categorie] || { bg: '#f0f0f0', text: '#444' }
-    return { background: cc.bg, color: cc.text }
-  }
-
-  function tachesPour(day, heure) {
-    const h = parseInt(heure)
+  function getTasksForCell(day, h) {
+    const hNum = parseInt(h)
     return taches.filter(t => {
       if (!t.date_echeance) return false
+      // Filter by role/department
+      if (userRole === 'employe') {
+        // Employe sees only their tasks
+        if (t.assigne_a !== profile?.id) return false
+      } else if (userRole === 'responsable') {
+        // Responsable sees tasks of their department categories
+        if (catsVisibles && !catsVisibles.includes(t.categorie) && t.assigne_a !== profile?.id && t.cree_par !== profile?.id) return false
+      }
+      // Admin sees all (no filter)
       if (filtreEmp !== 'tous' && t.assignee?.id !== filtreEmp) return false
       const d = new Date(t.date_echeance)
-      return format(d, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd') && d.getHours() === h
+      return format(d, 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd') && d.getHours() === hNum
     })
   }
 
@@ -59,7 +81,7 @@ export default function Planning() {
     <div>
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 16 }}>
-        {[['Total', stats.total, '#185FA5'], ['Terminées', stats.terminees, '#3B6D11'], ['Urgentes', stats.urgentes, '#A32D2D'], ['En cours', stats.enCours, '#854F0B']].map(([l, v, c]) => (
+        {[['Total', stats.total, '#185FA5'], ['Terminees', stats.terminees, '#3B6D11'], ['Urgentes', stats.urgentes, '#A32D2D'], ['En cours', stats.enCours, '#854F0B']].map(([l, v, c]) => (
           <div key={l} style={{ background: '#fff', border: '0.5px solid #e0dfd8', borderRadius: 10, padding: '10px 12px' }}>
             <div style={{ fontSize: 20, fontWeight: 500, color: c }}>{v}</div>
             <div style={{ fontSize: 11, color: '#888', marginTop: 1 }}>{l}</div>
@@ -67,71 +89,50 @@ export default function Planning() {
         ))}
       </div>
 
-      {/* Contrôles */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={() => setWeekStart(w => addDays(w, -7))} style={navBtn}>←</button>
-        <span style={{ fontSize: 13, fontWeight: 500, flex: 1, textAlign: 'center' }}>
-          {format(weekStart, 'd MMM', { locale: fr })} – {format(addDays(weekStart, 6), 'd MMM yyyy', { locale: fr })}
+      {/* Navigation semaine */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 12 }}>
+        <button onClick={() => setWeekStart(d => addDays(d, -7))} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', fontSize: 16 }}>&larr;</button>
+        <span style={{ fontWeight: 600, fontSize: 14, color: '#185FA5' }}>
+          {format(weekStart, 'd MMM', { locale: fr })} &ndash; {format(addDays(weekStart, 6), 'd MMM yyyy', { locale: fr })}
         </span>
-        <button onClick={() => setWeekStart(w => addDays(w, 7))} style={navBtn}>→</button>
+        <button onClick={() => setWeekStart(d => addDays(d, 7))} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', fontSize: 16 }}>&rarr;</button>
       </div>
 
-      {/* Filtres couleur + personne */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-        {/* Mode couleur */}
-        <div style={{ display: 'flex', background: '#f0efe8', borderRadius: 8, padding: 3, gap: 2 }}>
-          {[['personne','👤 Personne'],['categorie','🏷 Catégorie']].map(([m, l]) => (
-            <button key={m} onClick={() => setModeColor(m)} style={{
-              padding: '5px 10px', border: 'none', borderRadius: 6, fontSize: 11, cursor: 'pointer',
-              background: modeColor === m ? '#fff' : 'transparent',
-              fontWeight: modeColor === m ? 500 : 400,
-              color: modeColor === m ? '#185FA5' : '#888',
-              boxShadow: modeColor === m ? '0 0 0 0.5px #d0cfc8' : 'none'
-            }}>{l}</button>
-          ))}
-        </div>
-
-        {/* Filtre par employé */}
-        <select value={filtreEmp} onChange={e => setFiltreEmp(e.target.value)}
-          style={{ padding: '6px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12, background: '#fff', outline: 'none', flex: 1, minWidth: 120 }}>
-          <option value="tous">Toute l'équipe</option>
-          {employes.map(e => <option key={e.id} value={e.id}>{e.prenom} {e.nom}</option>)}
-        </select>
+      {/* Filtres couleur et employe */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center', padding: '8px 0' }}>
+        <button onClick={() => setModeColor('personne')} style={{ padding: '5px 12px', borderRadius: 8, border: '1.5px solid', borderColor: modeColor === 'personne' ? '#185FA5' : '#d1d5db', background: modeColor === 'personne' ? '#185FA5' : '#fff', color: modeColor === 'personne' ? '#fff' : '#333', fontSize: 12, cursor: 'pointer' }}>Personne</button>
+        <button onClick={() => setModeColor('categorie')} style={{ padding: '5px 12px', borderRadius: 8, border: '1.5px solid', borderColor: modeColor === 'categorie' ? '#185FA5' : '#d1d5db', background: modeColor === 'categorie' ? '#185FA5' : '#fff', color: modeColor === 'categorie' ? '#fff' : '#333', fontSize: 12, cursor: 'pointer' }}>Categorie</button>
+        {userRole !== 'employe' && (
+          <select value={filtreEmp} onChange={e => setFiltreEmp(e.target.value)}
+            style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 12, background: '#fff', minWidth: 160 }}>
+            <option value="tous">Toute l'equipe</option>
+            {employes.map(e => <option key={e.id} value={e.id}>{e.prenom} {e.nom}</option>)}
+          </select>
+        )}
       </div>
 
-      {/* Légende employés (mode personne) */}
-      {modeColor === 'personne' && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-          {employes.filter(e => e.couleur).map(e => (
-            <span key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#555', background: '#fff', border: '0.5px solid #e0dfd8', borderRadius: 20, padding: '3px 8px' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: e.couleur, flexShrink: 0 }}></span>
-              {e.prenom} {e.nom[0]}.
+      {/* Legende employes */}
+      {modeColor === 'personne' && userRole !== 'employe' && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+          {employes.map(e => (
+            <span key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, padding: '3px 8px', borderRadius: 10, background: e.couleur ? e.couleur + '22' : '#f0f0f0', border: '1px solid ' + (e.couleur || '#ccc') }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: e.couleur || '#999', display: 'inline-block' }}></span>
+              {e.prenom} {e.nom?.charAt(0)}.
             </span>
           ))}
         </div>
       )}
 
-      {/* Légende catégories (mode catégorie) */}
-      {modeColor === 'categorie' && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-          {Object.entries(CAT_COLORS).map(([cat, c]) => (
-            <span key={cat} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: c.text, background: c.bg, borderRadius: 20, padding: '3px 8px' }}>
-              {cat.charAt(0).toUpperCase() + cat.slice(1)}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Grille planning */}
-      <div style={{ overflowX: 'auto', borderRadius: 10, border: '0.5px solid #e0dfd8' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', background: '#fff', minWidth: 500 }}>
+      {/* Calendrier hebdomadaire */}
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 700 }}>
           <thead>
             <tr>
-              <th style={th}></th>
-              {days.map(d => (
-                <th key={d.toISOString()} style={{ ...th, background: isToday(d) ? '#E6F1FB' : '#fafaf8', color: isToday(d) ? '#185FA5' : '#555' }}>
-                  <div style={{ fontSize: 10 }}>{format(d, 'EEE', { locale: fr })}</div>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>{format(d, 'd')}</div>
+              <th style={{ width: 40, padding: '6px 4px', fontSize: 11, color: '#888', fontWeight: 500 }}></th>
+              {days.map(day => (
+                <th key={day.toISOString()} style={{ padding: '6px 4px', fontSize: 12, fontWeight: 600, color: isToday(day) ? '#185FA5' : '#333', textAlign: 'center', background: isToday(day) ? '#EBF2FB' : 'transparent', borderRadius: 8 }}>
+                  <div>{format(day, 'EEE', { locale: fr }).replace(/^./, c => c.toUpperCase())}</div>
+                  <div style={{ fontWeight: isToday(day) ? 800 : 400 }}>{format(day, 'd')}</div>
                 </th>
               ))}
             </tr>
@@ -139,21 +140,18 @@ export default function Planning() {
           <tbody>
             {HEURES.map(h => (
               <tr key={h}>
-                <td style={{ ...td, fontSize: 11, color: '#bbb', width: 36, textAlign: 'right', paddingRight: 6, whiteSpace: 'nowrap' }}>{h}</td>
-                {days.map(d => {
-                  const items = tachesPour(d, h)
+                <td style={{ fontSize: 10, color: '#aaa', textAlign: 'right', paddingRight: 6, verticalAlign: 'top', paddingTop: 4 }}>{h}</td>
+                {days.map(day => {
+                  const tasks = getTasksForCell(day, h)
                   return (
-                    <td key={d.toISOString()} style={{ ...td, background: isToday(d) ? '#f8fbff' : 'transparent', verticalAlign: 'top', padding: 3, minWidth: 70 }}>
-                      {items.map(t => {
-                        const style = getChipStyle(t)
+                    <td key={day.toISOString()} style={{ height: 36, verticalAlign: 'top', padding: '2px 3px', border: '0.5px solid #f0f0f0', background: isToday(day) ? '#F8FBFF' : 'transparent', position: 'relative' }}>
+                      {tasks.map(t => {
+                        const colors = modeColor === 'categorie'
+                          ? (CAT_COLORS[t.categorie] || { bg: '#f5f5f5', text: '#333' })
+                          : { bg: t.assignee?.couleur ? t.assignee.couleur + '33' : '#f5f5f5', text: t.assignee?.couleur || '#333' }
                         return (
-                          <div key={t.id} style={{ ...style, borderRadius: 4, padding: '2px 5px', fontSize: 10, fontWeight: 500, marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 3 }}>
-                            {modeColor === 'personne' && t.assignee && (
-                              <span style={{ fontSize: 9, opacity: .8 }}>
-                                {t.assignee.avatar_initiales || (t.assignee.prenom[0] + t.assignee.nom[0]).toUpperCase()}
-                              </span>
-                            )}
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.titre}</span>
+                          <div key={t.id} title={t.titre + (t.assignee ? ' - ' + t.assignee.prenom : '')} style={{ background: colors.bg, color: colors.text, fontSize: 10, borderRadius: 4, padding: '1px 4px', marginBottom: 1, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', border: '1px solid ' + (colors.text + '44') }}>
+                            {t.chambre ? 'Ch.' + t.chambre + ' ' : ''}{t.titre}
                           </div>
                         )
                       })}
@@ -168,7 +166,3 @@ export default function Planning() {
     </div>
   )
 }
-
-const th = { padding: '8px 4px', fontSize: 11, fontWeight: 500, borderBottom: '0.5px solid #e0dfd8', textAlign: 'center' }
-const td = { borderBottom: '0.5px solid #f5f4f0', borderRight: '0.5px solid #f5f4f0' }
-const navBtn = { padding: '6px 12px', border: '0.5px solid #d0cfc8', borderRadius: 8, background: '#fff', fontSize: 13, cursor: 'pointer' }
