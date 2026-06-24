@@ -17,7 +17,6 @@ const PRIO_COLORS = { haute: '#E24B4A', moyenne: '#EF9F27', basse: '#639922' }
 const STATUT_LABELS = { planifiee: 'Planifiee', en_cours: 'En cours', terminee: 'Terminee', annulee: 'Annulee' }
 const STATUT_COLORS = { planifiee: { bg: '#E6F1FB', text: '#0C447C' }, en_cours: { bg: '#FAEEDA', text: '#633806' }, terminee: { bg: '#EAF3DE', text: '#27500A' }, annulee: { bg: '#f0efe8', text: '#888' } }
 
-// Mapping departement -> categories visibles
 const DEPT_CATS = {
   menage: ['menage'],
   maintenance: ['maintenance'],
@@ -26,7 +25,7 @@ const DEPT_CATS = {
   direction: ['menage', 'maintenance', 'accueil', 'admin', 'urgence']
 }
 
-const empty = { titre: '', description: '', categorie: 'menage', priorite: 'moyenne', statut: 'planifiee', date_echeance: '', chambre: '', assigne_a: '', recurrence_type: '', recurrence_fin: '' }
+const empty = { titre: '', description: '', categorie: 'menage', priorite: 'moyenne', statut: 'planifiee', date_echeance: '', chambre: '', assigne_a: '', recurrence_type: '', recurrence_fin: '', heure_debut: '', heure_fin: '' }
 
 function getDayLabel(dateStr) {
   if (!dateStr) return 'Sans date'
@@ -52,14 +51,12 @@ export default function Taches() {
   const [saving, setSaving] = useState(false)
   const [editId, setEditId] = useState(null)
 
-  // Determine which categories this user can see
   const userRole = profile?.role || 'employe'
   const userDept = profile?.departement || ''
   const catsVisibles = userRole === 'admin' ? CATS : (DEPT_CATS[userDept] || [])
 
   useEffect(() => {
     fetchTaches()
-    // Employes: only show those from same dept for assignment (responsable/admin see all)
     const empQuery = supabase.from('profiles').select('id,nom,prenom,departement,role').eq('actif', true)
     if (userRole === 'employe') {
       empQuery.eq('departement', userDept)
@@ -90,9 +87,10 @@ export default function Taches() {
       assigne_a: form.assigne_a || null,
       date_echeance: toLocalISO(form.date_echeance),
       recurrence_type: form.recurrence_type || null,
-      recurrence_fin: form.recurrence_fin || null
+      recurrence_fin: form.recurrence_fin || null,
+      heure_debut: form.heure_debut || null,
+      heure_fin: form.heure_fin || null,
     }
-    // Remove empty recurrence fields
     if (!payload.recurrence_type) {
       delete payload.recurrence_fin
     }
@@ -118,172 +116,255 @@ export default function Taches() {
     }
   }
 
-  function editTache(t) {
-    setForm({ titre: t.titre, description: t.description || '', categorie: t.categorie, priorite: t.priorite, statut: t.statut, date_echeance: t.date_echeance ? t.date_echeance.slice(0, 16) : '', chambre: t.chambre || '', assigne_a: t.assigne_a || '', recurrence_type: t.recurrence_type || '', recurrence_fin: t.recurrence_fin || '' })
-    setEditId(t.id)
-    setShowModal(true)
-  }
+  // Role-based filter
+  const tachesFiltreesParRole = taches.filter(t => {
+    if (userRole === 'admin') return true
+    if (userRole === 'responsable') {
+      return catsVisibles.includes(t.categorie) || t.assigne_a === profile?.id || t.cree_par === profile?.id
+    }
+    // employe: only own tasks
+    return t.assigne_a === profile?.id
+  })
 
-  function imprimer() {
-    const dateStr = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-    const win = window.open('', '_blank')
-    const rows = filtrees.map(t => {
-      const asn = t.assignee ? (t.assignee.prenom || '') + ' ' + (t.assignee.nom || '') : '-'
-      const ech = t.date_echeance ? new Date(t.date_echeance).toLocaleDateString('fr-FR') : '-'
-      const statut = STATUT_LABELS[t.statut] || t.statut
-      const prio = t.priorite || '-'
-      const ch = t.chambre ? ' Ch.' + t.chambre : ''
-      const rec = t.recurrence_type ? ' [' + t.recurrence_type + ']' : ''
-      return '<tr><td>' + t.titre + ch + rec + '</td><td>' + t.categorie + '</td><td>' + prio + '</td><td>' + statut + '</td><td>' + asn + '</td><td>' + ech + '</td></tr>'
-    }).join('')
-    win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Arial;padding:20px}h1{color:#185FA5;font-size:18px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px;font-size:12px;text-align:left}th{background:#185FA5;color:#fff}tr:nth-child(even){background:#f5f7fa}button{margin-top:16px;padding:8px 16px;background:#185FA5;color:#fff;border:none;border-radius:6px;cursor:pointer}</style></head><body>')
-    win.document.write('<h1>Feuille de taches - HotelDesk Pro</h1>')
-    win.document.write('<p style="font-size:12px;color:#666">' + dateStr + (filtre !== 'Tout' ? ' • Filtre: ' + filtre : '') + ' • ' + filtrees.length + ' tache(s)</p>')
-    win.document.write('<table><thead><tr><th>Tache</th><th>Categorie</th><th>Priorite</th><th>Statut</th><th>Assigne</th><th>Echeance</th></tr></thead><tbody>' + rows + '</tbody></table>')
-    win.document.write('<br><button onclick="window.print()">Imprimer / Enregistrer PDF</button>')
-    win.document.write('</body></html>')
-    win.document.close()
-    win.focus()
-    setTimeout(() => win.print(), 500)
-  }
+  const FILTRES = ['Tout', ...CATS, 'haute', 'moyenne', 'basse', 'planifiee', 'en_cours', 'terminee']
+  const filtrees = tachesFiltreesParRole.filter(t => {
+    if (filtre === 'Tout') return true
+    return t.categorie === filtre || t.priorite === filtre || t.statut === filtre
+  })
 
-  // Filter taches based on user role and department
-  let tachesFiltreesParRole = taches
-  if (userRole === 'employe') {
-    // Employe sees only their own assigned tasks
-    tachesFiltreesParRole = taches.filter(t => t.assigne_a === profile?.id)
-  } else if (userRole === 'responsable') {
-    // Responsable sees all tasks in their department categories
-    tachesFiltreesParRole = taches.filter(t =>
-      catsVisibles.includes(t.categorie) ||
-      t.cree_par === profile?.id ||
-      t.assigne_a === profile?.id
-    )
-  }
-  // Admin sees all tasks (no filter)
-
-  const filtrees = filtre === 'Tout' ? tachesFiltreesParRole : tachesFiltreesParRole.filter(t => t.categorie === filtre || t.priorite === filtre || t.statut === filtre)
-
-  const grouped = filtrees.reduce((acc, t) => {
+  // Group by day
+  const groupes = filtrees.reduce((acc, t) => {
     const key = getDayKey(t.date_echeance)
     if (!acc[key]) acc[key] = []
     acc[key].push(t)
     return acc
   }, {})
 
-  const sortedKeys = Object.keys(grouped).sort((a, b) => {
-    if (a === 'nodate') return 1
-    if (b === 'nodate') return -1
-    return a.localeCompare(b)
-  })
+  function openEdit(t) {
+    setForm({
+      titre: t.titre || '',
+      description: t.description || '',
+      categorie: t.categorie || 'menage',
+      priorite: t.priorite || 'moyenne',
+      statut: t.statut || 'planifiee',
+      date_echeance: t.date_echeance ? t.date_echeance.slice(0, 16) : '',
+      chambre: t.chambre || '',
+      assigne_a: t.assigne_a || '',
+      recurrence_type: t.recurrence_type || '',
+      recurrence_fin: t.recurrence_fin || '',
+      heure_debut: t.heure_debut || '',
+      heure_fin: t.heure_fin || '',
+    })
+    setEditId(t.id)
+    setShowModal(true)
+  }
 
-  // Categories visible for filter buttons
-  const filtresCats = userRole === 'admin' ? CATS : catsVisibles
+  const statsGlobales = {
+    total: tachesFiltreesParRole.length,
+    terminees: tachesFiltreesParRole.filter(t => t.statut === 'terminee').length,
+    enCours: tachesFiltreesParRole.filter(t => t.statut === 'en_cours').length,
+    urgentes: tachesFiltreesParRole.filter(t => t.priorite === 'haute' && t.statut !== 'terminee').length,
+  }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f5f7fa', paddingBottom: 80 }}>
-      {/* Filter bar */}
-      <div style={{ display: 'flex', gap: 8, padding: '12px 16px', flexWrap: 'wrap', alignItems: 'center', background: '#fff', borderBottom: '1px solid #eee' }}>
-        <button onClick={() => setFiltre('Tout')} style={{ padding: '6px 14px', borderRadius: 20, border: '1.5px solid', borderColor: filtre === 'Tout' ? '#185FA5' : '#d1d5db', background: filtre === 'Tout' ? '#185FA5' : '#fff', color: filtre === 'Tout' ? '#fff' : '#333', fontSize: 13, cursor: 'pointer', fontWeight: filtre === 'Tout' ? 600 : 400 }}>Tout</button>
-        {filtresCats.map(c => (
-          <button key={c} onClick={() => setFiltre(c)} style={{ padding: '6px 14px', borderRadius: 20, border: '1.5px solid', borderColor: filtre === c ? '#185FA5' : '#d1d5db', background: filtre === c ? '#185FA5' : '#fff', color: filtre === c ? '#fff' : '#333', fontSize: 13, cursor: 'pointer', fontWeight: filtre === c ? 600 : 400, textTransform: 'capitalize' }}>{c.charAt(0).toUpperCase() + c.slice(1)}</button>
-        ))}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-          <button onClick={imprimer} style={{ padding: '7px 16px', borderRadius: 8, border: '1.5px solid #185FA5', background: '#fff', color: '#185FA5', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>Imprimer / PDF</button>
-          {userRole !== 'employe' && (
-            <button onClick={() => { setForm(empty); setEditId(null); setShowModal(true) }} style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: '#185FA5', color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>+ Nouvelle tache</button>
-          )}
-        </div>
-      </div>
-
-      {/* Task list */}
-      <div style={{ padding: '16px' }}>
-        {sortedKeys.length === 0 && <div style={{ textAlign: 'center', color: '#888', marginTop: 40, fontSize: 15 }}>Aucune tache</div>}
-        {sortedKeys.map(key => (
-          <div key={key}>
-            <div style={{ color: '#185FA5', fontWeight: 700, fontSize: 14, marginBottom: 8, marginTop: 16, borderLeft: '3px solid #185FA5', paddingLeft: 8 }}>
-              {key === 'nodate' ? 'Sans date' : getDayLabel(grouped[key][0].date_echeance)} ({grouped[key].length})
-            </div>
-            {grouped[key].map(t => (
-              <div key={t.id} style={{ background: '#fff', borderRadius: 10, padding: '10px 12px', marginBottom: 8, border: '0.5px solid #e0dfc4', opacity: t.statut === 'annulee' ? 0.6 : 1 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                  <input type="checkbox" checked={t.statut === 'terminee'} onChange={() => toggleStatut(t)} style={{ marginTop: 3, accentColor: '#185FA5', cursor: 'pointer', width: 16, height: 16 }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <span style={{ fontWeight: 600, fontSize: 14, textDecoration: t.statut === 'terminee' ? 'line-through' : 'none', color: t.statut === 'terminee' ? '#999' : '#1a1a1a' }}>{t.titre}</span>
-                      {t.chambre && <span style={{ fontSize: 12, color: '#185FA5', fontWeight: 600 }}>Ch.{t.chambre}</span>}
-                      {t.recurrence_type && <span style={{ fontSize: 11, background: '#e8f4fd', color: '#185FA5', borderRadius: 4, padding: '1px 6px', fontWeight: 500 }}>↺ {t.recurrence_type}</span>}
-                      {t.assignee && <span style={{ fontSize: 11, color: '#666' }}>@{t.assignee.prenom} {t.assignee.nom}</span>}
-                    </div>
-                    {t.description && <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>{t.description}</div>}
-                    <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: STATUT_COLORS[t.statut]?.bg, color: STATUT_COLORS[t.statut]?.text, fontWeight: 600 }}>{STATUT_LABELS[t.statut]}</span>
-                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: '#f5f5f5', color: PRIO_COLORS[t.priorite], fontWeight: 600 }}>{t.priorite}</span>
-                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: '#f0f0f0', color: '#555' }}>{t.categorie}</span>
-                    </div>
-                  </div>
-                  {(userRole !== 'employe') && (
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button onClick={() => editTache(t)} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', fontSize: 12, cursor: 'pointer' }}>Edit</button>
-                      <button onClick={() => deleteTache(t.id)} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid #fca5a5', background: '#fff', color: '#dc2626', fontSize: 12, cursor: 'pointer' }}>X</button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+    <div>
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 16 }}>
+        {[['Total', statsGlobales.total, '#185FA5'], ['Terminees', statsGlobales.terminees, '#3B6D11'], ['En cours', statsGlobales.enCours, '#854F0B'], ['Urgentes', statsGlobales.urgentes, '#A32D2D']].map(([l, v, c]) => (
+          <div key={l} style={{ background: '#fff', border: '0.5px solid #e0dfd8', borderRadius: 10, padding: '10px 12px' }}>
+            <div style={{ fontSize: 20, fontWeight: 500, color: c }}>{v}</div>
+            <div style={{ fontSize: 11, color: '#888', marginTop: 1 }}>{l}</div>
           </div>
         ))}
       </div>
 
-      {/* Modal form */}
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {FILTRES.map(f => (
+            <button key={f} onClick={() => setFiltre(f)}
+              style={{ padding: '4px 10px', borderRadius: 8, border: '1px solid', borderColor: filtre === f ? '#185FA5' : '#d1d5db', background: filtre === f ? '#185FA5' : '#fff', color: filtre === f ? '#fff' : '#555', fontSize: 11, cursor: 'pointer' }}>
+              {f}
+            </button>
+          ))}
+        </div>
+        {(userRole === 'admin' || userRole === 'responsable') && (
+          <button onClick={() => { setForm(empty); setEditId(null); setShowModal(true) }}
+            style={{ padding: '7px 16px', background: '#185FA5', color: '#fff', border: 'none', borderRadius: 9, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+            + Nouvelle tache
+          </button>
+        )}
+      </div>
+
+      {/* Task list */}
+      {Object.entries(groupes).sort((a, b) => a[0].localeCompare(b[0])).map(([key, tasks]) => (
+        <div key={key} style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#888', marginBottom: 6, textTransform: 'capitalize' }}>
+            {getDayLabel(key === 'nodate' ? null : tasks[0]?.date_echeance)}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {tasks.map(t => {
+              const col = STATUT_COLORS[t.statut]
+              const pCol = PRIO_COLORS[t.priorite]
+              return (
+                <div key={t.id} style={{ background: '#fff', border: '0.5px solid #e0dfd8', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <input type="checkbox" checked={t.statut === 'terminee'} onChange={() => toggleStatut(t)}
+                    style={{ marginTop: 3, cursor: 'pointer', accentColor: '#185FA5' }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 600, fontSize: 14, color: t.statut === 'terminee' ? '#aaa' : '#222', textDecoration: t.statut === 'terminee' ? 'line-through' : 'none' }}>{t.titre}</span>
+                      <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 6, background: col.bg, color: col.text }}>{STATUT_LABELS[t.statut]}</span>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: pCol, display: 'inline-block' }} title={t.priorite} />
+                      {t.recurrence_type && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 5, background: '#f0f0f0', color: '#555' }}>&#x1F501; {t.recurrence_type}</span>}
+                    </div>
+                    {t.description && <div style={{ fontSize: 12, color: '#666', marginTop: 3 }}>{t.description}</div>}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {t.date_echeance && (
+                        <span style={{ fontSize: 11, color: '#888' }}>
+                          {format(parseISO(t.date_echeance), 'dd/MM/yyyy', { locale: fr })}
+                          {t.heure_debut && <span style={{ color: '#185FA5', marginLeft: 4 }}>{t.heure_debut.slice(0,5)}{t.heure_fin ? ' - ' + t.heure_fin.slice(0,5) : ''}</span>}
+                        </span>
+                      )}
+                      {t.assignee && <span style={{ fontSize: 11, color: '#888' }}>{t.assignee.prenom} {t.assignee.nom}</span>}
+                      {t.chambre && <span style={{ fontSize: 11, color: '#888' }}>Ch. {t.chambre}</span>}
+                      <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 5, background: '#f5f5f3', color: '#777' }}>{t.categorie}</span>
+                    </div>
+                  </div>
+                  {(userRole === 'admin' || userRole === 'responsable') && (
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button onClick={() => openEdit(t)} style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', color: '#555' }}>✏️</button>
+                      <button onClick={() => deleteTache(t.id)} style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6, border: '1px solid #fca5a5', background: '#fff', cursor: 'pointer', color: '#ef4444' }}>🗑</button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+
+      {filtrees.length === 0 && (
+        <div style={{ textAlign: 'center', color: '#aaa', padding: '32px 0', fontSize: 14 }}>Aucune tache</div>
+      )}
+
+      {/* Modal */}
       {showModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '92%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{editId ? 'Modifier la tache' : 'Nouvelle tache'}</h2>
-              <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#666' }}>x</button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>{editId ? 'Modifier' : 'Nouvelle tache'}</h3>
+              <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#999' }}>×</button>
             </div>
-            <input placeholder="Titre *" value={form.titre} onChange={e => set('titre', e.target.value)} style={{ width: '100%', padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, marginBottom: 10, boxSizing: 'border-box' }} />
-            <textarea placeholder="Description" value={form.description} onChange={e => set('description', e.target.value)} style={{ width: '100%', padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, marginBottom: 10, minHeight: 70, boxSizing: 'border-box', resize: 'vertical' }} />
-            <input placeholder="Chambre (ex: 301)" value={form.chambre} onChange={e => set('chambre', e.target.value)} style={{ width: '100%', padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, marginBottom: 10, boxSizing: 'border-box' }} />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-              <select value={form.categorie} onChange={e => set('categorie', e.target.value)} style={{ padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13 }}>
-                {(userRole === 'admin' ? CATS : catsVisibles).map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
-              </select>
-              <select value={form.priorite} onChange={e => set('priorite', e.target.value)} style={{ padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13 }}>
-                {PRIOS.map(p => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
-              </select>
-              <select value={form.statut} onChange={e => set('statut', e.target.value)} style={{ padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13 }}>
-                {STATUTS.map(s => <option key={s} value={s}>{STATUT_LABELS[s]}</option>)}
-              </select>
-              <select value={form.assigne_a} onChange={e => set('assigne_a', e.target.value)} style={{ padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13 }}>
-                <option value="">Non assigne</option>
-                {employes.map(e => <option key={e.id} value={e.id}>{e.prenom} {e.nom}</option>)}
-              </select>
-            </div>
-            <input type="datetime-local" value={form.date_echeance} onChange={e => set('date_echeance', e.target.value)} style={{ width: '100%', padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, marginBottom: 10, boxSizing: 'border-box' }} />
-            {/* Recurrence section */}
-            <div style={{ borderTop: '1px solid #eee', paddingTop: 12, marginBottom: 12 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#555', marginBottom: 8 }}>Recurrence (optionnel)</div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {/* Titre */}
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Titre *</label>
+                <input value={form.titre} onChange={e => set('titre', e.target.value)} placeholder="Titre de la tache"
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, boxSizing: 'border-box' }} />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Description</label>
+                <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2} placeholder="Details..."
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, resize: 'vertical', boxSizing: 'border-box' }} />
+              </div>
+
+              {/* Categorie + Priorite */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <select value={form.recurrence_type} onChange={e => set('recurrence_type', e.target.value)} style={{ padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Categorie</label>
+                  <select value={form.categorie} onChange={e => set('categorie', e.target.value)}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13 }}>
+                    {catsVisibles.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Priorite</label>
+                  <select value={form.priorite} onChange={e => set('priorite', e.target.value)}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13 }}>
+                    {PRIOS.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Statut */}
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Statut</label>
+                <select value={form.statut} onChange={e => set('statut', e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13 }}>
+                  {STATUTS.map(s => <option key={s} value={s}>{STATUT_LABELS[s]}</option>)}
+                </select>
+              </div>
+
+              {/* Date echeance */}
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Date d&apos;echeance</label>
+                <input type="datetime-local" value={form.date_echeance} onChange={e => set('date_echeance', e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, boxSizing: 'border-box' }} />
+              </div>
+
+              {/* Horaires */}
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Horaires (planning 24h)</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: '#888', display: 'block', marginBottom: 3 }}>Heure debut</label>
+                    <input type="time" value={form.heure_debut} onChange={e => set('heure_debut', e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: '#888', display: 'block', marginBottom: 3 }}>Heure fin</label>
+                    <input type="time" value={form.heure_fin} onChange={e => set('heure_fin', e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Chambre + Assigne */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Chambre</label>
+                  <input value={form.chambre} onChange={e => set('chambre', e.target.value)} placeholder="Ex: 101"
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Assigner a</label>
+                  <select value={form.assigne_a} onChange={e => set('assigne_a', e.target.value)}
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13 }}>
+                    <option value="">Non assigne</option>
+                    {employes.map(e => <option key={e.id} value={e.id}>{e.prenom} {e.nom}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Recurrence */}
+              <div style={{ background: '#f9f9f7', borderRadius: 10, padding: '12px 14px', border: '1px solid #e8e7e0' }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 8 }}>Recurrence (optionnel)</label>
+                <select value={form.recurrence_type} onChange={e => set('recurrence_type', e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, marginBottom: 8 }}>
                   <option value="">Pas de recurrence</option>
                   {RECURRENCES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
                 </select>
                 {form.recurrence_type && (
                   <div>
-                    <div style={{ fontSize: 11, color: '#888', marginBottom: 3 }}>Date de fin</div>
-                    <input type="date" value={form.recurrence_fin} onChange={e => set('recurrence_fin', e.target.value)} style={{ width: '100%', padding: 10, border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} />
+                    <label style={{ fontSize: 11, color: '#888', display: 'block', marginBottom: 3 }}>Date de fin</label>
+                    <input type="date" value={form.recurrence_fin} onChange={e => set('recurrence_fin', e.target.value)}
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, boxSizing: 'border-box' }} />
+                    <div style={{ fontSize: 11, color: '#EF9F27', marginTop: 6 }}>Conseil : definissez une date de fin pour planifier sur toute l&apos;annee</div>
                   </div>
                 )}
               </div>
-              {form.recurrence_type && !form.recurrence_fin && (
-                <div style={{ fontSize: 11, color: '#EF9F27', marginTop: 4 }}>Conseil: definissez une date de fin pour planifier sur toute l'annee</div>
-              )}
+
+              {/* Boutons */}
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+                <button onClick={() => setShowModal(false)} style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', fontSize: 13 }}>Annuler</button>
+                <button onClick={save} disabled={saving} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#185FA5', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: 13, opacity: saving ? 0.7 : 1 }}>
+                  {saving ? 'Enregistrement...' : editId ? 'Modifier' : 'Creer'}
+                </button>
+              </div>
             </div>
-            <button onClick={save} disabled={saving} style={{ width: '100%', padding: 12, background: '#185FA5', color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, cursor: 'pointer', fontWeight: 600 }}>
-              {saving ? 'Enregistrement...' : editId ? 'Mettre a jour' : 'Creer la tache'}
-            </button>
           </div>
         </div>
       )}
