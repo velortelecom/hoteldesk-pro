@@ -16,14 +16,14 @@ export const ROLE_COLORS = {
 
 // Icônes par catégorie de département
 export const DEPT_ICONS = [
-  { value: 'building', label: 'Bâtiment' },
-  { value: 'door-open', label: 'Réception' },
+  { value: 'building', label: 'Batiment' },
+  { value: 'door-open', label: 'Reception' },
   { value: 'coffee', label: 'Restaurant' },
-  { value: 'sparkles', label: 'Ménage' },
+  { value: 'sparkles', label: 'Menage' },
   { value: 'wrench', label: 'Maintenance' },
-  { value: 'users', label: 'Équipe' },
+  { value: 'users', label: 'Equipe' },
   { value: 'briefcase', label: 'Gestion' },
-  { value: 'shield', label: 'Sécurité' },
+  { value: 'shield', label: 'Securite' },
   { value: 'leaf', label: 'Jardinage' },
   { value: 'car', label: 'Transport' },
 ];
@@ -37,30 +37,30 @@ export const DEPT_COLORS = [
 
 // Niveaux de poste
 export const NIVEAUX_POSTE = [
-  { value: 1, label: 'Niveau 1 — Débutant' },
-  { value: 2, label: 'Niveau 2 — Junior' },
-  { value: 3, label: 'Niveau 3 — Confirmé' },
-  { value: 4, label: 'Niveau 4 — Senior / Chef' },
-  { value: 5, label: 'Niveau 5 — Directeur' },
+  { value: 1, label: 'Niveau 1 - Debutant' },
+  { value: 2, label: 'Niveau 2 - Junior' },
+  { value: 3, label: 'Niveau 3 - Confirme' },
+  { value: 4, label: 'Niveau 4 - Senior / Chef' },
+  { value: 5, label: 'Niveau 5 - Directeur' },
 ];
 
-// Templates de postes par secteur
+// Templates de postes par secteur (sans apostrophes)
 export const POSTES_TEMPLATE_HOTEL = [
-  'Réceptionniste', 'Chef de réception', 'Night Auditor',
-  'Agent petit-déjeuner', 'Femme/Valet de chambre', 'Gouvernante',
+  'Receptionniste', 'Chef de reception', 'Night Auditor',
+  'Agent petit-dejeuner', 'Femme de chambre', 'Gouvernante',
   'Technicien de maintenance', 'Chef de maintenance', 'Bagagiste',
-  'Concierge', 'Directeur d'hôtel', 'Directeur adjoint',
+  'Concierge', 'Directeur hotel', 'Directeur adjoint',
 ];
 
 // Tabs du module
 export const MODULE_TABS = [
-  { id: 'employes', label: 'Employés', icon: '👥' },
-  { id: 'departements', label: 'Départements', icon: '🏢' },
+  { id: 'employes', label: 'Employes', icon: '👥' },
+  { id: 'departements', label: 'Departements', icon: '🏢' },
   { id: 'postes', label: 'Postes', icon: '💼' },
   { id: 'organigramme', label: 'Organigramme', icon: '🌳' },
 ];
 
-// Permissions du module (clés utilisées dans permissions.js)
+// Permissions du module (cles utilisees dans permissions.js)
 export const PERMS = {
   VIEW_EMPLOYES: 'organisation.view',
   CREATE_EMPLOYE: 'organisation.create',
