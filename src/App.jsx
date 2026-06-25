@@ -56,6 +56,14 @@ function AppInner() {
   const [page, setPage] = useState('dashboard')
   const [menuOpen, setMenuOpen] = useState(false)
   const [toasts, setToasts] = useState([])
+  const [nomEntreprise, setNomEntreprise] = useState('Velor One')
+
+  useEffect(() => {
+    if (profile?.entreprise_id) {
+      supabase.from('entreprises').select('nom').eq('id', profile.entreprise_id).single()
+        .then(({ data }) => { if (data?.nom) setNomEntreprise(data.nom) })
+    }
+  }, [profile?.entreprise_id])
 
   const addToast = (msg, type = 'info') => {
     const id = Date.now()
@@ -156,7 +164,7 @@ function AppInner() {
       <div style={{ background: '#fff', borderBottom: '0.5px solid #e0dfd8', padding: '0 16px', height: 54, display: 'flex', alignItems: 'center', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
           <div style={{ width: 28, height: 28, background: '#185FA5', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 14, fontWeight: 700 }}>V</div>
-          <span style={{ fontSize: 15, fontWeight: 600 }}>Velor One</span>
+          <span style={{ fontSize: 15, fontWeight: 600 }}>{nomEntreprise}</span>
           <span style={{ fontSize: 13, color: '#888', marginLeft: 2 }}>— {pageTitre}</span>
           {profile?.is_super_admin && (
             <span style={{ background: '#FEF3C7', color: '#92400E', borderRadius: 8, padding: '2px 8px', fontSize: 10, fontWeight: 700, marginLeft: 8 }}>SUPER ADMIN</span>
