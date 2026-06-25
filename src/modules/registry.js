@@ -28,6 +28,28 @@ export const ROLE_PERMISSIONS = {
 // ===========================================================
 export const MODULES_REGISTRY = [
   {
+    id: 'organisation',
+    nom: 'Organisation & RH',
+    version: '1.0.0',
+    icone: '🏢',
+    iconeLib: 'building',
+    description: 'Gestion des employés, départements, postes et organigramme',
+    route: '/organisation',
+    composant: lazy(() => import('./organisation/index.jsx')),
+    permissions: {
+      voir:        { employe: true,  responsable: true,  admin: true,  super_admin: true  },
+      creer:       { employe: false, responsable: true,  admin: true,  super_admin: true  },
+      modifier:    { employe: false, responsable: true,  admin: true,  super_admin: true  },
+      supprimer:   { employe: false, responsable: false, admin: true,  super_admin: true  },
+      exporter:    { employe: false, responsable: true,  admin: true,  super_admin: true  },
+      administrer: { employe: false, responsable: false, admin: true,  super_admin: true  },
+    },
+    dependances: [], plans: ['starter', 'business', 'premium', 'enterprise'],
+    templates: ['hotel', 'pharmacie', 'commerce', 'mairie', 'restaurant', 'residence'],
+    ordre: 10, categorie: 'rh', couleur: '#6366f1', badge: null, actif: true,
+    widgets: { employes_actifs: true, departements: true, postes: true },
+  },
+  {
     id: 'conges', nom: 'Conges & Absences', version: '0.1.0',
     icone: '🏖', iconeLib: 'calendar-off',
     description: 'Gestion des demandes de conges, absences et jours feries',
