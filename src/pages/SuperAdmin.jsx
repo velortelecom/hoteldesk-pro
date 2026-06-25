@@ -12,7 +12,7 @@ const PLAN_COLORS = { starter: '#6B7280', business: '#3B82F6', premium: '#8B5CF6
 const PLAN_MODULES = {
   starter: ['organisation','conges'],
   business: ['organisation','conges','documents','rapports'],
-  premium: ['organisation','conges','documents','rapports','vehicules','stocks','qualite','statistiques','planning_avance'],
+  premium: ['organisation','conges','documents','rapports','vehicules','stochks','qualite','statistiques','planning_avance'],
   enterprise: null,
 }
 
@@ -234,7 +234,7 @@ export default function SuperAdmin() {
       // Premier admin (creation seulement)
       if (!editEntreprise && form.admin_email) {
         const { data: adminResult } = await supabase.rpc('creer_premier_admin', {
-          p_entreprise_id: entId, p_email: form.admin_email, p_password: 'Velor2024!',
+          p_entreprise_id: entId, p_email: form.admin_email,
           p_prenom: form.admin_prenom || 'Admin', p_nom: form.admin_nom || entData.nom,
           p_telephone: form.admin_telephone || null,
         })
