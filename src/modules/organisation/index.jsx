@@ -1,7 +1,8 @@
 // ============================================================
 // MODULE ORGANISATION — index.jsx
-// Composant principal du module (v1.0.0)
-// Interface : Employés, Départements, Postes, Organigramme
+// Composant principal du module (v1.0.1)
+// Interface : Employés, Départements, Postes
+// Props reçues depuis App.jsx : { permissions, profile, moduleId }
 // ============================================================
 
 import React, { useState, useMemo } from 'react';
@@ -17,12 +18,19 @@ import GestionPostes from './components/GestionPostes.jsx';
 
 // ============================================================
 // COMPOSANT PRINCIPAL
+// Props : profile (objet profil complet), permissions (du loader), moduleId
 // ============================================================
-export default function OrganisationModule({ user, entrepriseId }) {
+export default function OrganisationModule({ profile, permissions: permissionsLoader, moduleId }) {
   const [activeTab, setActiveTab] = useState('employes');
   const [selectedEmployeId, setSelectedEmployeId] = useState(null);
 
-  const permissions = useMemo(() => getPermissionsForRole(user?.role || 'employe'), [user?.role]);
+  // Utiliser les permissions du loader ou calculer depuis le rôle
+  const permissions = useMemo(() => {
+    if (permissionsLoader) return permissionsLoader;
+    return getPermissionsForRole(profile?.role || 'employe');
+  }, [permissionsLoader, profile?.role]);
+
+  const entrepriseId = profile?.entreprise_id;
   const { stats } = useStatsOrganisation(entrepriseId);
 
   // Navigation vers la fiche employé
@@ -36,7 +44,10 @@ export default function OrganisationModule({ user, entrepriseId }) {
     setActiveTab('employes');
   };
 
-  if (!permissions.canView) {
+  // Vérification d'accès (canView depuis les permissions du loader ou de la config)
+  const canView = permissions?.voir ?? permissions?.canView ?? true;
+
+  if (!canView) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>
         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔒</div>
@@ -131,8 +142,4 @@ export default function OrganisationModule({ user, entrepriseId }) {
       </div>
     </div>
   );
-}
-
-// Métadonnées du module (utilisées par le Plugin System)
-OrganisationModule.moduleId = 'organisation';
-OrganisationModule.version = '1.0.0';
+      }
