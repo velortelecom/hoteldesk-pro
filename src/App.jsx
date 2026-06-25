@@ -8,15 +8,21 @@ import Messagerie from './pages/Messagerie'
 import Rappels from './pages/Rappels'
 import Personnel from './pages/Personnel'
 import Dashboard from './pages/Dashboard'
+import SuperAdmin from './pages/SuperAdmin'
 
-const NAV = [
-  { id: 'dashboard', label: 'Accueil',  icon: 'Accueil' },
-  { id: 'planning',  label: 'Planning', icon: 'Planning' },
-  { id: 'taches',    label: 'Taches',   icon: 'Taches' },
-  { id: 'messagerie',label: 'Messages', icon: 'Messages' },
-  { id: 'rappels',   label: 'Rappels',  icon: 'Rappels' },
-  { id: 'personnel', label: 'Equipe',   icon: 'Equipe' },
+// Socle inalterable - 6 menus toujours presentes
+const NAV_SOCLE = [
+  { id: 'dashboard', label: 'Accueil', icon: 'Accueil' },
+  { id: 'planning', label: 'Planning', icon: 'Planning' },
+  { id: 'taches', label: 'Taches', icon: 'Taches' },
+  { id: 'messagerie', label: 'Messages', icon: 'Messages' },
+  { id: 'rappels', label: 'Rappels', icon: 'Rappels' },
+  { id: 'personnel', label: 'Equipe', icon: 'Equipe' },
 ]
+
+// Slot pour les menus dynamiques des modules (sera rempli par useModules)
+// Structure attendue: [{ id, label, icon }]
+const NAV_MODULES_SLOT = []
 
 function Toast({ toasts, remove }) {
   return (
@@ -41,6 +47,8 @@ function AppInner() {
   const [page, setPage] = useState('dashboard')
   const [menuOpen, setMenuOpen] = useState(false)
   const [toasts, setToasts] = useState([])
+  // Slot modules dynamiques - sera active par useModules dans une future iteration
+  const [navModules, setNavModules] = useState(NAV_MODULES_SLOT)
 
   const addToast = (msg, type = 'info') => {
     const id = Date.now()
@@ -69,15 +77,31 @@ function AppInner() {
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
-      <div style={{ width: 36, height: 36, background: '#185FA5', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>H</div>
+      <div style={{ width: 36, height: 36, background: '#185FA5', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>V</div>
       <div style={{ fontSize: 13, color: '#aaa' }}>Chargement...</div>
     </div>
   )
 
   if (!user) return <Login />
 
-  const TITLES = { dashboard: 'Accueil', planning: 'Planning', taches: 'Taches', messagerie: 'Messagerie', rappels: 'Rappels', personnel: 'Equipe' }
-  const PAGES = { dashboard: <Dashboard />, planning: <Planning />, taches: <Taches />, messagerie: <Messagerie />, rappels: <Rappels />, personnel: <Personnel /> }
+  const TITLES = {
+    dashboard: 'Accueil', planning: 'Planning', taches: 'Taches',
+    messagerie: 'Messagerie', rappels: 'Rappels', personnel: 'Equipe',
+    superadmin: 'Super Admin',
+  }
+
+  const PAGES = {
+    dashboard: <Dashboard />,
+    planning: <Planning />,
+    taches: <Taches />,
+    messagerie: <Messagerie />,
+    rappels: <Rappels />,
+    personnel: <Personnel />,
+    superadmin: <SuperAdmin />,
+  }
+
+  // Navigation complete : socle + modules actifs
+  const NAV = [...NAV_SOCLE, ...navModules]
 
   const couleurProfil = profile?.couleur || '#185FA5'
   const initiales = ((profile?.prenom?.[0] || '') + (profile?.nom?.[0] || '')).toUpperCase()
@@ -88,9 +112,14 @@ function AppInner() {
 
       <div style={{ background: '#fff', borderBottom: '0.5px solid #e0dfd8', padding: '0 16px', height: 54, display: 'flex', alignItems: 'center', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-          <span style={{ fontSize: 18 }}>H</span>
-          <span style={{ fontSize: 15, fontWeight: 500 }}>HotelDesk Pro</span>
+          <div style={{ width: 28, height: 28, background: '#185FA5', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 14, fontWeight: 700 }}>V</div>
+          <span style={{ fontSize: 15, fontWeight: 600 }}>Velor One</span>
           <span style={{ fontSize: 13, color: '#888', marginLeft: 2 }}>-- {TITLES[page]}</span>
+          {profile?.is_super_admin && (
+            <span style={{ background: '#FEF3C7', color: '#92400E', borderRadius: 8, padding: '2px 8px', fontSize: 10, fontWeight: 700, marginLeft: 8 }}>
+              SUPER ADMIN
+            </span>
+          )}
         </div>
         {profile && (
           <div onClick={() => setMenuOpen(!menuOpen)} style={{
@@ -120,28 +149,47 @@ function AppInner() {
                 <div style={{ fontSize: 11, color: '#888', textTransform: 'capitalize' }}>{profile?.role} - {profile?.departement}</div>
               </div>
             </div>
-            <button onClick={() => { signOut(); setMenuOpen(false) }} style={{ width: '100%', padding: '8px 12px', background: '#FEF2F2', color: '#991B1B', border: '0.5px solid #FCA5A5', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
+            {profile?.is_super_admin && (
+              <button onClick={() => { setPage('superadmin'); setMenuOpen(false) }}
+                style={{ width: '100%', textAlign: 'left', border: 'none', background: '#FEF3C7', color: '#92400E', borderRadius: 6, padding: '8px 12px', cursor: 'pointer', fontWeight: 700, fontSize: 12, marginBottom: 8 }}>
+                Super Admin
+              </button>
+            )}
+            <button onClick={() => { signOut(); setMenuOpen(false) }}
+              style={{ width: '100%', textAlign: 'left', border: 'none', background: '#FEF2F2', color: '#EF4444', borderRadius: 6, padding: '8px 12px', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
               Deconnexion
             </button>
           </div>
         </div>
       )}
 
-      <div style={{ padding: '16px 16px 80px' }}>
-        {PAGES[page]}
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: '0 0 20px' }}>
+        {PAGES[page] || <Dashboard />}
       </div>
 
-      <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '0.5px solid #e0dfd8', display: 'flex', justifyContent: 'space-around', padding: '8px 0 12px', zIndex: 50 }}>
-        {NAV.map(n => (
-          <button key={n.id} onClick={() => setPage(n.id)} style={{
-            background: 'none', border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-            color: page === n.id ? '#185FA5' : '#888', fontSize: 10, cursor: 'pointer', padding: '4px 8px',
-            fontWeight: page === n.id ? 600 : 400
-          }}>
-            <span style={{ fontSize: 18, opacity: page === n.id ? 1 : 0.5 }}>{n.icon}</span>
-            <span>{n.label}</span>
-          </button>
-        ))}
+      <nav style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0,
+        background: '#fff', borderTop: '0.5px solid #e0dfd8',
+        display: 'flex', justifyContent: 'space-around', alignItems: 'center',
+        padding: '8px 0 12px', zIndex: 40
+      }}>
+        {NAV.map(item => {
+          const isActive = page === item.id
+          return (
+            <button key={item.id} onClick={() => setPage(item.id)} style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+              border: 'none', background: 'transparent', cursor: 'pointer',
+              padding: '4px 8px', borderRadius: 8,
+              color: isActive ? couleurProfil : '#9CA3AF',
+              minWidth: 52,
+            }}>
+              <span style={{ fontSize: 18 }}>
+                {item.id === 'dashboard' ? '🏠' : item.id === 'planning' ? '📅' : item.id === 'taches' ? '✅' : item.id === 'messagerie' ? '💬' : item.id === 'rappels' ? '🔔' : item.id === 'personnel' ? '👥' : '🧩'}
+              </span>
+              <span style={{ fontSize: 10, fontWeight: isActive ? 700 : 400 }}>{item.label}</span>
+            </button>
+          )
+        })}
       </nav>
     </div>
   )
@@ -153,4 +201,4 @@ export default function App() {
       <AppInner />
     </AuthProvider>
   )
-        }
+                   }
