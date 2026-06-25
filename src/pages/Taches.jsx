@@ -14,360 +14,366 @@ const PRIOS = ['haute', 'moyenne', 'basse']
 const STATUTS = ['planifiee', 'en_cours', 'terminee', 'annulee']
 const RECURRENCES = ['quotidienne', 'hebdomadaire', 'mensuelle', 'annuelle']
 const PRIO_COLORS = { haute: '#E24B4A', moyenne: '#EF9F27', basse: '#639922' }
-const STATUT_LABELS = { planifiee: 'Planifiee', en_cours: 'En cours', terminee: 'Terminee', annulee: 'Annulee' }
-const STATUT_COLORS = { planifiee: { bg: '#E6F1FB', text: '#0C447C' }, en_cours: { bg: '#FAEEDA', text: '#633806' }, terminee: { bg: '#EAF3DE', text: '#27500A' }, annulee: { bg: '#f0efe8', text: '#888' } }
-
+const STATUT_LABELS = { planifiee: 'Planifiee', en_cours: 'En cours', terminee: 'Terminee', annulee: 'Ann.' }
+const STATUT_COLORS = { planifiee: '#3B82F6', en_cours: '#F59E0B', terminee: '#10B981', annulee: '#6B7280' }
 const DEPT_CATS = {
   menage: ['menage'],
   maintenance: ['maintenance'],
-  reception: ['accueil'],
-  restauration: ['admin'],
-  direction: ['menage', 'maintenance', 'accueil', 'admin', 'urgence']
+  accueil: ['accueil', 'admin'],
+  admin: ['admin'],
+  direction: ['menage', 'maintenance', 'accueil', 'admin', 'urgence'],
 }
 
-const empty = { titre: '', description: '', categorie: 'menage', priorite: 'moyenne', statut: 'planifiee', date_echeance: '', chambre: '', assigne_a: '', recurrence_type: '', recurrence_fin: '', heure_debut: '', heure_fin: '' }
+function TacheRow({ tache, enfants, profile, membres, expandedParents, setExpandedParents, onEdit, onDelete, onStatutChange }) {
+  const isParent = tache.recurrence_type && !tache.tache_parente_id
+  const hasEnfants = isParent && enfants && enfants.length > 0
+  const isExpanded = expandedParents[tache.id]
 
-function getDayLabel(dateStr) {
-  if (!dateStr) return 'Sans date'
-  const d = parseISO(dateStr)
-  if (isToday(d)) return "Aujourd'hui"
-  if (isTomorrow(d)) return 'Demain'
-  if (isYesterday(d)) return 'Hier'
-  return format(d, 'EEEE dd MMMM yyyy', { locale: fr })
-}
-
-function getDayKey(dateStr) {
-  if (!dateStr) return 'nodate'
-  return dateStr.slice(0, 10)
-}
-
-export default function Taches() {
-  const { profile } = useAuth()
-  const [taches, setTaches] = useState([])
-  const [employes, setEmployes] = useState([])
-  const [filtre, setFiltre] = useState('Tout')
-  const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState(empty)
-  const [saving, setSaving] = useState(false)
-  const [editId, setEditId] = useState(null)
-
-  const userRole = profile?.role || 'employe'
-  const userDept = profile?.departement || ''
-  const catsVisibles = userRole === 'admin' ? CATS : (DEPT_CATS[userDept] || [])
-
-  useEffect(() => {
-    fetchTaches()
-    const empQuery = supabase.from('profiles').select('id,nom,prenom,departement,role').eq('actif', true)
-    if (userRole === 'employe') {
-      empQuery.eq('departement', userDept)
-    } else if (userRole === 'responsable') {
-      empQuery.eq('departement', userDept)
-    }
-    empQuery.then(({ data }) => setEmployes(data || []))
-
-    const sub = supabase.channel('taches-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'taches' }, fetchTaches)
-      .subscribe()
-    return () => sub.unsubscribe()
-  }, [])
-
-  async function fetchTaches() {
-    let query = supabase.from('taches').select('*, assignee:profiles!taches_assigne_a_fkey(nom,prenom)').order('date_echeance', { ascending: true, nullsFirst: false })
-    setTaches((await query).data || [])
+  const toggleExpand = (e) => {
+    e.stopPropagation()
+    setExpandedParents(prev => ({ ...prev, [tache.id]: !prev[tache.id] }))
   }
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
-
-  async function save() {
-    if (!form.titre.trim()) return
-    setSaving(true)
-    const payload = {
-      ...form,
-      cree_par: profile.id,
-      assigne_a: form.assigne_a || null,
-      date_echeance: toLocalISO(form.date_echeance),
-      recurrence_type: form.recurrence_type || null,
-      recurrence_fin: form.recurrence_fin || null,
-      heure_debut: form.heure_debut || null,
-      heure_fin: form.heure_fin || null,
-    }
-    if (!payload.recurrence_type) {
-      delete payload.recurrence_fin
-    }
-    if (editId) await supabase.from('taches').update(payload).eq('id', editId)
-    else await supabase.from('taches').insert(payload)
-    await fetchTaches()
-    setShowModal(false)
-    setForm(empty)
-    setEditId(null)
-    setSaving(false)
-  }
-
-  async function toggleStatut(t) {
-    const next = t.statut === 'terminee' ? 'planifiee' : 'terminee'
-    await supabase.from('taches').update({ statut: next, date_terminee: next === 'terminee' ? new Date().toISOString() : null }).eq('id', t.id)
-    fetchTaches()
-  }
-
-  async function deleteTache(id) {
-    if (window.confirm('Supprimer ?')) {
-      await supabase.from('taches').delete().eq('id', id)
-      fetchTaches()
-    }
-  }
-
-  // Role-based filter
-  const tachesFiltreesParRole = taches.filter(t => {
-    if (userRole === 'admin') return true
-    if (userRole === 'responsable') {
-      return catsVisibles.includes(t.categorie) || t.assigne_a === profile?.id || t.cree_par === profile?.id
-    }
-    // employe: only own tasks
-    return t.assigne_a === profile?.id
-  })
-
-  const FILTRES = ['Tout', ...CATS, 'haute', 'moyenne', 'basse', 'planifiee', 'en_cours', 'terminee']
-  const filtrees = tachesFiltreesParRole.filter(t => {
-    if (filtre === 'Tout') return true
-    return t.categorie === filtre || t.priorite === filtre || t.statut === filtre
-  })
-
-  // Group by day
-  const groupes = filtrees.reduce((acc, t) => {
-    const key = getDayKey(t.date_echeance)
-    if (!acc[key]) acc[key] = []
-    acc[key].push(t)
-    return acc
-  }, {})
-
-  function openEdit(t) {
-    setForm({
-      titre: t.titre || '',
-      description: t.description || '',
-      categorie: t.categorie || 'menage',
-      priorite: t.priorite || 'moyenne',
-      statut: t.statut || 'planifiee',
-      date_echeance: t.date_echeance ? t.date_echeance.slice(0, 16) : '',
-      chambre: t.chambre || '',
-      assigne_a: t.assigne_a || '',
-      recurrence_type: t.recurrence_type || '',
-      recurrence_fin: t.recurrence_fin || '',
-      heure_debut: t.heure_debut || '',
-      heure_fin: t.heure_fin || '',
-    })
-    setEditId(t.id)
-    setShowModal(true)
-  }
-
-  const statsGlobales = {
-    total: tachesFiltreesParRole.length,
-    terminees: tachesFiltreesParRole.filter(t => t.statut === 'terminee').length,
-    enCours: tachesFiltreesParRole.filter(t => t.statut === 'en_cours').length,
-    urgentes: tachesFiltreesParRole.filter(t => t.priorite === 'haute' && t.statut !== 'terminee').length,
-  }
+  const renderRow = (t, isChild) => (
+    <div key={t.id} style={{
+      background: isChild ? '#f8fafc' : 'white',
+      borderLeft: isChild ? '3px solid #3B82F6' : 'none',
+      marginLeft: isChild ? 20 : 0,
+      border: isChild ? '1px solid #e2e8f0' : '1px solid #e5e7eb',
+      borderRadius: 8,
+      padding: '12px 16px',
+      marginBottom: 6,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontWeight: 600, flex: 1, minWidth: 120 }}>{t.titre}</span>
+        {isParent && !isChild && (
+          <span style={{ background: '#EFF6FF', color: '#3B82F6', borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
+            Recurrence: {t.recurrence_type}
+          </span>
+        )}
+        <span style={{ background: PRIO_COLORS[t.priorite] + '22', color: PRIO_COLORS[t.priorite], borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
+          {t.priorite}
+        </span>
+        <span style={{ background: STATUT_COLORS[t.statut] + '22', color: STATUT_COLORS[t.statut], borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
+          {STATUT_LABELS[t.statut]}
+        </span>
+        <span style={{ fontSize: 12, color: '#6B7280' }}>{t.categorie}</span>
+        {t.date_echeance && (
+          <span style={{ fontSize: 12, color: isToday(parseISO(t.date_echeance)) ? '#EF4444' : '#6B7280' }}>
+            {format(parseISO(t.date_echeance), 'dd MMM', { locale: fr })}
+          </span>
+        )}
+        {t.heure_debut && <span style={{ fontSize: 11, color: '#8B5CF6' }}>{t.heure_debut.slice(0,5)}</span>}
+        {t.heure_fin && <span style={{ fontSize: 11, color: '#8B5CF6' }}>fin: {t.heure_fin.slice(0,5)}</span>}
+        {(profile?.role === 'admin' || profile?.role === 'responsable' || t.assigne_a === profile?.id) && (
+          <select
+            value={t.statut}
+            onChange={e => onStatutChange(t.id, e.target.value)}
+            style={{ fontSize: 11, borderRadius: 6, border: '1px solid #d1d5db', padding: '2px 4px' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {STATUTS.map(s => <option key={s} value={s}>{STATUT_LABELS[s]}</option>)}
+          </select>
+        )}
+        {(profile?.role === 'admin' || profile?.role === 'responsable') && (
+          <>
+            <button onClick={() => onEdit(t)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>Edit</button>
+            <button onClick={() => onDelete(t.id, isParent)} style={{ background: '#FEE2E2', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>Sup</button>
+          </>
+        )}
+      </div>
+      {t.description && <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>{t.description}</div>}
+      {t.assigne_a && (
+        <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>
+          Assigne: {membres.find(m => m.id === t.assigne_a)?.prenom || 'Inconnu'}
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div>
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8, marginBottom: 16 }}>
-        {[['Total', statsGlobales.total, '#185FA5'], ['Terminees', statsGlobales.terminees, '#3B6D11'], ['En cours', statsGlobales.enCours, '#854F0B'], ['Urgentes', statsGlobales.urgentes, '#A32D2D']].map(([l, v, c]) => (
-          <div key={l} style={{ background: '#fff', border: '0.5px solid #e0dfd8', borderRadius: 10, padding: '10px 12px' }}>
-            <div style={{ fontSize: 20, fontWeight: 500, color: c }}>{v}</div>
-            <div style={{ fontSize: 11, color: '#888', marginTop: 1 }}>{l}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {FILTRES.map(f => (
-            <button key={f} onClick={() => setFiltre(f)}
-              style={{ padding: '4px 10px', borderRadius: 8, border: '1px solid', borderColor: filtre === f ? '#185FA5' : '#d1d5db', background: filtre === f ? '#185FA5' : '#fff', color: filtre === f ? '#fff' : '#555', fontSize: 11, cursor: 'pointer' }}>
-              {f}
-            </button>
-          ))}
-        </div>
-        {(userRole === 'admin' || userRole === 'responsable') && (
-          <button onClick={() => { setForm(empty); setEditId(null); setShowModal(true) }}
-            style={{ padding: '7px 16px', background: '#185FA5', color: '#fff', border: 'none', borderRadius: 9, fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
-            + Nouvelle tache
+      <div style={{ position: 'relative' }}>
+        {renderRow(tache, false)}
+        {hasEnfants && (
+          <button
+            onClick={toggleExpand}
+            style={{
+              position: 'absolute', right: 60, top: 10,
+              background: isExpanded ? '#DBEAFE' : '#EFF6FF',
+              border: '1px solid #BFDBFE', borderRadius: 10,
+              padding: '2px 8px', fontSize: 11, cursor: 'pointer', color: '#1D4ED8',
+            }}
+          >
+            {isExpanded ? 'Reduire' : enfants.length + ' occurrences'}
           </button>
         )}
       </div>
-
-      {/* Task list */}
-      {Object.entries(groupes).sort((a, b) => a[0].localeCompare(b[0])).map(([key, tasks]) => (
-        <div key={key} style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#888', marginBottom: 6, textTransform: 'capitalize' }}>
-            {getDayLabel(key === 'nodate' ? null : tasks[0]?.date_echeance)}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {tasks.map(t => {
-              const col = STATUT_COLORS[t.statut]
-              const pCol = PRIO_COLORS[t.priorite]
-              return (
-                <div key={t.id} style={{ background: '#fff', border: '0.5px solid #e0dfd8', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                  <input type="checkbox" checked={t.statut === 'terminee'} onChange={() => toggleStatut(t)}
-                    style={{ marginTop: 3, cursor: 'pointer', accentColor: '#185FA5' }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      <span style={{ fontWeight: 600, fontSize: 14, color: t.statut === 'terminee' ? '#aaa' : '#222', textDecoration: t.statut === 'terminee' ? 'line-through' : 'none' }}>{t.titre}</span>
-                      <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 6, background: col.bg, color: col.text }}>{STATUT_LABELS[t.statut]}</span>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', background: pCol, display: 'inline-block' }} title={t.priorite} />
-                      {t.recurrence_type && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 5, background: '#f0f0f0', color: '#555' }}>&#x1F501; {t.recurrence_type}</span>}
-                    </div>
-                    {t.description && <div style={{ fontSize: 12, color: '#666', marginTop: 3 }}>{t.description}</div>}
-                    <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                      {t.date_echeance && (
-                        <span style={{ fontSize: 11, color: '#888' }}>
-                          {format(parseISO(t.date_echeance), 'dd/MM/yyyy', { locale: fr })}
-                          {t.heure_debut && <span style={{ color: '#185FA5', marginLeft: 4 }}>{t.heure_debut.slice(0,5)}{t.heure_fin ? ' - ' + t.heure_fin.slice(0,5) : ''}</span>}
-                        </span>
-                      )}
-                      {t.assignee && <span style={{ fontSize: 11, color: '#888' }}>{t.assignee.prenom} {t.assignee.nom}</span>}
-                      {t.chambre && <span style={{ fontSize: 11, color: '#888' }}>Ch. {t.chambre}</span>}
-                      <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 5, background: '#f5f5f3', color: '#777' }}>{t.categorie}</span>
-                    </div>
-                  </div>
-                  {(userRole === 'admin' || userRole === 'responsable') && (
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button onClick={() => openEdit(t)} style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', color: '#555' }}>✏️</button>
-                      <button onClick={() => deleteTache(t.id)} style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6, border: '1px solid #fca5a5', background: '#fff', cursor: 'pointer', color: '#ef4444' }}>🗑</button>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      ))}
-
-      {filtrees.length === 0 && (
-        <div style={{ textAlign: 'center', color: '#aaa', padding: '32px 0', fontSize: 14 }}>Aucune tache</div>
-      )}
-
-      {/* Modal */}
-      {showModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>{editId ? 'Modifier' : 'Nouvelle tache'}</h3>
-              <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#999' }}>×</button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* Titre */}
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Titre *</label>
-                <input value={form.titre} onChange={e => set('titre', e.target.value)} placeholder="Titre de la tache"
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, boxSizing: 'border-box' }} />
-              </div>
-
-              {/* Description */}
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Description</label>
-                <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2} placeholder="Details..."
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, resize: 'vertical', boxSizing: 'border-box' }} />
-              </div>
-
-              {/* Categorie + Priorite */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Categorie</label>
-                  <select value={form.categorie} onChange={e => set('categorie', e.target.value)}
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13 }}>
-                    {catsVisibles.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Priorite</label>
-                  <select value={form.priorite} onChange={e => set('priorite', e.target.value)}
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13 }}>
-                    {PRIOS.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Statut */}
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Statut</label>
-                <select value={form.statut} onChange={e => set('statut', e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13 }}>
-                  {STATUTS.map(s => <option key={s} value={s}>{STATUT_LABELS[s]}</option>)}
-                </select>
-              </div>
-
-              {/* Date echeance */}
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Date d&apos;echeance</label>
-                <input type="datetime-local" value={form.date_echeance} onChange={e => set('date_echeance', e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, boxSizing: 'border-box' }} />
-              </div>
-
-              {/* Horaires */}
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Horaires (planning 24h)</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div>
-                    <label style={{ fontSize: 11, color: '#888', display: 'block', marginBottom: 3 }}>Heure debut</label>
-                    <input type="time" value={form.heure_debut} onChange={e => set('heure_debut', e.target.value)}
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, boxSizing: 'border-box' }} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 11, color: '#888', display: 'block', marginBottom: 3 }}>Heure fin</label>
-                    <input type="time" value={form.heure_fin} onChange={e => set('heure_fin', e.target.value)}
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, boxSizing: 'border-box' }} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Chambre + Assigne */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Chambre</label>
-                  <input value={form.chambre} onChange={e => set('chambre', e.target.value)} placeholder="Ex: 101"
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, boxSizing: 'border-box' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 4 }}>Assigner a</label>
-                  <select value={form.assigne_a} onChange={e => set('assigne_a', e.target.value)}
-                    style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13 }}>
-                    <option value="">Non assigne</option>
-                    {employes.map(e => <option key={e.id} value={e.id}>{e.prenom} {e.nom}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              {/* Recurrence */}
-              <div style={{ background: '#f9f9f7', borderRadius: 10, padding: '12px 14px', border: '1px solid #e8e7e0' }}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 8 }}>Recurrence (optionnel)</label>
-                <select value={form.recurrence_type} onChange={e => set('recurrence_type', e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, marginBottom: 8 }}>
-                  <option value="">Pas de recurrence</option>
-                  {RECURRENCES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
-                </select>
-                {form.recurrence_type && (
-                  <div>
-                    <label style={{ fontSize: 11, color: '#888', display: 'block', marginBottom: 3 }}>Date de fin</label>
-                    <input type="date" value={form.recurrence_fin} onChange={e => set('recurrence_fin', e.target.value)}
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 13, boxSizing: 'border-box' }} />
-                    <div style={{ fontSize: 11, color: '#EF9F27', marginTop: 6 }}>Conseil : definissez une date de fin pour planifier sur toute l&apos;annee</div>
-                  </div>
-                )}
-              </div>
-
-              {/* Boutons */}
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
-                <button onClick={() => setShowModal(false)} style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', fontSize: 13 }}>Annuler</button>
-                <button onClick={save} disabled={saving} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#185FA5', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: 13, opacity: saving ? 0.7 : 1 }}>
-                  {saving ? 'Enregistrement...' : editId ? 'Modifier' : 'Creer'}
-                </button>
-              </div>
-            </div>
-          </div>
+      {hasEnfants && isExpanded && (
+        <div style={{ marginTop: 2 }}>
+          {enfants.map(enf => renderRow(enf, true))}
         </div>
       )}
     </div>
   )
 }
+
+export default function Taches() {
+  const { profile } = useAuth()
+  const [taches, setTaches] = useState([])
+  const [membres, setMembres] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [editTache, setEditTache] = useState(null)
+  const [expandedParents, setExpandedParents] = useState({})
+  const [filtreStatut, setFiltreStatut] = useState('tous')
+  const [filtreCat, setFiltreCat] = useState('toutes')
+  const [filtrePrio, setFiltrePrio] = useState('toutes')
+  const [form, setForm] = useState({
+    titre: '', description: '', categorie: 'menage', priorite: 'moyenne',
+    statut: 'planifiee', date_echeance: '', heure_debut: '', heure_fin: '',
+    assigne_a: '', recurrence_type: '', recurrence_fin: '', chambre: '',
+  })
+
+  useEffect(() => { fetchTaches(); fetchMembres() }, [profile])
+
+  async function fetchMembres() {
+    const { data } = await supabase.from('profiles').select('id, prenom, nom, role, departement')
+    if (data) setMembres(data)
+  }
+
+  async function fetchTaches() {
+    setLoading(true)
+    let query = supabase.from('taches').select('*').order('date_echeance', { ascending: true })
+    if (profile?.role === 'employe') {
+      const allowedCats = DEPT_CATS[profile.departement] || []
+      if (allowedCats.length) query = query.in('categorie', allowedCats)
+      else query = query.eq('assigne_a', profile.id)
+    }
+    const { data } = await query
+    if (data) setTaches(data)
+    setLoading(false)
+  }
+
+  const parents = taches.filter(t => !t.tache_parente_id)
+  const enfantsMap = {}
+  taches.filter(t => t.tache_parente_id).forEach(t => {
+    if (!enfantsMap[t.tache_parente_id]) enfantsMap[t.tache_parente_id] = []
+    enfantsMap[t.tache_parente_id].push(t)
+  })
+
+  const filtered = parents.filter(t => {
+    if (filtreStatut !== 'tous' && t.statut !== filtreStatut) return false
+    if (filtreCat !== 'toutes' && t.categorie !== filtreCat) return false
+    if (filtrePrio !== 'toutes' && t.priorite !== filtrePrio) return false
+    return true
+  })
+
+  function openCreate() {
+    setEditTache(null)
+    setForm({ titre: '', description: '', categorie: 'menage', priorite: 'moyenne', statut: 'planifiee', date_echeance: '', heure_debut: '', heure_fin: '', assigne_a: '', recurrence_type: '', recurrence_fin: '', chambre: '' })
+    setShowForm(true)
+  }
+
+  function openEdit(t) {
+    setEditTache(t)
+    setForm({
+      titre: t.titre || '', description: t.description || '', categorie: t.categorie || 'menage',
+      priorite: t.priorite || 'moyenne', statut: t.statut || 'planifiee',
+      date_echeance: t.date_echeance ? t.date_echeance.slice(0, 10) : '',
+      heure_debut: t.heure_debut ? t.heure_debut.slice(0, 5) : '',
+      heure_fin: t.heure_fin ? t.heure_fin.slice(0, 5) : '',
+      assigne_a: t.assigne_a || '', recurrence_type: t.recurrence_type || '',
+      recurrence_fin: t.recurrence_fin ? t.recurrence_fin.slice(0, 10) : '',
+      chambre: t.chambre || '',
+    })
+    setShowForm(true)
+  }
+
+  async function handleDelete(id, isParent) {
+    const msg = isParent
+      ? 'Supprimer cette tache recurrente et toutes ses occurrences ?'
+      : 'Supprimer cette tache ?'
+    if (!window.confirm(msg)) return
+    if (isParent) {
+      await supabase.from('taches').delete().eq('tache_parente_id', id)
+    }
+    await supabase.from('taches').delete().eq('id', id)
+    fetchTaches()
+  }
+
+  async function handleStatutChange(id, statut) {
+    await supabase.from('taches').update({ statut }).eq('id', id)
+    fetchTaches()
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    const payload = {
+      titre: form.titre,
+      description: form.description || null,
+      categorie: form.categorie,
+      priorite: form.priorite,
+      statut: form.statut,
+      date_echeance: form.date_echeance || null,
+      heure_debut: form.heure_debut || null,
+      heure_fin: form.heure_fin || null,
+      assigne_a: form.assigne_a || null,
+      recurrence_type: form.recurrence_type || null,
+      recurrence_fin: form.recurrence_fin || null,
+      chambre: form.chambre || null,
+    }
+    if (editTache) {
+      await supabase.from('taches').update(payload).eq('id', editTache.id)
+    } else {
+      await supabase.from('taches').insert({ ...payload, cree_par: profile.id })
+    }
+    setShowForm(false)
+    fetchTaches()
+  }
+
+  const canManage = profile?.role === 'admin' || profile?.role === 'responsable'
+
+  if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#6B7280' }}>Chargement...</div>
+
+  return (
+    <div style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1F2937' }}>Taches</h1>
+        {canManage && (
+          <button onClick={openCreate} style={{ background: '#3B82F6', color: 'white', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 600, cursor: 'pointer' }}>
+            + Nouvelle tache
+          </button>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        <select value={filtreStatut} onChange={e => setFiltreStatut(e.target.value)} style={{ borderRadius: 6, border: '1px solid #d1d5db', padding: '6px 10px' }}>
+          <option value='tous'>Tous statuts</option>
+          {STATUTS.map(s => <option key={s} value={s}>{STATUT_LABELS[s]}</option>)}
+        </select>
+        <select value={filtreCat} onChange={e => setFiltreCat(e.target.value)} style={{ borderRadius: 6, border: '1px solid #d1d5db', padding: '6px 10px' }}>
+          <option value='toutes'>Toutes categories</option>
+          {CATS.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select value={filtrePrio} onChange={e => setFiltrePrio(e.target.value)} style={{ borderRadius: 6, border: '1px solid #d1d5db', padding: '6px 10px' }}>
+          <option value='toutes'>Toutes priorites</option>
+          {PRIOS.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div style={{ textAlign: 'center', color: '#9CA3AF', padding: 40 }}>Aucune tache trouvee.</div>
+      ) : (
+        <div>
+          {filtered.map(t => (
+            <TacheRow
+              key={t.id}
+              tache={t}
+              enfants={enfantsMap[t.id] || []}
+              profile={profile}
+              membres={membres}
+              expandedParents={expandedParents}
+              setExpandedParents={setExpandedParents}
+              onEdit={openEdit}
+              onDelete={handleDelete}
+              onStatutChange={handleStatutChange}
+            />
+          ))}
+        </div>
+      )}
+
+      {showForm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <form onSubmit={handleSubmit} style={{ background: 'white', borderRadius: 12, padding: 28, width: 500, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <h2 style={{ marginBottom: 20, fontSize: 18, fontWeight: 700 }}>{editTache ? 'Modifier la tache' : 'Nouvelle tache'}</h2>
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Titre</label>
+              <input required value={form.titre} onChange={e => setForm(f => ({ ...f, titre: e.target.value }))} style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px', fontSize: 14, boxSizing: 'border-box' }} />
+            </div>
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Description</label>
+              <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px', fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }} />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Categorie</label>
+                <select value={form.categorie} onChange={e => setForm(f => ({ ...f, categorie: e.target.value }))} style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px' }}>
+                  {CATS.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Priorite</label>
+                <select value={form.priorite} onChange={e => setForm(f => ({ ...f, priorite: e.target.value }))} style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px' }}>
+                  {PRIOS.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Statut</label>
+                <select value={form.statut} onChange={e => setForm(f => ({ ...f, statut: e.target.value }))} style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px' }}>
+                  {STATUTS.map(s => <option key={s} value={s}>{STATUT_LABELS[s]}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Chambre</label>
+                <input value={form.chambre} onChange={e => setForm(f => ({ ...f, chambre: e.target.value }))} style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px', fontSize: 14, boxSizing: 'border-box' }} />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Date echeance</label>
+                <input type='date' value={form.date_echeance} onChange={e => setForm(f => ({ ...f, date_echeance: e.target.value }))} style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Heure debut</label>
+                <input type='time' value={form.heure_debut} onChange={e => setForm(f => ({ ...f, heure_debut: e.target.value }))} style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px', boxSizing: 'border-box' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Heure fin</label>
+                <input type='time' value={form.heure_fin} onChange={e => setForm(f => ({ ...f, heure_fin: e.target.value }))} style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px', boxSizing: 'border-box' }} />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Recurrence</label>
+                <select value={form.recurrence_type} onChange={e => setForm(f => ({ ...f, recurrence_type: e.target.value }))} style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px' }}>
+                  <option value=''>Aucune</option>
+                  {RECURRENCES.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              {form.recurrence_type && (
+                <div>
+                  <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Fin recurrence</label>
+                  <input type='date' value={form.recurrence_fin} onChange={e => setForm(f => ({ ...f, recurrence_fin: e.target.value }))} style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px', boxSizing: 'border-box' }} />
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Assigner a</label>
+              <select value={form.assigne_a} onChange={e => setForm(f => ({ ...f, assigne_a: e.target.value }))} style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px' }}>
+                <option value=''>Non assigne</option>
+                {membres.map(m => <option key={m.id} value={m.id}>{m.prenom} {m.nom} ({m.role})</option>)}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button type='button' onClick={() => setShowForm(false)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, padding: '8px 18px', cursor: 'pointer', fontWeight: 600 }}>Annuler</button>
+              <button type='submit' style={{ background: '#3B82F6', color: 'white', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 600, cursor: 'pointer' }}>
+                {editTache ? 'Modifier' : 'Creer'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </div>
+  )
+      }
