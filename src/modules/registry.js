@@ -27,7 +27,7 @@ export const ROLE_PERMISSIONS = {
 // Les modules squelettes utilisent lazy(() => Promise.resolve({ default: createModuleSquelette('id') }))
 // ===========================================================
 export const MODULES_REGISTRY = [
-  {
+    {
     id: 'organisation',
     nom: 'Organisation & RH',
     version: '1.0.0',
@@ -46,7 +46,7 @@ export const MODULES_REGISTRY = [
     },
     dependances: [], plans: ['starter', 'business', 'premium', 'enterprise'],
     templates: ['hotel', 'pharmacie', 'commerce', 'mairie', 'restaurant', 'residence'],
-    ordre: 10, categorie: 'rh', couleur: '#6366f1', badge: null, actif: true,
+    ordre: 5, categorie: 'rh', couleur: '#6366f1', badge: null, actif: true,
     widgets: { employes_actifs: true, departements: true, postes: true },
   },
   {
