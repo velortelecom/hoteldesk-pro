@@ -177,7 +177,7 @@ export default function Rappels() {
   async function save() {
     if (!form.titre.trim() || !form.date_rappel) return
     setSaving(true)
-    await supabase.from('rappels').insert({ ...form, date_rappel: toLocalISO(form.date_rappel), cree_par: profile.id, assigne_a: form.assigne_a || null })
+    await supabase.from('rappels').insert({ ...form, date_rappel: toLocalISO(form.date_rappel), cree_par: profile.id, assigne_a: form.assigne_a || null, entreprise_id: profile.entreprise_id })
     await fetchAll()
     setShowModal(false); setForm(empty); setSaving(false)
   }
