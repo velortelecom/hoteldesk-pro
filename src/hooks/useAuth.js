@@ -20,12 +20,14 @@ export function AuthProvider({ children }) {
       if (session?.user) fetchProfile(session.user.id)
       else { setProfile(null); setLoading(false) }
     })
+
     return () => subscription.unsubscribe()
   }, [])
 
   async function fetchProfile(userId) {
+    setLoading(true)
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
-    setProfile(data)
+    setProfile(data ?? null)
     setLoading(false)
   }
 
@@ -34,27 +36,18 @@ export function AuthProvider({ children }) {
     return { error }
   }
 
-  async function signUp(email, password, profileData) {
-    const { data, error } = await supabase.auth.signUp({ email, password })
-    if (!error && data.user) {
-      await supabase.from('profiles').upsert({
-        id: data.user.id,
-        ...profileData,
-        avatar_initiales: (profileData.prenom[0] + profileData.nom[0]).toUpperCase()
-      }, { onConflict: 'id' })
-    }
-    return { error }
-  }
-
   async function signOut() {
     await supabase.auth.signOut()
+    setProfile(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   )
 }
 
-export const useAuth = () => useContext(AuthContext)
+export function useAuth() {
+  return useContext(AuthContext)
+}
