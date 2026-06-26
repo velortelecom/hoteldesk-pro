@@ -4,7 +4,7 @@ import { useAuth } from '../hooks/useAuth'
 
 const PALETTE = [
   '#E53935','#D81B60','#8E24AA','#5E35B1','#3949AB','#1E88E5',
-  '#039BE5','#00ACC1','#00897B','#43A047','#7CB342','#F9A825',
+  '#039BE5','#00ACC1','#00897B','#43A047','#7hCB342','#F9A825',
   '#FB8C00','#F4511E','#6D4C41','#546E7A','#EC407A','#AB47BC',
 ]
 
@@ -80,35 +80,53 @@ export default function Personnel() {
     const identifiant = genIdentifiant()
     const password = genPassword()
 
-    const { data, error } = await supabase.rpc('admin_creer_employe', {
-      p_identifiant: identifiant,
-      p_password: password,
-      p_prenom: form.prenom.trim(),
-      p_nom: form.nom.trim(),
-      p_role: form.role,
-      p_departement: form.departement,
-      p_couleur: form.couleur,
-      p_telephone: form.telephone?.trim() || null,
-    })
+    // Create auth user via supabase.auth.signUp
+        const email = identifiant + '@hoteldesk.local'
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+                email,
+                password,
+                options: { data: { prenom: form.prenom.trim(), nom: form.nom.trim() } }
+        })
 
-    if (error) {
-      showError('Erreur : ' + (error.message || JSON.stringify(error)))
-    } else {
-      // Afficher les identifiants generes
-      setNouvellesCreds({
-        prenom: form.prenom.trim(),
-        nom: form.nom.trim(),
-        identifiant,
-        password,
-      })
-      setShowCredsModal(true)
-      setShowModal(false)
-      setForm(emptyForm)
-      await fetchEmployes()
-    }
-    setSaving(false)
+        if (authError) {
+                showError('Erreur auth : ' + authError.message)
+                setSaving(false)
+                return
+        }
+
+        // Insert profile
+        const { error: profError } = await supabase.from('profiles').insert({
+                id: authData.user.id,
+                prenom: form.prenom.trim(),
+                nom: form.nom.trim(),
+                role: form.role,
+                departement: form.departement,
+                couleur: form.couleur,
+                telephone: form.telephone?.trim() || null,
+                entreprise_id: moi.entreprise_id,
+                actif: true,
+                identifiant,
+        })
+
+        if (profError) {
+                showError('Erreur profil : ' + profError.message)
+                setSaving(false)
+                return
+        }
+
+        // Afficher les identifiants generes
+        setNouvellesCreds({
+                prenom: form.prenom.trim(),
+                nom: form.nom.trim(),
+                identifiant,
+                password,
+        })
+        setShowCredsModal(true)
+        setShowModal(false)
+        setForm(emptyForm)
+        await fetchEmployes()
+        setSaving(false)
   }
-
   // Modifier un profil existant (sans changer le mot de passe)
   async function modifierProfil() {
     if (!form.prenom.trim() || !form.nom.trim()) {
