@@ -13,7 +13,7 @@ export default function Messagerie() {
   const bottomRef = useRef(null)
 
   useEffect(() => {
-    supabase.from('profiles').select('*').neq('id', profile.id).then(({ data }) => setContacts(data || []))
+    supabase.from('profiles').select('*').neq('id', profile.id).eq('entreprise_id', profile.entreprise_id).then(({ data }) => setContacts(data || []))
   }, [profile])
 
   useEffect(() => {
@@ -44,7 +44,7 @@ export default function Messagerie() {
 
   async function send() {
     if (!texte.trim() || !selected) return
-    await supabase.from('messages').insert({ expediteur_id: profile.id, destinataire_id: selected.id, contenu: texte.trim() })
+    await supabase.from('messages').insert({ expediteur_id: profile.id, destinataire_id: selected.id, contenu: texte.trim(), entreprise_id: profile.entreprise_id })
     setTexte('')
   }
 
