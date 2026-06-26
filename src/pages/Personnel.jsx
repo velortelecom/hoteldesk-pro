@@ -34,7 +34,6 @@ export default function Personnel() {
 
   async function fetchEmployes() {
     if (!moi?.entreprise_id) return
-    // Filtre par entreprise_id — double sécurité côté client (RLS gère le reste)
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -57,7 +56,7 @@ export default function Personnel() {
 
   async function save() {
     if (!form.prenom.trim() || !form.nom.trim()) {
-      showError('Prénom et nom obligatoires')
+      showError('Prenom et nom obligatoires')
       return
     }
     if (!isAdmin) {
@@ -79,9 +78,8 @@ export default function Personnel() {
       if (editId) {
         const { error } = await supabase.from('profiles').update(payload).eq('id', editId)
         if (error) throw error
-        showSuccess('✅ Profil mis à jour avec succès')
+        showSuccess('Profil mis a jour avec succes')
       } else {
-        // Créer un profil placeholder — l'employé le liera à son compte auth à la connexion
         const newId = crypto.randomUUID()
         const { error } = await supabase.from('profiles').insert({
           ...payload,
@@ -90,7 +88,7 @@ export default function Personnel() {
           created_at: new Date().toISOString(),
         })
         if (error) throw error
-        showSuccess('✅ Employé ajouté. Il peut maintenant créer son compte avec son email.')
+        showSuccess('Employe ajoute. Il peut maintenant creer son compte.')
       }
       await fetchEmployes()
       setShowModal(false)
@@ -112,7 +110,7 @@ export default function Personnel() {
     const { error } = await supabase.from('profiles').update({ actif: !emp.actif }).eq('id', emp.id)
     if (!error) {
       fetchEmployes()
-      showSuccess(emp.actif ? '⚠️ Employé désactivé' : '✅ Employé réactivé')
+      showSuccess(emp.actif ? 'Employe desactive' : 'Employe reactive')
     }
   }
 
@@ -121,7 +119,7 @@ export default function Personnel() {
     const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', emp.id)
     if (!error) {
       setEmployes(prev => prev.map(e => e.id === emp.id ? { ...e, role: newRole } : e))
-      showSuccess('✅ Rôle mis à jour : ' + newRole)
+      showSuccess('Role mis a jour : ' + newRole)
     }
   }
 
@@ -139,7 +137,6 @@ export default function Personnel() {
     setShowModal(true)
   }
 
-  // Filtres dynamiques
   const filtres = employes.filter(e => {
     const nameMatch = (e.prenom + ' ' + e.nom).toLowerCase().includes(search.toLowerCase()) ||
       (e.departement || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -152,7 +149,6 @@ export default function Personnel() {
   const actifs = filtres.filter(e => e.actif !== false)
   const inactifs = filtres.filter(e => e.actif === false)
 
-  // Statistiques équipe
   const stats = {
     total: employes.filter(e => e.actif !== false).length,
     admins: employes.filter(e => e.actif !== false && e.role === 'admin').length,
@@ -164,7 +160,6 @@ export default function Personnel() {
 
   return (
     <div style={{ padding: '16px 0' }}>
-      {/* Notifications */}
       {successMsg && (
         <div style={{ background: '#D1FAE5', color: '#065F46', padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 13 }}>
           {successMsg}
@@ -176,14 +171,13 @@ export default function Personnel() {
         </div>
       )}
 
-      {/* Stats rapides (admin seulement) */}
       {isAdmin && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 }}>
           {[
             { label: 'Total actifs', val: stats.total, color: '#185FA5' },
             { label: 'Admins', val: stats.admins, color: '#7C3AED' },
             { label: 'Responsables', val: stats.responsables, color: '#D97706' },
-            { label: 'Employés', val: stats.employes, color: '#059669' },
+            { label: 'Employes', val: stats.employes, color: '#059669' },
           ].map(s => (
             <div key={s.label} style={{ background: '#fff', border: '0.5px solid #e0dfd8', borderRadius: 10, padding: '10px 12px', textAlign: 'center' }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: s.color }}>{s.val}</div>
@@ -193,7 +187,6 @@ export default function Personnel() {
         </div>
       )}
 
-      {/* Barre de recherche + filtres */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <input
           value={search}
@@ -203,12 +196,12 @@ export default function Personnel() {
         />
         <select value={filterDep} onChange={e => setFilterDep(e.target.value)}
           style={{ padding: '8px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12, background: '#fff', color: '#444' }}>
-          <option value="">Tous les dépts</option>
+          <option value="">Tous les depts</option>
           {deps.map(d => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
         </select>
         <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
           style={{ padding: '8px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12, background: '#fff', color: '#444' }}>
-          <option value="">Tous les rôles</option>
+          <option value="">Tous les roles</option>
           {ROLES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
         </select>
         {canEdit && (
@@ -219,15 +212,14 @@ export default function Personnel() {
         )}
       </div>
 
-      {/* Liste actifs */}
       {actifs.length > 0 && (
         <>
           <div style={{ fontSize: 12, fontWeight: 500, color: '#888', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 10 }}>
-            Équipe active ({actifs.length})
+            Equipe active ({actifs.length})
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
             {actifs.map(emp => (
-              <EmployeCard key={emp.id} emp={emp} canEdit={canEdit} isAdmin={isAdmin}
+              <EmployeCard key={emp.id} emp={emp} canEdit={canEdit} isAdmin={isAdmin} isResponsable={isResponsable}
                 onEdit={openEdit} onToggleActif={toggleActif} onCouleur={updateCouleur}
                 onChangeRole={changeRole} moi={moi} />
             ))}
@@ -235,7 +227,6 @@ export default function Personnel() {
         </>
       )}
 
-      {/* Liste inactifs */}
       {inactifs.length > 0 && isAdmin && (
         <>
           <div style={{ fontSize: 12, fontWeight: 500, color: '#bbb', textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 10 }}>
@@ -243,7 +234,7 @@ export default function Personnel() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: .6 }}>
             {inactifs.map(emp => (
-              <EmployeCard key={emp.id} emp={emp} canEdit={canEdit} isAdmin={isAdmin}
+              <EmployeCard key={emp.id} emp={emp} canEdit={canEdit} isAdmin={isAdmin} isResponsable={isResponsable}
                 onEdit={openEdit} onToggleActif={toggleActif} onCouleur={updateCouleur}
                 onChangeRole={changeRole} moi={moi} />
             ))}
@@ -252,18 +243,16 @@ export default function Personnel() {
       )}
 
       {filtres.length === 0 && (
-        <div style={{ textAlign: 'center', color: '#bbb', padding: 50, fontSize: 14 }}>Aucun résultat</div>
+        <div style={{ textAlign: 'center', color: '#bbb', padding: 50, fontSize: 14 }}>Aucun resultat</div>
       )}
 
-      {/* Modal ajout/édition */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 18 }}>
-              {editId ? 'Modifier l\'employé' : 'Ajouter un employé'}
+              {editId ? 'Modifier le profil' : 'Ajouter un employe'}
             </div>
 
-            {/* Aperçu avatar */}
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
               <div style={{ width: 56, height: 56, borderRadius: '50%', background: form.couleur + '22', border: '3px solid ' + form.couleur, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 500, color: form.couleur }}>
                 {form.prenom ? (form.prenom[0] + (form.nom[0] || '')).toUpperCase() : '??'}
@@ -271,7 +260,7 @@ export default function Personnel() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-              {[['Prénom *', 'prenom', 'Jean'], ['Nom *', 'nom', 'Dupont']].map(([l, k, ph]) => (
+              {[['Prenom *', 'prenom', 'Jean'], ['Nom *', 'nom', 'Dupont']].map(([l, k, ph]) => (
                 <div key={k}>
                   <label style={lbl}>{l}</label>
                   <input value={form[k]} onChange={e => set(k, e.target.value)} placeholder={ph} style={inp} />
@@ -280,12 +269,12 @@ export default function Personnel() {
             </div>
 
             <div style={{ marginBottom: 12 }}>
-              <label style={lbl}>Téléphone</label>
+              <label style={lbl}>Telephone</label>
               <input value={form.telephone} onChange={e => set('telephone', e.target.value)} placeholder="+33 6 00 00 00 00" style={inp} />
             </div>
 
             <div style={{ marginBottom: 12 }}>
-              <label style={lbl}>Département</label>
+              <label style={lbl}>Departement</label>
               <select value={form.departement} onChange={e => set('departement', e.target.value)} style={inp}>
                 {DEPS.map(d => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
               </select>
@@ -293,17 +282,16 @@ export default function Personnel() {
 
             {isAdmin && (
               <div style={{ marginBottom: 16 }}>
-                <label style={lbl}>Rôle</label>
+                <label style={lbl}>Role</label>
                 <select value={form.role} onChange={e => set('role', e.target.value)} style={inp}>
                   {ROLES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
                 </select>
                 <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
-                  Admin = accès total à l\'entreprise | Responsable = accès lecture équipe | Employé = accès personnel
+                  Admin = acces total | Responsable = lecture equipe | Employe = acces personnel
                 </div>
               </div>
             )}
 
-            {/* Sélecteur couleur */}
             <div style={{ marginBottom: 20 }}>
               <label style={lbl}>Couleur planning</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
@@ -318,7 +306,7 @@ export default function Personnel() {
                 ))}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-                <span style={{ fontSize: 12, color: '#888' }}>Personnalisé :</span>
+                <span style={{ fontSize: 12, color: '#888' }}>Personnalise :</span>
                 <input type="color" value={form.couleur} onChange={e => set('couleur', e.target.value)}
                   style={{ width: 32, height: 28, border: '0.5px solid #d0cfc8', borderRadius: 6, cursor: 'pointer', padding: 2 }} />
                 <span style={{ fontSize: 12, color: '#aaa', fontFamily: 'monospace' }}>{form.couleur}</span>
@@ -327,7 +315,7 @@ export default function Personnel() {
 
             {!editId && (
               <div style={{ background: '#EFF6FF', color: '#1E40AF', fontSize: 12, padding: '10px 12px', borderRadius: 8, marginBottom: 16, lineHeight: 1.6 }}>
-                💡 <strong>Info :</strong> L\'employé devra créer son compte depuis la page de connexion. Son profil sera automatiquement lié à son compte.
+                Info : L employe devra creer son compte depuis la page de connexion. Son profil sera automatiquement lie a son compte.
               </div>
             )}
 
@@ -348,7 +336,7 @@ export default function Personnel() {
   )
 }
 
-function EmployeCard({ emp, canEdit, isAdmin, onEdit, onToggleActif, onCouleur, onChangeRole, moi }) {
+function EmployeCard({ emp, canEdit, isAdmin, isResponsable, onEdit, onToggleActif, onCouleur, onChangeRole, moi }) {
   const [showPalette, setShowPalette] = useState(false)
   const [showActions, setShowActions] = useState(false)
   const couleur = emp.couleur || '#1E88E5'
@@ -365,7 +353,6 @@ function EmployeCard({ emp, canEdit, isAdmin, onEdit, onToggleActif, onCouleur, 
   return (
     <div style={{ background: '#fff', border: '0.5px solid #e0dfd8', borderRadius: 10, padding: '12px 14px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        {/* Avatar */}
         <div onClick={() => canEdit && setShowPalette(!showPalette)}
           style={{ width: 44, height: 44, borderRadius: '50%', background: couleur + '22', border: '2.5px solid ' + couleur, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, color: couleur, flexShrink: 0, cursor: canEdit ? 'pointer' : 'default', position: 'relative' }}>
           {initiales}
@@ -379,7 +366,6 @@ function EmployeCard({ emp, canEdit, isAdmin, onEdit, onToggleActif, onCouleur, 
           )}
         </div>
 
-        {/* Infos */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#222', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             {emp.prenom} {emp.nom}
@@ -387,61 +373,56 @@ function EmployeCard({ emp, canEdit, isAdmin, onEdit, onToggleActif, onCouleur, 
             <span style={{ fontSize: 10, background: rc.bg, color: rc.color, padding: '1px 7px', borderRadius: 8, fontWeight: 700, textTransform: 'uppercase' }}>{emp.role}</span>
           </div>
           <div style={{ fontSize: 12, color: '#888', marginTop: 3, display: 'flex', gap: 10 }}>
-            <span>📍 {emp.departement}</span>
-            {emp.telephone && <span>📞 {emp.telephone}</span>}
+            <span>{emp.departement}</span>
+            {emp.telephone && <span>{emp.telephone}</span>}
           </div>
         </div>
 
-        {/* Actions admin */}
         {canEdit && (
           <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
             {isAdmin && !isSelf && (
               <div style={{ position: 'relative' }}>
                 <button onClick={() => setShowActions(!showActions)}
                   style={{ border: '0.5px solid #e0dfd8', background: '#fafaf8', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12, color: '#555' }}>
-                  ⚙️
+                  options
                 </button>
                 {showActions && (
                   <div style={{ position: 'absolute', right: 0, top: 32, background: '#fff', border: '0.5px solid #e0dfd8', borderRadius: 10, padding: 8, zIndex: 60, boxShadow: '0 4px 20px rgba(0,0,0,.1)', minWidth: 170 }}>
-                    {/* Changer le rôle */}
-                    <div style={{ fontSize: 11, color: '#999', padding: '4px 8px', borderBottom: '0.5px solid #f0efe8', marginBottom: 4 }}>CHANGER LE RÔLE</div>
+                    <div style={{ fontSize: 11, color: '#999', padding: '4px 8px', borderBottom: '0.5px solid #f0efe8', marginBottom: 4 }}>CHANGER LE ROLE</div>
                     {ROLES.filter(r => r !== emp.role).map(r => (
                       <button key={r} onClick={() => { onChangeRole(emp, r); setShowActions(false) }}
                         style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '6px 8px', cursor: 'pointer', fontSize: 12, color: '#333', borderRadius: 4 }}>
-                        → Passer {r}
+                        Passer {r}
                       </button>
                     ))}
                     <div style={{ borderTop: '0.5px solid #f0efe8', marginTop: 4, paddingTop: 4 }}>
                       <button onClick={() => { onEdit(emp); setShowActions(false) }}
                         style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '6px 8px', cursor: 'pointer', fontSize: 12, color: '#333', borderRadius: 4 }}>
-                        ✏️ Modifier le profil
+                        Modifier le profil
                       </button>
                       <button onClick={() => { onToggleActif(emp); setShowActions(false) }}
                         style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: emp.actif !== false ? '#FEF2F2' : '#F0FDF4', padding: '6px 8px', cursor: 'pointer', fontSize: 12, color: emp.actif !== false ? '#EF4444' : '#16A34A', borderRadius: 4, marginTop: 2 }}>
-                        {emp.actif !== false ? '⛔ Désactiver' : '✅ Réactiver'}
+                        {emp.actif !== false ? 'Desactiver' : 'Reactiver'}
                       </button>
                     </div>
                   </div>
                 )}
               </div>
             )}
-            {/* Responsable : juste modifier (pas rôle) */}
             {isResponsable && !isSelf && (
               <button onClick={() => onEdit(emp)}
                 style={{ border: '0.5px solid #e0dfd8', background: '#fafaf8', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12, color: '#555' }}>
-                ✏️
+                Modifier
               </button>
             )}
           </div>
         )}
       </div>
 
-      {/* Barre couleur bas */}
       <div style={{ marginTop: 10, height: 3, borderRadius: 2, background: couleur + '33' }}>
         <div style={{ height: '100%', width: '100%', background: couleur, borderRadius: 2, opacity: .6 }} />
       </div>
 
-      {/* Fermer les menus en cliquant ailleurs */}
       {(showPalette || showActions) && (
         <div onClick={() => { setShowPalette(false); setShowActions(false) }} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
       )}
