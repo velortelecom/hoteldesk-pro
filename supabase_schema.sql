@@ -199,3 +199,113 @@ CREATE POLICY soldes_conges_select ON soldes_conges FOR SELECT USING (
 CREATE POLICY soldes_conges_manage ON soldes_conges FOR ALL USING (
   is_super_admin() OR (get_my_role() = 'admin' AND entreprise_id = get_my_entreprise_id())
 );
+
+
+-- ============================================
+-- POLICIES RLS - ISOLATION PAR ENTREPRISE v2.0
+-- Mise à jour : isolation admin par entreprise
+-- ============================================
+
+-- PROFILES : L'admin a la main totale sur son entreprise
+DROP POLICY IF EXISTS "profiles_select" ON profiles;
+DROP POLICY IF EXISTS "Inserer profil" ON profiles;
+DROP POLICY IF EXISTS "Modifier son profil" ON profiles;
+
+CREATE POLICY "profiles_select" ON profiles
+FOR SELECT USING (
+  auth.uid() = id
+  OR is_super_admin()
+  OR (get_my_role() = ANY(ARRAY['admin','responsable']) AND entreprise_id = get_my_entreprise_id())
+);
+
+CREATE POLICY "profiles_insert" ON profiles
+FOR INSERT WITH CHECK (
+  auth.uid() = id
+  OR is_super_admin()
+  OR (get_my_role() = 'admin' AND entreprise_id = get_my_entreprise_id())
+);
+
+CREATE POLICY "profiles_update" ON profiles
+FOR UPDATE USING (
+  auth.uid() = id
+  OR is_super_admin()
+  OR (get_my_role() = 'admin' AND entreprise_id = get_my_entreprise_id())
+) WITH CHECK (
+  auth.uid() = id
+  OR is_super_admin()
+  OR (get_my_role() = 'admin' AND entreprise_id = get_my_entreprise_id())
+);
+
+CREATE POLICY "profiles_delete" ON profiles
+FOR DELETE USING (
+  is_super_admin()
+  OR (get_my_role() = 'admin' AND entreprise_id = get_my_entreprise_id() AND auth.uid() != id)
+);
+
+-- RAPPELS : isolation par entreprise
+DROP POLICY IF EXISTS "CRUD rappels" ON rappels;
+DROP POLICY IF EXISTS "rappels_select" ON rappels;
+DROP POLICY IF EXISTS "rappels_insert" ON rappels;
+DROP POLICY IF EXISTS "rappels_update" ON rappels;
+DROP POLICY IF EXISTS "rappels_delete" ON rappels;
+
+CREATE POLICY "rappels_select" ON rappels
+FOR SELECT USING (
+  is_super_admin()
+  OR auth.uid() = cree_par
+  OR (get_my_role() = ANY(ARRAY['admin','responsable']) AND entreprise_id = get_my_entreprise_id())
+);
+
+CREATE POLICY "rappels_insert" ON rappels
+FOR INSERT WITH CHECK (
+  is_super_admin()
+  OR (auth.uid() = cree_par AND entreprise_id = get_my_entreprise_id())
+);
+
+CREATE POLICY "rappels_update" ON rappels
+FOR UPDATE USING (
+  is_super_admin() OR auth.uid() = cree_par
+  OR (get_my_role() = 'admin' AND entreprise_id = get_my_entreprise_id())
+);
+
+CREATE POLICY "rappels_delete" ON rappels
+FOR DELETE USING (
+  is_super_admin() OR auth.uid() = cree_par
+  OR (get_my_role() = 'admin' AND entreprise_id = get_my_entreprise_id())
+);
+
+-- TACHES : with_check sur entreprise_id
+DROP POLICY IF EXISTS "taches_insert" ON taches;
+CREATE POLICY "taches_insert" ON taches
+FOR INSERT WITH CHECK (
+  is_super_admin() OR entreprise_id = get_my_entreprise_id()
+);
+
+-- MESSAGES : isolation par entreprise
+DROP POLICY IF EXISTS "messages_select" ON messages;
+DROP POLICY IF EXISTS "Envoyer message" ON messages;
+DROP POLICY IF EXISTS "Lire ses messages" ON messages;
+DROP POLICY IF EXISTS "Voir ses messages" ON messages;
+DROP POLICY IF EXISTS "messages_insert" ON messages;
+DROP POLICY IF EXISTS "messages_delete" ON messages;
+
+CREATE POLICY "messages_select" ON messages
+FOR SELECT USING (
+  is_super_admin()
+  OR expediteur_id = auth.uid()
+  OR destinataire_id = auth.uid()
+  OR (get_my_role() = ANY(ARRAY['admin','responsable']) AND entreprise_id = get_my_entreprise_id())
+);
+
+CREATE POLICY "messages_insert" ON messages
+FOR INSERT WITH CHECK (
+  is_super_admin()
+  OR (expediteur_id = auth.uid() AND entreprise_id = get_my_entreprise_id())
+);
+
+CREATE POLICY "messages_delete" ON messages
+FOR DELETE USING (
+  is_super_admin()
+  OR expediteur_id = auth.uid()
+  OR (get_my_role() = 'admin' AND entreprise_id = get_my_entreprise_id())
+);
