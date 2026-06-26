@@ -11,12 +11,27 @@ const PALETTE = [
 const DEPS = ['reception','menage','maintenance','restauration','direction','cuisine','securite','technique']
 const ROLES = ['employe','responsable','admin']
 
-const emptyForm = { prenom: '', nom: '', email: '', role: 'employe', departement: 'reception', couleur: '#1E88E5', telephone: '' }
+const emptyForm = { prenom: '', nom: '', role: 'employe', departement: 'reception', couleur: '#1E88E5', telephone: '' }
+
+// Generer un identifiant 6 chiffres unique
+function genIdentifiant() {
+  return String(Math.floor(100000 + Math.random() * 900000))
+}
+
+// Generer un mot de passe aleatoire 8 caracteres
+function genPassword() {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
+  let pw = ''
+  for (let i = 0; i < 8; i++) pw += chars[Math.floor(Math.random() * chars.length)]
+  return pw
+}
 
 export default function Personnel() {
   const { profile: moi } = useAuth()
   const [employes, setEmployes] = useState([])
   const [showModal, setShowModal] = useState(false)
+  const [showCredsModal, setShowCredsModal] = useState(false)
+  const [nouvellesCreds, setNouvellesCreds] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [editId, setEditId] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -46,25 +61,62 @@ export default function Personnel() {
 
   function showSuccess(msg) {
     setSuccessMsg(msg)
-    setTimeout(() => setSuccessMsg(''), 4000)
+    setTimeout(() => setSuccessMsg(''), 5000)
   }
 
   function showError(msg) {
     setErrorMsg(msg)
-    setTimeout(() => setErrorMsg(''), 5000)
+    setTimeout(() => setErrorMsg(''), 6000)
   }
 
-  async function save() {
+  // Creer un nouveau compte employe (admin seulement)
+  async function creerCompte() {
     if (!form.prenom.trim() || !form.nom.trim()) {
       showError('Prenom et nom obligatoires')
       return
     }
-    if (!isAdmin) {
-      showError('Seul un admin peut modifier les profils')
+    setSaving(true)
+
+    const identifiant = genIdentifiant()
+    const password = genPassword()
+
+    const { data, error } = await supabase.rpc('admin_creer_employe', {
+      p_identifiant: identifiant,
+      p_password: password,
+      p_prenom: form.prenom.trim(),
+      p_nom: form.nom.trim(),
+      p_role: form.role,
+      p_departement: form.departement,
+      p_couleur: form.couleur,
+      p_telephone: form.telephone?.trim() || null,
+    })
+
+    if (error) {
+      showError('Erreur : ' + (error.message || JSON.stringify(error)))
+    } else {
+      // Afficher les identifiants generes
+      setNouvellesCreds({
+        prenom: form.prenom.trim(),
+        nom: form.nom.trim(),
+        identifiant,
+        password,
+      })
+      setShowCredsModal(true)
+      setShowModal(false)
+      setForm(emptyForm)
+      await fetchEmployes()
+    }
+    setSaving(false)
+  }
+
+  // Modifier un profil existant (sans changer le mot de passe)
+  async function modifierProfil() {
+    if (!form.prenom.trim() || !form.nom.trim()) {
+      showError('Prenom et nom obligatoires')
       return
     }
     setSaving(true)
-    const payload = {
+    const { error } = await supabase.from('profiles').update({
       prenom: form.prenom.trim(),
       nom: form.nom.trim(),
       role: form.role,
@@ -72,30 +124,16 @@ export default function Personnel() {
       couleur: form.couleur,
       telephone: form.telephone?.trim() || null,
       avatar_initiales: (form.prenom[0] + form.nom[0]).toUpperCase(),
-      entreprise_id: moi.entreprise_id,
-    }
-    try {
-      if (editId) {
-        const { error } = await supabase.from('profiles').update(payload).eq('id', editId)
-        if (error) throw error
-        showSuccess('Profil mis a jour avec succes')
-      } else {
-        const newId = crypto.randomUUID()
-        const { error } = await supabase.from('profiles').insert({
-          ...payload,
-          id: newId,
-          actif: true,
-          created_at: new Date().toISOString(),
-        })
-        if (error) throw error
-        showSuccess('Employe ajoute. Il peut maintenant creer son compte.')
-      }
+    }).eq('id', editId)
+
+    if (error) {
+      showError('Erreur : ' + error.message)
+    } else {
+      showSuccess('Profil mis a jour')
       await fetchEmployes()
       setShowModal(false)
       setForm(emptyForm)
       setEditId(null)
-    } catch (err) {
-      showError('Erreur : ' + (err.message || JSON.stringify(err)))
     }
     setSaving(false)
   }
@@ -127,7 +165,6 @@ export default function Personnel() {
     setForm({
       prenom: emp.prenom || '',
       nom: emp.nom || '',
-      email: '',
       role: emp.role || 'employe',
       departement: emp.departement || 'reception',
       couleur: emp.couleur || '#1E88E5',
@@ -139,8 +176,7 @@ export default function Personnel() {
 
   const filtres = employes.filter(e => {
     const nameMatch = (e.prenom + ' ' + e.nom).toLowerCase().includes(search.toLowerCase()) ||
-      (e.departement || '').toLowerCase().includes(search.toLowerCase()) ||
-      (e.email || '').toLowerCase().includes(search.toLowerCase())
+      (e.departement || '').toLowerCase().includes(search.toLowerCase())
     const depMatch = !filterDep || e.departement === filterDep
     const roleMatch = !filterRole || e.role === filterRole
     return nameMatch && depMatch && roleMatch
@@ -204,10 +240,10 @@ export default function Personnel() {
           <option value="">Tous les roles</option>
           {ROLES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
         </select>
-        {canEdit && (
+        {isAdmin && (
           <button onClick={() => { setForm(emptyForm); setEditId(null); setShowModal(true) }}
-            style={{ padding: '8px 14px', background: '#185FA5', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-            + Ajouter
+            style={{ padding: '8px 14px', background: '#185FA5', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 600 }}>
+            + Creer employe
           </button>
         )}
       </div>
@@ -246,15 +282,21 @@ export default function Personnel() {
         <div style={{ textAlign: 'center', color: '#bbb', padding: 50, fontSize: 14 }}>Aucun resultat</div>
       )}
 
+      {/* Modal creation employe */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto' }}>
-            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 18 }}>
-              {editId ? 'Modifier le profil' : 'Ajouter un employe'}
+            <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
+              {editId ? 'Modifier le profil' : 'Creer un employe'}
             </div>
+            {!editId && (
+              <div style={{ fontSize: 12, color: '#888', marginBottom: 18 }}>
+                Un identifiant 6 chiffres et un mot de passe seront generes automatiquement
+              </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: form.couleur + '22', border: '3px solid ' + form.couleur, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, fontWeight: 500, color: form.couleur }}>
+              <div style={{ width: 52, height: 52, borderRadius: '50%', background: form.couleur + '22', border: '3px solid ' + form.couleur, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 600, color: form.couleur }}>
                 {form.prenom ? (form.prenom[0] + (form.nom[0] || '')).toUpperCase() : '??'}
               </div>
             </div>
@@ -286,9 +328,6 @@ export default function Personnel() {
                 <select value={form.role} onChange={e => set('role', e.target.value)} style={inp}>
                   {ROLES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
                 </select>
-                <div style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
-                  Admin = acces total | Responsable = lecture equipe | Employe = acces personnel
-                </div>
               </div>
             )}
 
@@ -297,7 +336,7 @@ export default function Personnel() {
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
                 {PALETTE.map(c => (
                   <div key={c} onClick={() => set('couleur', c)} style={{
-                    width: 28, height: 28, borderRadius: '50%', background: c, cursor: 'pointer',
+                    width: 26, height: 26, borderRadius: '50%', background: c, cursor: 'pointer',
                     outline: form.couleur === c ? '3px solid ' + c : 'none',
                     outlineOffset: 2,
                     transform: form.couleur === c ? 'scale(1.2)' : 'scale(1)',
@@ -305,30 +344,62 @@ export default function Personnel() {
                   }} />
                 ))}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-                <span style={{ fontSize: 12, color: '#888' }}>Personnalise :</span>
-                <input type="color" value={form.couleur} onChange={e => set('couleur', e.target.value)}
-                  style={{ width: 32, height: 28, border: '0.5px solid #d0cfc8', borderRadius: 6, cursor: 'pointer', padding: 2 }} />
-                <span style={{ fontSize: 12, color: '#aaa', fontFamily: 'monospace' }}>{form.couleur}</span>
-              </div>
             </div>
-
-            {!editId && (
-              <div style={{ background: '#EFF6FF', color: '#1E40AF', fontSize: 12, padding: '10px 12px', borderRadius: 8, marginBottom: 16, lineHeight: 1.6 }}>
-                Info : L employe devra creer son compte depuis la page de connexion. Son profil sera automatiquement lie a son compte.
-              </div>
-            )}
 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => { setShowModal(false); setForm(emptyForm); setEditId(null) }}
                 style={{ padding: '8px 16px', border: '0.5px solid #d0cfc8', borderRadius: 8, background: 'none', cursor: 'pointer', fontSize: 13 }}>
                 Annuler
               </button>
-              <button onClick={save} disabled={saving}
-                style={{ padding: '8px 16px', background: '#185FA5', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', opacity: saving ? .7 : 1 }}>
-                {saving ? 'Enregistrement...' : editId ? 'Enregistrer' : 'Ajouter'}
+              <button onClick={editId ? modifierProfil : creerCompte} disabled={saving}
+                style={{ padding: '8px 16px', background: '#185FA5', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', opacity: saving ? .7 : 1, fontWeight: 600 }}>
+                {saving ? 'En cours...' : editId ? 'Enregistrer' : 'Creer le compte'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal affichage identifiants */}
+      {showCredsModal && nouvellesCreds && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 380 }}>
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: '#065F46' }}>Compte cree !</div>
+              <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>
+                {nouvellesCreds.prenom} {nouvellesCreds.nom}
+              </div>
+            </div>
+
+            <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12, padding: 20, marginBottom: 20 }}>
+              <div style={{ fontSize: 12, color: '#166534', fontWeight: 600, marginBottom: 14, textTransform: 'uppercase', letterSpacing: '.05em' }}>
+                Identifiants de connexion
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>Identifiant (6 chiffres)</div>
+                <div style={{ fontSize: 28, fontWeight: 800, color: '#185FA5', letterSpacing: 8, textAlign: 'center', fontFamily: 'monospace', background: '#EFF6FF', padding: '10px 0', borderRadius: 8 }}>
+                  {nouvellesCreds.identifiant}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>Mot de passe</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#374151', letterSpacing: 4, textAlign: 'center', fontFamily: 'monospace', background: '#F9FAFB', padding: '8px 0', borderRadius: 8 }}>
+                  {nouvellesCreds.password}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ background: '#FEF3C7', color: '#92400E', fontSize: 12, padding: '10px 14px', borderRadius: 8, marginBottom: 20, lineHeight: 1.6 }}>
+              Notez ces identifiants et transmettez-les a l employe. Ils ne pourront pas etre affiches a nouveau.
+            </div>
+
+            <button onClick={() => { setShowCredsModal(false); setNouvellesCreds(null); showSuccess('Employe cree avec succes') }}
+              style={{ width: '100%', padding: '12px', background: '#185FA5', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+              Compris, fermer
+            </button>
           </div>
         </div>
       )}
