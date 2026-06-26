@@ -2,123 +2,133 @@ import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 
 export default function Login() {
-  const { signIn, signUp } = useAuth()
-  const [mode, setMode] = useState('login')
+  const { signIn } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [form, setForm] = useState({ email: '', password: '', nom: '', prenom: '', departement: 'accueil' })
+  const [form, setForm] = useState({ identifiant: '', password: '' })
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  async function handleSubmit(e) {
+  async function handleLogin(e) {
     e.preventDefault()
+    if (!form.identifiant.trim() || !form.password.trim()) {
+      setError('Identifiant et mot de passe requis')
+      return
+    }
     setLoading(true)
     setError('')
-    let res
-    if (mode === 'login') {
-      res = await signIn(form.email, form.password)
-    } else {
-      res = await signUp(form.email, form.password, {
-        nom: form.nom,
-        prenom: form.prenom,
-        role: 'employe',
-        departement: form.departement
-      })
+    // L email est construit : identifiant + @hoteldesk.local
+    const email = form.identifiant.trim() + '@hoteldesk.local'
+    const { error: err } = await signIn(email, form.password)
+    if (err) {
+      setError('Identifiant ou mot de passe incorrect')
     }
-    if (res.error) setError(res.error.message)
     setLoading(false)
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f3', padding: 16 }}>
-      <div style={{ width: '100%', maxWidth: 380, background: '#fff', borderRadius: 16, padding: 28, boxShadow: '0 2px 20px rgba(0,0,0,.08)' }}>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
-          <div style={{ width: 40, height: 40, background: '#185FA5', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 20, fontWeight: 700 }}>H</div>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#1e293b' }}>HotelDesk Pro</div>
-            <div style={{ fontSize: 12, color: '#888' }}>{mode === 'login' ? 'Connexion' : 'Inscription'}</div>
-          </div>
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #f5f5f3 0%, #e8e7e0 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 16,
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+    }}>
+      <div style={{ width: '100%', maxWidth: 380 }}>
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{
+            width: 56, height: 56, background: '#185FA5', borderRadius: 14,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'white', fontSize: 24, fontWeight: 700, margin: '0 auto 12px'
+          }}>V</div>
+          <div style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a' }}>HotelDesk Pro</div>
+          <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>Connexion a votre espace</div>
         </div>
 
-        <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 10, padding: 3, marginBottom: 20 }}>
-          <button onClick={() => setMode('login')} style={{ flex: 1, padding: '7px 0', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 500, background: mode === 'login' ? '#fff' : 'transparent', color: mode === 'login' ? '#185FA5' : '#888', boxShadow: mode === 'login' ? '0 1px 4px rgba(0,0,0,.1)' : 'none' }}>
+        {/* Carte connexion */}
+        <div style={{
+          background: '#fff',
+          borderRadius: 16,
+          padding: 28,
+          boxShadow: '0 4px 24px rgba(0,0,0,.08)',
+          border: '0.5px solid #e0dfd8'
+        }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#222', marginBottom: 20 }}>
             Connexion
-          </button>
-          <button onClick={() => setMode('signup')} style={{ flex: 1, padding: '7px 0', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontWeight: 500, background: mode === 'signup' ? '#fff' : 'transparent', color: mode === 'signup' ? '#185FA5' : '#888', boxShadow: mode === 'signup' ? '0 1px 4px rgba(0,0,0,.1)' : 'none' }}>
-            Inscription
-          </button>
+          </div>
+
+          <form onSubmit={handleLogin}>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 5 }}>
+                Identifiant (6 chiffres)
+              </label>
+              <input
+                type="text"
+                value={form.identifiant}
+                onChange={e => set('identifiant', e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="ex: 123456"
+                maxLength={6}
+                style={{
+                  width: '100%', padding: '10px 12px',
+                  border: '0.5px solid #d0cfc8', borderRadius: 8,
+                  fontSize: 16, letterSpacing: 6, fontWeight: 600,
+                  outline: 'none', background: '#fafaf8',
+                  boxSizing: 'border-box', textAlign: 'center'
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 5 }}>
+                Mot de passe
+              </label>
+              <input
+                type="password"
+                value={form.password}
+                onChange={e => set('password', e.target.value)}
+                placeholder="Mot de passe"
+                style={{
+                  width: '100%', padding: '10px 12px',
+                  border: '0.5px solid #d0cfc8', borderRadius: 8,
+                  fontSize: 14, outline: 'none', background: '#fafaf8',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            {error && (
+              <div style={{
+                background: '#FEF2F2', color: '#DC2626',
+                padding: '10px 12px', borderRadius: 8,
+                fontSize: 13, marginBottom: 14
+              }}>
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: '100%', padding: '12px',
+                background: loading ? '#93C5FD' : '#185FA5',
+                color: '#fff', border: 'none', borderRadius: 8,
+                fontSize: 14, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
+                transition: 'background .2s'
+              }}
+            >
+              {loading ? 'Connexion...' : 'Se connecter'}
+            </button>
+          </form>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          {mode === 'signup' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-              <input
-                placeholder="Prenom *"
-                value={form.prenom}
-                onChange={e => set('prenom', e.target.value)}
-                required
-                style={{ padding: 11, border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-              />
-              <input
-                placeholder="Nom *"
-                value={form.nom}
-                onChange={e => set('nom', e.target.value)}
-                required
-                style={{ padding: 11, border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-              />
-            </div>
-          )}
-
-          <input
-            type="email"
-            placeholder="Email *"
-            value={form.email}
-            onChange={e => set('email', e.target.value)}
-            required
-            style={{ width: '100%', padding: 11, border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, marginBottom: 10, outline: 'none', boxSizing: 'border-box' }}
-          />
-          <input
-            type="password"
-            placeholder="Mot de passe *"
-            value={form.password}
-            onChange={e => set('password', e.target.value)}
-            required
-            style={{ width: '100%', padding: 11, border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, marginBottom: 10, outline: 'none', boxSizing: 'border-box' }}
-          />
-
-          {mode === 'signup' && (
-            <div style={{ marginBottom: 10 }}>
-              <select
-                value={form.departement}
-                onChange={e => set('departement', e.target.value)}
-                style={{ width: '100%', padding: 11, border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', background: '#fff' }}
-              >
-                <option value="accueil">Accueil</option>
-                <option value="menage">Menage</option>
-                <option value="maintenance">Maintenance</option>
-              </select>
-              <div style={{ fontSize: 11, color: '#6b7280', marginTop: 6, padding: '6px 8px', background: '#f0f9ff', borderRadius: 6, border: '0.5px solid #bae6fd' }}>
-                Votre role sera defini par l'administrateur apres votre inscription.
-              </div>
-            </div>
-          )}
-
-          {error && (
-            <div style={{ background: '#FEF2F2', color: '#991B1B', padding: 10, borderRadius: 8, fontSize: 13, marginBottom: 12 }}>
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            style={{ width: '100%', padding: 13, background: '#185FA5', color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, cursor: 'pointer', fontWeight: 600, opacity: loading ? 0.7 : 1 }}
-          >
-            {loading ? 'Chargement...' : mode === 'login' ? 'Se connecter' : 'Creer mon compte'}
-          </button>
-        </form>
+        <div style={{ textAlign: 'center', marginTop: 20, fontSize: 12, color: '#aaa' }}>
+          Votre identifiant et mot de passe vous ont ete fournis par votre administrateur
+        </div>
       </div>
     </div>
   )
-                                                           }
+}
