@@ -130,3 +130,72 @@ alter publication supabase_realtime add table rappels;
 -- (à exécuter si vous avez déjà créé la table)
 -- ============================================
 alter table profiles add column if not exists couleur text default '#1E88E5';
+
+
+-- ============================================================
+-- MODULE CONGES & ABSENCES (ajout module v1.0)
+-- ============================================================
+
+-- Table principale des demandes de conges
+CREATE TABLE IF NOT EXISTS conges (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  entreprise_id UUID NOT NULL REFERENCES entreprises(id) ON DELETE CASCADE,
+  employe_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  validateur_id UUID REFERENCES profiles(id),
+  type_conge TEXT NOT NULL DEFAULT 'conges_payes'
+    CHECK (type_conge IN ('conges_payes', 'rtt', 'maladie', 'sans_solde', 'formation', 'autre')),
+  date_debut DATE NOT NULL,
+  date_fin DATE NOT NULL,
+  nb_jours NUMERIC(5,1) NOT NULL DEFAULT 1,
+  statut TEXT NOT NULL DEFAULT 'en_attente'
+    CHECK (statut IN ('en_attente', 'approuve', 'refuse', 'annule')),
+  motif TEXT,
+  commentaire_validateur TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  validated_at TIMESTAMPTZ
+);
+
+ALTER TABLE conges ENABLE ROW LEVEL SECURITY;
+CREATE INDEX IF NOT EXISTS idx_conges_entreprise ON conges(entreprise_id);
+CREATE INDEX IF NOT EXISTS idx_conges_employe ON conges(employe_id);
+
+CREATE POLICY conges_select ON conges FOR SELECT USING (
+  is_super_admin() OR employe_id = auth.uid()
+  OR (get_my_role() IN ('admin', 'responsable') AND entreprise_id = get_my_entreprise_id())
+);
+CREATE POLICY conges_insert ON conges FOR INSERT WITH CHECK (
+  employe_id = auth.uid() AND entreprise_id = get_my_entreprise_id()
+);
+CREATE POLICY conges_update ON conges FOR UPDATE USING (
+  is_super_admin() OR employe_id = auth.uid()
+  OR (get_my_role() IN ('admin', 'responsable') AND entreprise_id = get_my_entreprise_id())
+);
+CREATE POLICY conges_delete ON conges FOR DELETE USING (
+  is_super_admin() OR (get_my_role() = 'admin' AND entreprise_id = get_my_entreprise_id())
+);
+
+-- Table des soldes de conges
+CREATE TABLE IF NOT EXISTS soldes_conges (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  entreprise_id UUID NOT NULL REFERENCES entreprises(id) ON DELETE CASCADE,
+  employe_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  annee INT NOT NULL DEFAULT EXTRACT(YEAR FROM NOW()),
+  cp_acquis NUMERIC(5,1) NOT NULL DEFAULT 25,
+  cp_pris NUMERIC(5,1) NOT NULL DEFAULT 0,
+  cp_restant NUMERIC(5,1) GENERATED ALWAYS AS (cp_acquis - cp_pris) STORED,
+  rtt_acquis NUMERIC(5,1) NOT NULL DEFAULT 0,
+  rtt_pris NUMERIC(5,1) NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(employe_id, annee)
+);
+
+ALTER TABLE soldes_conges ENABLE ROW LEVEL SECURITY;
+CREATE POLICY soldes_conges_select ON soldes_conges FOR SELECT USING (
+  is_super_admin() OR employe_id = auth.uid()
+  OR (get_my_role() IN ('admin', 'responsable') AND entreprise_id = get_my_entreprise_id())
+);
+CREATE POLICY soldes_conges_manage ON soldes_conges FOR ALL USING (
+  is_super_admin() OR (get_my_role() = 'admin' AND entreprise_id = get_my_entreprise_id())
+);
