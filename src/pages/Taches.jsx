@@ -226,7 +226,7 @@ export default function Taches() {
     if (editTache) {
       await supabase.from('taches').update(payload).eq('id', editTache.id)
     } else {
-      await supabase.from('taches').insert({ ...payload, cree_par: profile.id })
+      await supabase.from('taches').insert({ ...payload, cree_par: profile.id, entreprise_id: profile.entreprise_id })
     }
     setShowForm(false)
     fetchTaches()
