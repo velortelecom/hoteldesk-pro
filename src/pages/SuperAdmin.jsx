@@ -332,7 +332,7 @@ export default function SuperAdmin() {
             </div>
             {templateSecteur && (
               <div style={{ marginTop: 10, padding: '8px 12px', background: '#F0FDF4', borderRadius: 8, fontSize: 12, color: '#166534' }}>
-                {templateSecteur.icone} {templateSecteur.description} Ã¢ÂÂ {deptsTemplate.length} depts et {templateSecteur.postes.length} postes charges automatiquement
+                {templateSecteur.icone} {templateSecteur.description} ÃÂ¢ÃÂÃÂ {deptsTemplate.length} depts et {templateSecteur.postes.length} postes charges automatiquement
               </div>
             )}
           </Section>
@@ -524,7 +524,7 @@ export default function SuperAdmin() {
               return (
                 <div key={e.id} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
-                    <div style={{ fontSize: 24, flexShrink: 0 }}>{secteurInfo?.icone || 'Ã°ÂÂÂ¢'}</div>
+                    <div style={{ fontSize: 24, flexShrink: 0 }}>{secteurInfo?.icone || 'ÃÂ°ÃÂÃÂÃÂ¢'}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 700, fontSize: 15 }}>{e.nom}</span>
@@ -532,56 +532,73 @@ export default function SuperAdmin() {
                         <span style={{ color: e.actif ? '#10B981' : '#EF4444', fontSize: 12, fontWeight: 600 }}>{e.actif ? 'Actif' : 'Inactif'}</span>
                       </div>
                       <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
-                        {secteurInfo?.label || e.secteur} Ã¢ÂÂ {e.max_utilisateurs || '?'} users max
-                        {e.email_contact && ' Ã¢ÂÂ ' + e.email_contact}
+                        {secteurInfo?.label || e.secteur} ÃÂ¢ÃÂÃÂ {e.max_utilisateurs || '?'} users max
+                        {e.email_contact && ' ÃÂ¢ÃÂÃÂ ' + e.email_contact}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                       <button onClick={() => { const wasExpanded = expandedEnt === e.id; setExpandedEnt(wasExpanded ? null : e.id); if (!wasExpanded) fetchEntModules(e.id) }} style={{ padding: '6px 12px', border: '1px solid #E5E7EB', background: '#F9FAFB', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
                         {entDetails[e.id] && (
-                          <div style={{ borderTop: '1px solid #F3F4F6', marginTop: 10, paddingTop: 10 }}>
-                            <div style={{ display: 'flex', gap: 16, marginBottom: 8, fontSize: 12, color: '#6B7280' }}>
-                              <span>Ã°ÂÂÂ¢ <strong style={{ color: '#374151' }}>{entDetails[e.id].nb_sites}</strong> site{entDetails[e.id].nb_sites > 1 ? 's' : ''}</span>
-                              <span>Ã°ÂÂÂ¤ <strong style={{ color: '#3B82F6' }}>{entDetails[e.id].nb_admins}</strong> admin{entDetails[e.id].nb_admins > 1 ? 's' : ''}</span>
-                              <span>Ã°ÂÂÂ¥ <strong style={{ color: '#10B981' }}>{entDetails[e.id].nb_personnel}</strong> personnel</span>
+                          <div style={{ marginTop: 10, padding: 12, background: '#F0F7FF', border: '1px solid #BFDBFE', borderRadius: 8 }}>
+                            <div style={{ display: 'flex', gap: 16, marginBottom: 10, fontSize: 12, color: '#374151' }}>
+                              <span><strong style={{ color: '#1E40AF' }}>{entDetails[e.id].nb_sites}</strong> site(s)</span>
+                              <span><strong style={{ color: '#3B82F6' }}>{entDetails[e.id].nb_admins}</strong> admin(s)</span>
+                              <span><strong style={{ color: '#10B981' }}>{entDetails[e.id].nb_personnel}</strong> personnel</span>
                             </div>
                             {entDetails[e.id].sites && entDetails[e.id].sites.length > 0 ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                                {entDetails[e.id].sites.map((site, si) => (
-                                  <div key={si} style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 6, padding: '8px 10px', fontSize: 12 }}>
-                                    <div style={{ fontWeight: 600, color: '#1F2937', marginBottom: 4 }}>
-                                      Ã°ÂÂÂ¨ {site.site_nom}{site.site_ville ? ' Ã¢ÂÂ ' + site.site_ville : ''}
-                                      <span style={{ marginLeft: 6, fontSize: 10, color: site.site_actif ? '#10B981' : '#EF4444' }}>Ã¢ÂÂ {site.site_actif ? 'Actif' : 'Inactif'}</span>
+                              entDetails[e.id].sites.map((site, si) => (
+                                <div key={si} style={{ background: '#fff', border: '1px solid #DBEAFE', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                    <div style={{ width: 26, height: 26, background: '#1E40AF', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>S</div>
+                                    <div style={{ flex: 1 }}>
+                                      <div style={{ fontWeight: 700, fontSize: 13, color: '#1E3A8A' }}>{site.site_nom}</div>
+                                      {site.site_ville && <div style={{ fontSize: 11, color: '#6B7280' }}>{site.site_ville}</div>}
                                     </div>
-                                    {site.admins && site.admins.length > 0 && (
-                                      <div style={{ marginTop: 4 }}>
-                                        <span style={{ color: '#3B82F6', fontWeight: 600, fontSize: 10 }}>ADMINS: </span>
-                                        {site.admins.map((a, ai) => (
-                                          <span key={ai} style={{ background: '#DBEAFE', color: '#1D4ED8', padding: '1px 6px', borderRadius: 4, fontSize: 10, marginLeft: 4 }}>
-                                            {a.prenom} {a.nom}{a.email ? ' (' + a.email + ')' : ''}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    )}
-                                    {site.personnel && site.personnel.length > 0 && (
-                                      <div style={{ marginTop: 4 }}>
-                                        <span style={{ color: '#10B981', fontWeight: 600, fontSize: 10 }}>PERSONNEL: </span>
-                                        {site.personnel.map((p, pi) => (
-                                          <span key={pi} style={{ background: '#D1FAE5', color: '#065F46', padding: '1px 6px', borderRadius: 4, fontSize: 10, marginLeft: 4 }}>
-                                            {p.prenom} {p.nom} ({p.role}{p.departement ? ' Ã¢ÂÂ ' + p.departement : ''})
-                                          </span>
-                                        ))}
-                                      </div>
-                                    )}
-                                    {(!site.admins || site.admins.length === 0) && (!site.personnel || site.personnel.length === 0) && (
-                                      <div style={{ color: '#9CA3AF', fontSize: 11, fontStyle: 'italic' }}>Aucun utilisateur sur ce site</div>
-                                    )}
+                                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: site.site_actif ? '#D1FAE5' : '#FEE2E2', color: site.site_actif ? '#065F46' : '#991B1B', fontWeight: 700 }}>
+                                      {site.site_actif ? 'Actif' : 'Inactif'}
+                                    </span>
                                   </div>
-                                ))}
-                              </div>
+                                  {site.admins && site.admins.length > 0 ? (
+                                    <div style={{ marginBottom: 6 }}>
+                                      <div style={{ fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Admins</div>
+                                      {site.admins.map((a, ai) => (
+                                        <div key={ai} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', background: '#EFF6FF', borderRadius: 6, marginBottom: 3 }}>
+                                          <div style={{ width: 22, height: 22, background: '#3B82F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                                            {(a.prenom || 'A')[0].toUpperCase()}
+                                          </div>
+                                          <div>
+                                            <span style={{ fontSize: 12, fontWeight: 600, color: '#1E3A8A' }}>{a.prenom} {a.nom}</span>
+                                            {a.email && <span style={{ fontSize: 11, color: '#6B7280', marginLeft: 6 }}>{a.email}</span>}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div style={{ fontSize: 11, color: '#9CA3AF', fontStyle: 'italic', marginBottom: 4 }}>Aucun admin sur ce site</div>
+                                  )}
+                                  {site.personnel && site.personnel.length > 0 && (
+                                    <div>
+                                      <div style={{ fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Personnel</div>
+                                      {site.personnel.map((p, pi) => (
+                                        <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: '#F9FAFB', borderRadius: 6, marginBottom: 2 }}>
+                                          <span style={{ fontSize: 11, color: '#374151' }}>{p.prenom} {p.nom}</span>
+                                          {p.email && <span style={{ fontSize: 10, color: '#9CA3AF' }}>{p.email}</span>}
+                                          <span style={{ fontSize: 10, padding: '1px 5px', background: '#E5E7EB', borderRadius: 3, color: '#6B7280' }}>{p.role}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))
                             ) : (
-                              <div style={{ color: '#9CA3AF', fontSize: 11, fontStyle: 'italic' }}>Aucun site crÃÂ©ÃÂ© pour cette entreprise.</div>
+                              <div style={{ fontSize: 12, color: '#9CA3AF', fontStyle: 'italic', textAlign: 'center', padding: '10px 0' }}>
+                                Aucun site cree pour cette entreprise.
+                              </div>
                             )}
+                            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #BFDBFE', fontSize: 11, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <strong>Lien connexion :</strong>
+                              <a href="https://hoteldesk-pro.vercel.app" target="_blank" rel="noreferrer" style={{ color: '#2563EB', fontWeight: 600, textDecoration: 'none' }}>https://hoteldesk-pro.vercel.app</a>
+                            </div>
                           </div>
                         )}
                         {expandedEnt === e.id ? 'Fermer' : 'Modules'}
