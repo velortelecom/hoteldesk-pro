@@ -332,7 +332,7 @@ export default function SuperAdmin() {
             </div>
             {templateSecteur && (
               <div style={{ marginTop: 10, padding: '8px 12px', background: '#F0FDF4', borderRadius: 8, fontSize: 12, color: '#166534' }}>
-                {templateSecteur.icone} {templateSecteur.description} ÃÂ¢ÃÂÃÂ {deptsTemplate.length} depts et {templateSecteur.postes.length} postes charges automatiquement
+                {templateSecteur.icone} {templateSecteur.description} ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ {deptsTemplate.length} depts et {templateSecteur.postes.length} postes charges automatiquement
               </div>
             )}
           </Section>
@@ -524,7 +524,7 @@ export default function SuperAdmin() {
               return (
                 <div key={e.id} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
-                    <div style={{ fontSize: 24, flexShrink: 0 }}>{secteurInfo?.icone || 'ÃÂ°ÃÂÃÂÃÂ¢'}</div>
+                    <div style={{ fontSize: 24, flexShrink: 0 }}>{secteurInfo?.icone || 'ÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂ¢'}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 700, fontSize: 15 }}>{e.nom}</span>
@@ -532,8 +532,8 @@ export default function SuperAdmin() {
                         <span style={{ color: e.actif ? '#10B981' : '#EF4444', fontSize: 12, fontWeight: 600 }}>{e.actif ? 'Actif' : 'Inactif'}</span>
                       </div>
                       <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
-                        {secteurInfo?.label || e.secteur} ÃÂ¢ÃÂÃÂ {e.max_utilisateurs || '?'} users max
-                        {e.email_contact && ' ÃÂ¢ÃÂÃÂ ' + e.email_contact}
+                        {secteurInfo?.label || e.secteur} ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ {e.max_utilisateurs || '?'} users max
+                        {e.email_contact && ' ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ ' + e.email_contact}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -731,6 +731,5 @@ export default function SuperAdmin() {
           </div>
         </div>
       )}
-          </div>
   )
 }
