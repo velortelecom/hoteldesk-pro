@@ -5,23 +5,21 @@ export default function Login() {
   const { signIn } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [form, setForm] = useState({ identifiant: '', password: '' })
+  const [form, setForm] = useState({ email: '', password: '' })
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   async function handleLogin(e) {
     e.preventDefault()
-    if (!form.identifiant.trim() || !form.password.trim()) {
-      setError('Identifiant et mot de passe requis')
+    if (!form.email.trim() || !form.password.trim()) {
+      setError('Email et mot de passe requis')
       return
     }
     setLoading(true)
     setError('')
-    // L email est construit : identifiant + @hoteldesk.local
-    const email = form.identifiant.trim() + '@hoteldesk.local'
-    const { error: err } = await signIn(email, form.password)
+    const { error: err } = await signIn(form.email.trim(), form.password)
     if (err) {
-      setError('Identifiant ou mot de passe incorrect')
+      setError('Email ou mot de passe incorrect')
     }
     setLoading(false)
   }
@@ -36,53 +34,52 @@ export default function Login() {
       padding: 16,
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
     }}>
-      <div style={{ width: '100%', maxWidth: 380 }}>
-        {/* Logo */}
+      <div style={{ width: '100%', maxWidth: 400 }}>
+
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{
-            width: 56, height: 56, background: '#185FA5', borderRadius: 14,
+            width: 60, height: 60, background: '#185FA5', borderRadius: 16,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'white', fontSize: 24, fontWeight: 700, margin: '0 auto 12px'
+            color: 'white', fontSize: 26, fontWeight: 700, margin: '0 auto 14px'
           }}>V</div>
-          <div style={{ fontSize: 22, fontWeight: 700, color: '#1a1a1a' }}>HotelDesk Pro</div>
-          <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>Connexion a votre espace</div>
+          <div style={{ fontSize: 24, fontWeight: 700, color: '#1a1a1a' }}>HotelDesk Pro</div>
+          <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>Connectez-vous a votre espace</div>
         </div>
 
-        {/* Carte connexion */}
         <div style={{
           background: '#fff',
-          borderRadius: 16,
-          padding: 28,
-          boxShadow: '0 4px 24px rgba(0,0,0,.08)',
-          border: '0.5px solid #e0dfd8'
+          borderRadius: 18,
+          padding: 32,
+          boxShadow: '0 4px 32px rgba(0,0,0,.09)',
+          border: '1px solid #e8e7e0'
         }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#222', marginBottom: 20 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 24 }}>
             Connexion
           </div>
 
           <form onSubmit={handleLogin}>
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 5 }}>
-                Identifiant (6 chiffres)
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 6 }}>
+                Adresse email
               </label>
               <input
-                type="text"
-                value={form.identifiant}
-                onChange={e => set('identifiant', e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="ex: 123456"
-                maxLength={6}
+                type="email"
+                value={form.email}
+                onChange={e => set('email', e.target.value)}
+                placeholder="votre@email.com"
+                autoComplete="email"
                 style={{
-                  width: '100%', padding: '10px 12px',
-                  border: '0.5px solid #d0cfc8', borderRadius: 8,
-                  fontSize: 16, letterSpacing: 6, fontWeight: 600,
-                  outline: 'none', background: '#fafaf8',
-                  boxSizing: 'border-box', textAlign: 'center'
+                  width: '100%', padding: '11px 14px',
+                  border: '1.5px solid #e0e0e0', borderRadius: 10,
+                  fontSize: 15, outline: 'none', background: '#fafaf8',
+                  boxSizing: 'border-box'
                 }}
               />
             </div>
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 5 }}>
+            <div style={{ marginBottom: 22 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#555', display: 'block', marginBottom: 6 }}>
                 Mot de passe
               </label>
               <input
@@ -90,10 +87,11 @@ export default function Login() {
                 value={form.password}
                 onChange={e => set('password', e.target.value)}
                 placeholder="Mot de passe"
+                autoComplete="current-password"
                 style={{
-                  width: '100%', padding: '10px 12px',
-                  border: '0.5px solid #d0cfc8', borderRadius: 8,
-                  fontSize: 14, outline: 'none', background: '#fafaf8',
+                  width: '100%', padding: '11px 14px',
+                  border: '1.5px solid #e0e0e0', borderRadius: 10,
+                  fontSize: 15, outline: 'none', background: '#fafaf8',
                   boxSizing: 'border-box'
                 }}
               />
@@ -101,9 +99,9 @@ export default function Login() {
 
             {error && (
               <div style={{
-                background: '#FEF2F2', color: '#DC2626',
-                padding: '10px 12px', borderRadius: 8,
-                fontSize: 13, marginBottom: 14
+                background: '#FEF2F2', border: '1px solid #FECACA',
+                borderRadius: 8, padding: '10px 14px',
+                fontSize: 13, color: '#DC2626', marginBottom: 18
               }}>
                 {error}
               </div>
@@ -113,20 +111,20 @@ export default function Login() {
               type="submit"
               disabled={loading}
               style={{
-                width: '100%', padding: '12px',
+                width: '100%', padding: '13px',
                 background: loading ? '#93C5FD' : '#185FA5',
-                color: '#fff', border: 'none', borderRadius: 8,
-                fontSize: 14, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
-                transition: 'background .2s'
+                color: '#fff', border: 'none', borderRadius: 10,
+                fontSize: 15, fontWeight: 700,
+                cursor: loading ? 'not-allowed' : 'pointer'
               }}
             >
-              {loading ? 'Connexion...' : 'Se connecter'}
+              {loading ? 'Connexion en cours...' : 'Se connecter'}
             </button>
           </form>
         </div>
 
-        <div style={{ textAlign: 'center', marginTop: 20, fontSize: 12, color: '#aaa' }}>
-          Votre identifiant et mot de passe vous ont ete fournis par votre administrateur
+        <div style={{ textAlign: 'center', marginTop: 20, fontSize: 12, color: '#aaa', lineHeight: 1.6 }}>
+          Vos identifiants (email + mot de passe) vous ont ete fournis par votre administrateur
         </div>
       </div>
     </div>
