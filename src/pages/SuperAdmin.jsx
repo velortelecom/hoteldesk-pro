@@ -65,6 +65,7 @@ export default function SuperAdmin() {
   const [adminForm, setAdminForm] = useState({ prenom: '', nom: '', email: '', password: '' })
   const [adminSaving, setAdminSaving] = useState(false)
   const [adminMsg, setAdminMsg] = useState(null)
+  const [adminCreatedInfo, setAdminCreatedInfo] = useState(null)
 
   useEffect(() => {
     if (!profile?.is_super_admin) return
@@ -199,6 +200,20 @@ export default function SuperAdmin() {
         entId = data.id
       }
 
+      // Creation automatique du site principal
+      if (!editEntreprise) {
+        const siteSlug = entData.slug || entData.nom.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+        await supabase.from('sites').insert({
+          entreprise_id: entId,
+          nom: entData.nom,
+          slug: siteSlug,
+          adresse: entData.adresse || '',
+          ville: entData.ville || '',
+          pays: entData.pays || 'France',
+          actif: true,
+        })
+      }
+
       // Modules
       await supabase.from('entreprise_modules').update({ actif: false }).eq('entreprise_id', entId)
       if (form.modules_selectionnes?.length > 0) {
@@ -317,7 +332,7 @@ export default function SuperAdmin() {
             </div>
             {templateSecteur && (
               <div style={{ marginTop: 10, padding: '8px 12px', background: '#F0FDF4', borderRadius: 8, fontSize: 12, color: '#166534' }}>
-                {templateSecteur.icone} {templateSecteur.description} â {deptsTemplate.length} depts et {templateSecteur.postes.length} postes charges automatiquement
+                {templateSecteur.icone} {templateSecteur.description} Ã¢ÂÂ {deptsTemplate.length} depts et {templateSecteur.postes.length} postes charges automatiquement
               </div>
             )}
           </Section>
@@ -454,12 +469,18 @@ export default function SuperAdmin() {
         })
         if (profileError) throw profileError
       }
-      setAdminMsg({ type: 'success', text: 'Admin cree avec succes ! Un email de confirmation a ete envoye.' })
+            const appUrl = 'https://hoteldesk-pro.vercel.app'
+      setAdminCreatedInfo({
+        prenom: adminForm.prenom,
+        nom: adminForm.nom,
+        email: adminForm.email,
+        password: adminForm.password,
+        url: appUrl,
+        entreprise: adminModalEnt?.nom || '',
+      })
       setAdminForm({ prenom: '', nom: '', email: '', password: '' })
       await fetchData()
-      setTimeout(() => { setShowAdminModal(false); setAdminMsg(null); setAdminModalEnt(null) }, 2000)
-    } catch (err) {
-      setAdminMsg({ type: 'error', text: err.message || 'Erreur lors de la creation' })
+
     } finally {
       setAdminSaving(false)
     }
@@ -503,7 +524,7 @@ export default function SuperAdmin() {
               return (
                 <div key={e.id} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
-                    <div style={{ fontSize: 24, flexShrink: 0 }}>{secteurInfo?.icone || 'ð¢'}</div>
+                    <div style={{ fontSize: 24, flexShrink: 0 }}>{secteurInfo?.icone || 'Ã°ÂÂÂ¢'}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 700, fontSize: 15 }}>{e.nom}</span>
@@ -511,8 +532,8 @@ export default function SuperAdmin() {
                         <span style={{ color: e.actif ? '#10B981' : '#EF4444', fontSize: 12, fontWeight: 600 }}>{e.actif ? 'Actif' : 'Inactif'}</span>
                       </div>
                       <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
-                        {secteurInfo?.label || e.secteur} â {e.max_utilisateurs || '?'} users max
-                        {e.email_contact && ' â ' + e.email_contact}
+                        {secteurInfo?.label || e.secteur} Ã¢ÂÂ {e.max_utilisateurs || '?'} users max
+                        {e.email_contact && ' Ã¢ÂÂ ' + e.email_contact}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -520,17 +541,17 @@ export default function SuperAdmin() {
                         {entDetails[e.id] && (
                           <div style={{ borderTop: '1px solid #F3F4F6', marginTop: 10, paddingTop: 10 }}>
                             <div style={{ display: 'flex', gap: 16, marginBottom: 8, fontSize: 12, color: '#6B7280' }}>
-                              <span>ð¢ <strong style={{ color: '#374151' }}>{entDetails[e.id].nb_sites}</strong> site{entDetails[e.id].nb_sites > 1 ? 's' : ''}</span>
-                              <span>ð¤ <strong style={{ color: '#3B82F6' }}>{entDetails[e.id].nb_admins}</strong> admin{entDetails[e.id].nb_admins > 1 ? 's' : ''}</span>
-                              <span>ð¥ <strong style={{ color: '#10B981' }}>{entDetails[e.id].nb_personnel}</strong> personnel</span>
+                              <span>Ã°ÂÂÂ¢ <strong style={{ color: '#374151' }}>{entDetails[e.id].nb_sites}</strong> site{entDetails[e.id].nb_sites > 1 ? 's' : ''}</span>
+                              <span>Ã°ÂÂÂ¤ <strong style={{ color: '#3B82F6' }}>{entDetails[e.id].nb_admins}</strong> admin{entDetails[e.id].nb_admins > 1 ? 's' : ''}</span>
+                              <span>Ã°ÂÂÂ¥ <strong style={{ color: '#10B981' }}>{entDetails[e.id].nb_personnel}</strong> personnel</span>
                             </div>
                             {entDetails[e.id].sites && entDetails[e.id].sites.length > 0 ? (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                 {entDetails[e.id].sites.map((site, si) => (
                                   <div key={si} style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 6, padding: '8px 10px', fontSize: 12 }}>
                                     <div style={{ fontWeight: 600, color: '#1F2937', marginBottom: 4 }}>
-                                      ð¨ {site.site_nom}{site.site_ville ? ' â ' + site.site_ville : ''}
-                                      <span style={{ marginLeft: 6, fontSize: 10, color: site.site_actif ? '#10B981' : '#EF4444' }}>â {site.site_actif ? 'Actif' : 'Inactif'}</span>
+                                      Ã°ÂÂÂ¨ {site.site_nom}{site.site_ville ? ' Ã¢ÂÂ ' + site.site_ville : ''}
+                                      <span style={{ marginLeft: 6, fontSize: 10, color: site.site_actif ? '#10B981' : '#EF4444' }}>Ã¢ÂÂ {site.site_actif ? 'Actif' : 'Inactif'}</span>
                                     </div>
                                     {site.admins && site.admins.length > 0 && (
                                       <div style={{ marginTop: 4 }}>
@@ -547,7 +568,7 @@ export default function SuperAdmin() {
                                         <span style={{ color: '#10B981', fontWeight: 600, fontSize: 10 }}>PERSONNEL: </span>
                                         {site.personnel.map((p, pi) => (
                                           <span key={pi} style={{ background: '#D1FAE5', color: '#065F46', padding: '1px 6px', borderRadius: 4, fontSize: 10, marginLeft: 4 }}>
-                                            {p.prenom} {p.nom} ({p.role}{p.departement ? ' â ' + p.departement : ''})
+                                            {p.prenom} {p.nom} ({p.role}{p.departement ? ' Ã¢ÂÂ ' + p.departement : ''})
                                           </span>
                                         ))}
                                       </div>
@@ -559,7 +580,7 @@ export default function SuperAdmin() {
                                 ))}
                               </div>
                             ) : (
-                              <div style={{ color: '#9CA3AF', fontSize: 11, fontStyle: 'italic' }}>Aucun site crÃ©Ã© pour cette entreprise.</div>
+                              <div style={{ color: '#9CA3AF', fontSize: 11, fontStyle: 'italic' }}>Aucun site crÃÂ©ÃÂ© pour cette entreprise.</div>
                             )}
                           </div>
                         )}
@@ -659,16 +680,36 @@ export default function SuperAdmin() {
               <input placeholder="Email *" type="email" value={adminForm.email} onChange={ev => setAdminForm(f => ({ ...f, email: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
               <input placeholder="Mot de passe * (min. 6 car.)" type="password" value={adminForm.password} onChange={ev => setAdminForm(f => ({ ...f, password: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
             </div>
-            {adminMsg && (
-              <div style={{ marginTop: 12, padding: '10px 14px', background: adminMsg.type === 'success' ? '#D1FAE5' : '#FEE2E2', color: adminMsg.type === 'success' ? '#065F46' : '#991B1B', borderRadius: 8, fontSize: 13 }}>
+            {adminCreatedInfo ? (
+              <div style={{ marginTop: 16, padding: 16, background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 10 }}>
+                <div style={{ fontWeight: 700, color: '#15803D', marginBottom: 10, fontSize: 14 }}>Admin cree avec succes !</div>
+                <div style={{ fontSize: 13, marginBottom: 6, color: '#166534' }}>Transmettez ces informations a l'admin :</div>
+                <div style={{ background: '#fff', borderRadius: 8, padding: 12, fontSize: 13, lineHeight: 1.8, border: '1px solid #BBF7D0' }}>
+                  <div><strong>Entreprise :</strong> {adminCreatedInfo.entreprise}</div>
+                  <div><strong>Nom :</strong> {adminCreatedInfo.prenom} {adminCreatedInfo.nom}</div>
+                  <div><strong>Email :</strong> {adminCreatedInfo.email}</div>
+                  <div><strong>Mot de passe :</strong> {adminCreatedInfo.password}</div>
+                  <div><strong>Lien de connexion :</strong> <a href={adminCreatedInfo.url} target="_blank" rel="noreferrer" style={{ color: '#2563EB' }}>{adminCreatedInfo.url}</a></div>
+                </div>
+                <div style={{ fontSize: 11, color: '#15803D', marginTop: 8, fontStyle: 'italic' }}>L'admin doit confirmer son email avant de se connecter.</div>
+              </div>
+            ) : adminMsg && adminMsg.type === 'error' ? (
+              <div style={{ marginTop: 12, padding: '10px 14px', background: '#FEE2E2', color: '#991B1B', borderRadius: 8, fontSize: 13 }}>
                 {adminMsg.text}
               </div>
-            )}
-            <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
-              <button onClick={() => { setShowAdminModal(false); setAdminMsg(null) }} style={{ padding: '10px 20px', border: '1px solid #D1D5DB', background: '#fff', borderRadius: 8, cursor: 'pointer', fontSize: 14 }}>Annuler</button>
-              <button onClick={() => createAdmin(adminModalEnt.id)} disabled={adminSaving || !adminForm.email || !adminForm.password || !adminForm.prenom || !adminForm.nom} style={{ padding: '10px 20px', background: adminSaving ? '#A78BFA' : '#8B5CF6', color: '#fff', border: 'none', borderRadius: 8, cursor: adminSaving ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 600 }}>
-                {adminSaving ? 'Creation...' : "Creer l'admin"}
-              </button>
+            ) : null}
+           <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
+              {adminCreatedInfo ? (
+                <button onClick={() => { setShowAdminModal(false); setAdminMsg(null); setAdminCreatedInfo(null) }} style={{ padding: '10px 20px', background: '#8B5CF6', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>Fermer</button>
+              ) : (
+                <>
+                  <button onClick={() => { setShowAdminModal(false); setAdminMsg(null) }} style={{ padding: '10px 20px', border: '1px solid #D1D5DB', background: '#fff', borderRadius: 8, cursor: 'pointer', fontSize: 14 }}>Annuler</button>
+                  <button onClick={() => createAdmin(adminModalEnt.id)} disabled={adminSaving || !adminForm.email || !adminForm.password || !adminForm.prenom || !adminForm.nom} style={{ padding: '10px 20px', background: adminSaving ? '#A78BFA' : '#8B5CF6', color: '#fff', border: 'none', borderRadius: 8, cursor: adminSaving ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 600 }}>
+                    {adminSaving ? 'Creation...' : "Creer l'admin"}
+                  </button>
+                </>
+              )}
+            </div>
             </div>
           </div>
         </div>
