@@ -60,12 +60,12 @@ export default function SuperAdmin() {
   const [expandedEnt, setExpandedEnt] = useState(null)
   const [entModules, setEntModules] = useState({})
   const [entDetails, setEntDetails] = useState({})
+  const [adminSuccessInfo, setAdminSuccessInfo] = useState(null)
   const [showAdminModal, setShowAdminModal] = useState(false)
   const [adminModalEnt, setAdminModalEnt] = useState(null)
   const [adminForm, setAdminForm] = useState({ prenom: '', nom: '', email: '', password: '' })
   const [adminSaving, setAdminSaving] = useState(false)
   const [adminMsg, setAdminMsg] = useState(null)
-  const [adminCreatedInfo, setAdminCreatedInfo] = useState(null)
 
   useEffect(() => {
     if (!profile?.is_super_admin) return
@@ -202,7 +202,7 @@ export default function SuperAdmin() {
 
       // Creation automatique du site principal
       if (!editEntreprise) {
-        const siteSlug = entData.slug || entData.nom.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+        const siteSlug = entData.nom.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
         await supabase.from('sites').insert({
           entreprise_id: entId,
           nom: entData.nom,
@@ -332,7 +332,7 @@ export default function SuperAdmin() {
             </div>
             {templateSecteur && (
               <div style={{ marginTop: 10, padding: '8px 12px', background: '#F0FDF4', borderRadius: 8, fontSize: 12, color: '#166534' }}>
-                {templateSecteur.icone} {templateSecteur.description} ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ {deptsTemplate.length} depts et {templateSecteur.postes.length} postes charges automatiquement
+                {templateSecteur.icone} {templateSecteur.description} Ã¢ÂÂ {deptsTemplate.length} depts et {templateSecteur.postes.length} postes charges automatiquement
               </div>
             )}
           </Section>
@@ -469,18 +469,14 @@ export default function SuperAdmin() {
         })
         if (profileError) throw profileError
       }
-            const appUrl = 'https://hoteldesk-pro.vercel.app'
-      setAdminCreatedInfo({
-        prenom: adminForm.prenom,
-        nom: adminForm.nom,
-        email: adminForm.email,
-        password: adminForm.password,
-        url: appUrl,
-        entreprise: adminModalEnt?.nom || '',
-      })
+            setAdminSuccessInfo({ email: adminForm.email, password: adminForm.password, url: 'https://hoteldesk-pro.vercel.app', nom: adminForm.prenom + ' ' + adminForm.nom })
       setAdminForm({ prenom: '', nom: '', email: '', password: '' })
       await fetchData()
-
+      setAdminForm({ prenom: '', nom: '', email: '', password: '' })
+      await fetchData()
+      setTimeout(() => { setShowAdminModal(false); setAdminMsg(null); setAdminModalEnt(null) }, 2000)
+    } catch (err) {
+      setAdminMsg({ type: 'error', text: err.message || 'Erreur lors de la creation' })
     } finally {
       setAdminSaving(false)
     }
@@ -524,7 +520,7 @@ export default function SuperAdmin() {
               return (
                 <div key={e.id} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
-                    <div style={{ fontSize: 24, flexShrink: 0 }}>{secteurInfo?.icone || 'ÃÂÃÂ°ÃÂÃÂÃÂÃÂÃÂÃÂ¢'}</div>
+                    <div style={{ fontSize: 24, flexShrink: 0 }}>{secteurInfo?.icone || 'Ã°ÂÂÂ¢'}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 700, fontSize: 15 }}>{e.nom}</span>
@@ -532,73 +528,56 @@ export default function SuperAdmin() {
                         <span style={{ color: e.actif ? '#10B981' : '#EF4444', fontSize: 12, fontWeight: 600 }}>{e.actif ? 'Actif' : 'Inactif'}</span>
                       </div>
                       <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
-                        {secteurInfo?.label || e.secteur} ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ {e.max_utilisateurs || '?'} users max
-                        {e.email_contact && ' ÃÂÃÂ¢ÃÂÃÂÃÂÃÂ ' + e.email_contact}
+                        {secteurInfo?.label || e.secteur} Ã¢ÂÂ {e.max_utilisateurs || '?'} users max
+                        {e.email_contact && ' Ã¢ÂÂ ' + e.email_contact}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                       <button onClick={() => { const wasExpanded = expandedEnt === e.id; setExpandedEnt(wasExpanded ? null : e.id); if (!wasExpanded) fetchEntModules(e.id) }} style={{ padding: '6px 12px', border: '1px solid #E5E7EB', background: '#F9FAFB', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
                         {entDetails[e.id] && (
-                          <div style={{ marginTop: 10, padding: 12, background: '#F0F7FF', border: '1px solid #BFDBFE', borderRadius: 8 }}>
-                            <div style={{ display: 'flex', gap: 16, marginBottom: 10, fontSize: 12, color: '#374151' }}>
-                              <span><strong style={{ color: '#1E40AF' }}>{entDetails[e.id].nb_sites}</strong> site(s)</span>
-                              <span><strong style={{ color: '#3B82F6' }}>{entDetails[e.id].nb_admins}</strong> admin(s)</span>
-                              <span><strong style={{ color: '#10B981' }}>{entDetails[e.id].nb_personnel}</strong> personnel</span>
+                          <div style={{ borderTop: '1px solid #F3F4F6', marginTop: 10, paddingTop: 10 }}>
+                            <div style={{ display: 'flex', gap: 16, marginBottom: 8, fontSize: 12, color: '#6B7280' }}>
+                              <span>Ã°ÂÂÂ¢ <strong style={{ color: '#374151' }}>{entDetails[e.id].nb_sites}</strong> site{entDetails[e.id].nb_sites > 1 ? 's' : ''}</span>
+                              <span>Ã°ÂÂÂ¤ <strong style={{ color: '#3B82F6' }}>{entDetails[e.id].nb_admins}</strong> admin{entDetails[e.id].nb_admins > 1 ? 's' : ''}</span>
+                              <span>Ã°ÂÂÂ¥ <strong style={{ color: '#10B981' }}>{entDetails[e.id].nb_personnel}</strong> personnel</span>
                             </div>
                             {entDetails[e.id].sites && entDetails[e.id].sites.length > 0 ? (
-                              entDetails[e.id].sites.map((site, si) => (
-                                <div key={si} style={{ background: '#fff', border: '1px solid #DBEAFE', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                                    <div style={{ width: 26, height: 26, background: '#1E40AF', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>S</div>
-                                    <div style={{ flex: 1 }}>
-                                      <div style={{ fontWeight: 700, fontSize: 13, color: '#1E3A8A' }}>{site.site_nom}</div>
-                                      {site.site_ville && <div style={{ fontSize: 11, color: '#6B7280' }}>{site.site_ville}</div>}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {entDetails[e.id].sites.map((site, si) => (
+                                  <div key={si} style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 6, padding: '8px 10px', fontSize: 12 }}>
+                                    <div style={{ fontWeight: 600, color: '#1F2937', marginBottom: 4 }}>
+                                      Ã°ÂÂÂ¨ {site.site_nom}{site.site_ville ? ' Ã¢ÂÂ ' + site.site_ville : ''}
+                                      <span style={{ marginLeft: 6, fontSize: 10, color: site.site_actif ? '#10B981' : '#EF4444' }}>Ã¢ÂÂ {site.site_actif ? 'Actif' : 'Inactif'}</span>
                                     </div>
-                                    <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 10, background: site.site_actif ? '#D1FAE5' : '#FEE2E2', color: site.site_actif ? '#065F46' : '#991B1B', fontWeight: 700 }}>
-                                      {site.site_actif ? 'Actif' : 'Inactif'}
-                                    </span>
+                                    {site.admins && site.admins.length > 0 && (
+                                      <div style={{ marginTop: 4 }}>
+                                        <span style={{ color: '#3B82F6', fontWeight: 600, fontSize: 10 }}>ADMINS: </span>
+                                        {site.admins.map((a, ai) => (
+                                          <span key={ai} style={{ background: '#DBEAFE', color: '#1D4ED8', padding: '1px 6px', borderRadius: 4, fontSize: 10, marginLeft: 4 }}>
+                                            {a.prenom} {a.nom}{a.email ? ' (' + a.email + ')' : ''}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {site.personnel && site.personnel.length > 0 && (
+                                      <div style={{ marginTop: 4 }}>
+                                        <span style={{ color: '#10B981', fontWeight: 600, fontSize: 10 }}>PERSONNEL: </span>
+                                        {site.personnel.map((p, pi) => (
+                                          <span key={pi} style={{ background: '#D1FAE5', color: '#065F46', padding: '1px 6px', borderRadius: 4, fontSize: 10, marginLeft: 4 }}>
+                                            {p.prenom} {p.nom} ({p.role}{p.departement ? ' Ã¢ÂÂ ' + p.departement : ''})
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {(!site.admins || site.admins.length === 0) && (!site.personnel || site.personnel.length === 0) && (
+                                      <div style={{ color: '#9CA3AF', fontSize: 11, fontStyle: 'italic' }}>Aucun utilisateur sur ce site</div>
+                                    )}
                                   </div>
-                                  {site.admins && site.admins.length > 0 ? (
-                                    <div style={{ marginBottom: 6 }}>
-                                      <div style={{ fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Admins</div>
-                                      {site.admins.map((a, ai) => (
-                                        <div key={ai} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', background: '#EFF6FF', borderRadius: 6, marginBottom: 3 }}>
-                                          <div style={{ width: 22, height: 22, background: '#3B82F6', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
-                                            {(a.prenom || 'A')[0].toUpperCase()}
-                                          </div>
-                                          <div>
-                                            <span style={{ fontSize: 12, fontWeight: 600, color: '#1E3A8A' }}>{a.prenom} {a.nom}</span>
-                                            {a.email && <span style={{ fontSize: 11, color: '#6B7280', marginLeft: 6 }}>{a.email}</span>}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <div style={{ fontSize: 11, color: '#9CA3AF', fontStyle: 'italic', marginBottom: 4 }}>Aucun admin sur ce site</div>
-                                  )}
-                                  {site.personnel && site.personnel.length > 0 && (
-                                    <div>
-                                      <div style={{ fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Personnel</div>
-                                      {site.personnel.map((p, pi) => (
-                                        <div key={pi} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', background: '#F9FAFB', borderRadius: 6, marginBottom: 2 }}>
-                                          <span style={{ fontSize: 11, color: '#374151' }}>{p.prenom} {p.nom}</span>
-                                          {p.email && <span style={{ fontSize: 10, color: '#9CA3AF' }}>{p.email}</span>}
-                                          <span style={{ fontSize: 10, padding: '1px 5px', background: '#E5E7EB', borderRadius: 3, color: '#6B7280' }}>{p.role}</span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              ))
-                            ) : (
-                              <div style={{ fontSize: 12, color: '#9CA3AF', fontStyle: 'italic', textAlign: 'center', padding: '10px 0' }}>
-                                Aucun site cree pour cette entreprise.
+                                ))}
                               </div>
+                            ) : (
+                              <div style={{ color: '#9CA3AF', fontSize: 11, fontStyle: 'italic' }}>Aucun site crÃÂ©ÃÂ© pour cette entreprise.</div>
                             )}
-                            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #BFDBFE', fontSize: 11, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <strong>Lien connexion :</strong>
-                              <a href="https://hoteldesk-pro.vercel.app" target="_blank" rel="noreferrer" style={{ color: '#2563EB', fontWeight: 600, textDecoration: 'none' }}>https://hoteldesk-pro.vercel.app</a>
-                            </div>
                           </div>
                         )}
                         {expandedEnt === e.id ? 'Fermer' : 'Modules'}
@@ -688,7 +667,7 @@ export default function SuperAdmin() {
           <div style={{ background: '#fff', borderRadius: 12, padding: 32, width: 420, maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Ajouter un Admin</h3>
-              <button onClick={() => { setShowAdminModal(false); setAdminMsg(null) }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#6B7280' }}>X</button>
+              <button onClick={() => { setShowAdminModal(false); setAdminMsg(null); setAdminSuccessInfo(null) }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#6B7280' }}>X</button>
             </div>
             <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>Entreprise : <strong>{adminModalEnt.nom}</strong></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -697,39 +676,26 @@ export default function SuperAdmin() {
               <input placeholder="Email *" type="email" value={adminForm.email} onChange={ev => setAdminForm(f => ({ ...f, email: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
               <input placeholder="Mot de passe * (min. 6 car.)" type="password" value={adminForm.password} onChange={ev => setAdminForm(f => ({ ...f, password: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
             </div>
-            {adminCreatedInfo ? (
-              <div style={{ marginTop: 16, padding: 16, background: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 10 }}>
-                <div style={{ fontWeight: 700, color: '#15803D', marginBottom: 10, fontSize: 14 }}>Admin cree avec succes !</div>
-                <div style={{ fontSize: 13, marginBottom: 6, color: '#166534' }}>Transmettez ces informations a l'admin :</div>
-                <div style={{ background: '#fff', borderRadius: 8, padding: 12, fontSize: 13, lineHeight: 1.8, border: '1px solid #BBF7D0' }}>
-                  <div><strong>Entreprise :</strong> {adminCreatedInfo.entreprise}</div>
-                  <div><strong>Nom :</strong> {adminCreatedInfo.prenom} {adminCreatedInfo.nom}</div>
-                  <div><strong>Email :</strong> {adminCreatedInfo.email}</div>
-                  <div><strong>Mot de passe :</strong> {adminCreatedInfo.password}</div>
-                  <div><strong>Lien de connexion :</strong> <a href={adminCreatedInfo.url} target="_blank" rel="noreferrer" style={{ color: '#2563EB' }}>{adminCreatedInfo.url}</a></div>
-                </div>
-                <div style={{ fontSize: 11, color: '#15803D', marginTop: 8, fontStyle: 'italic' }}>L'admin doit confirmer son email avant de se connecter.</div>
+            {adminSuccessInfo ? (
+              <div style={{ marginTop: 12, padding: 12, background: '#D1FAE5', borderRadius: 8, fontSize: 12, color: '#065F46' }}>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>Admin cree ! Transmettez ces infos :</div>
+                <div>Email : <strong>{adminSuccessInfo.email}</strong></div>
+                <div>Mot de passe : <strong>{adminSuccessInfo.password}</strong></div>
+                <div>URL : <strong>{adminSuccessInfo.url}</strong></div>
               </div>
-            ) : adminMsg && adminMsg.type === 'error' ? (
-              <div style={{ marginTop: 12, padding: '10px 14px', background: '#FEE2E2', color: '#991B1B', borderRadius: 8, fontSize: 13 }}>
+            ) : adminMsg ? (
+              <div style={{ marginTop: 12, padding: '10px 14px', background: adminMsg.type === 'success' ? '#D1FAE5' : '#FEE2E2', color: adminMsg.type === 'success' ? '#065F46' : '#991B1B', borderRadius: 8, fontSize: 13 }}>
                 {adminMsg.text}
               </div>
-            ) : null}
-           <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
-              {adminCreatedInfo ? (
-                <button onClick={() => { setShowAdminModal(false); setAdminMsg(null); setAdminCreatedInfo(null) }} style={{ padding: '10px 20px', background: '#8B5CF6', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>Fermer</button>
-              ) : (
-                <>
-                  <button onClick={() => { setShowAdminModal(false); setAdminMsg(null) }} style={{ padding: '10px 20px', border: '1px solid #D1D5DB', background: '#fff', borderRadius: 8, cursor: 'pointer', fontSize: 14 }}>Annuler</button>
-                  <button onClick={() => createAdmin(adminModalEnt.id)} disabled={adminSaving || !adminForm.email || !adminForm.password || !adminForm.prenom || !adminForm.nom} style={{ padding: '10px 20px', background: adminSaving ? '#A78BFA' : '#8B5CF6', color: '#fff', border: 'none', borderRadius: 8, cursor: adminSaving ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 600 }}>
-                    {adminSaving ? 'Creation...' : "Creer l'admin"}
-                  </button>
-                </>
-              )}
-            </div>
+            ) : null}            <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setShowAdminModal(false); setAdminMsg(null) }} style={{ padding: '10px 20px', border: '1px solid #D1D5DB', background: '#fff', borderRadius: 8, cursor: 'pointer', fontSize: 14 }}>Annuler</button>
+              <button onClick={() => createAdmin(adminModalEnt.id)} disabled={adminSaving || !adminForm.email || !adminForm.password || !adminForm.prenom || !adminForm.nom} style={{ padding: '10px 20px', background: adminSaving ? '#A78BFA' : '#8B5CF6', color: '#fff', border: 'none', borderRadius: 8, cursor: adminSaving ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 600 }}>
+                {adminSaving ? 'Creation...' : "Creer l'admin"}
+              </button>
             </div>
           </div>
         </div>
       )}
+          </div>
   )
 }
