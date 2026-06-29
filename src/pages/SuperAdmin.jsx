@@ -59,6 +59,7 @@ export default function SuperAdmin() {
   const [msg, setMsg] = useState(null)
   const [expandedEnt, setExpandedEnt] = useState(null)
   const [entModules, setEntModules] = useState({})
+  const [entDetails, setEntDetails] = useState({})
 
   useEffect(() => {
     if (!profile?.is_super_admin) return
@@ -67,9 +68,10 @@ export default function SuperAdmin() {
 
   async function fetchData() {
     setLoading(true)
-    const [{ data: ents }, { data: mods }] = await Promise.all([
+    const [{ data: ents }, { data: mods }, { data: details }] = await Promise.all([
       supabase.from('entreprises').select('*').order('created_at', { ascending: false }),
       supabase.from('modules_catalogue').select('*').order('ordre'),
+      supabase.from('super_admin_entreprises').select('*'),
     ])
     if (ents) {
       setEntreprises(ents)
@@ -78,6 +80,11 @@ export default function SuperAdmin() {
       setStats({ total: ents.length, actives: ents.filter(e => e.actif).length, par_plan })
     }
     if (mods) setModules(mods)
+    if (details) {
+      const detailsMap = {}
+      details.forEach(d => { detailsMap[d.entreprise_id] = d })
+      setEntDetails(detailsMap)
+    }
     setLoading(false)
   }
 
@@ -465,6 +472,52 @@ export default function SuperAdmin() {
                     </div>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                       <button onClick={() => { const wasExpanded = expandedEnt === e.id; setExpandedEnt(wasExpanded ? null : e.id); if (!wasExpanded) fetchEntModules(e.id) }} style={{ padding: '6px 12px', border: '1px solid #E5E7EB', background: '#F9FAFB', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
+                        {entDetails[e.id] && (
+                          <div style={{ borderTop: '1px solid #F3F4F6', marginTop: 10, paddingTop: 10 }}>
+                            <div style={{ display: 'flex', gap: 16, marginBottom: 8, fontSize: 12, color: '#6B7280' }}>
+                              <span>🏢 <strong style={{ color: '#374151' }}>{entDetails[e.id].nb_sites}</strong> site{entDetails[e.id].nb_sites > 1 ? 's' : ''}</span>
+                              <span>👤 <strong style={{ color: '#3B82F6' }}>{entDetails[e.id].nb_admins}</strong> admin{entDetails[e.id].nb_admins > 1 ? 's' : ''}</span>
+                              <span>👥 <strong style={{ color: '#10B981' }}>{entDetails[e.id].nb_personnel}</strong> personnel</span>
+                            </div>
+                            {entDetails[e.id].sites && entDetails[e.id].sites.length > 0 ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {entDetails[e.id].sites.map((site, si) => (
+                                  <div key={si} style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 6, padding: '8px 10px', fontSize: 12 }}>
+                                    <div style={{ fontWeight: 600, color: '#1F2937', marginBottom: 4 }}>
+                                      🏨 {site.site_nom}{site.site_ville ? ' — ' + site.site_ville : ''}
+                                      <span style={{ marginLeft: 6, fontSize: 10, color: site.site_actif ? '#10B981' : '#EF4444' }}>● {site.site_actif ? 'Actif' : 'Inactif'}</span>
+                                    </div>
+                                    {site.admins && site.admins.length > 0 && (
+                                      <div style={{ marginTop: 4 }}>
+                                        <span style={{ color: '#3B82F6', fontWeight: 600, fontSize: 10 }}>ADMINS: </span>
+                                        {site.admins.map((a, ai) => (
+                                          <span key={ai} style={{ background: '#DBEAFE', color: '#1D4ED8', padding: '1px 6px', borderRadius: 4, fontSize: 10, marginLeft: 4 }}>
+                                            {a.prenom} {a.nom}{a.email ? ' (' + a.email + ')' : ''}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {site.personnel && site.personnel.length > 0 && (
+                                      <div style={{ marginTop: 4 }}>
+                                        <span style={{ color: '#10B981', fontWeight: 600, fontSize: 10 }}>PERSONNEL: </span>
+                                        {site.personnel.map((p, pi) => (
+                                          <span key={pi} style={{ background: '#D1FAE5', color: '#065F46', padding: '1px 6px', borderRadius: 4, fontSize: 10, marginLeft: 4 }}>
+                                            {p.prenom} {p.nom} ({p.role}{p.departement ? ' — ' + p.departement : ''})
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {(!site.admins || site.admins.length === 0) && (!site.personnel || site.personnel.length === 0) && (
+                                      <div style={{ color: '#9CA3AF', fontSize: 11, fontStyle: 'italic' }}>Aucun utilisateur sur ce site</div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div style={{ color: '#9CA3AF', fontSize: 11, fontStyle: 'italic' }}>Aucun site créé pour cette entreprise.</div>
+                            )}
+                          </div>
+                        )}
                         {expandedEnt === e.id ? 'Fermer' : 'Modules'}
                       </button>
                       <button onClick={() => ouvrirEdition(e)} style={{ padding: '6px 12px', border: '1px solid #3B82F6', color: '#3B82F6', background: '#EFF6FF', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Modifier</button>
