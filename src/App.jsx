@@ -1,6 +1,6 @@
 // src/App.jsx
 // Velor One - V4 : Plugin System + React.lazy/Suspense + loader.js
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, lazy } from 'react'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import { useModules } from './hooks/useModules'
 import { buildLoadedModules, buildNavItems, buildRouteMap, canAccessRoute } from './modules/loader.js'
@@ -16,10 +16,14 @@ import Dashboard from './pages/Dashboard'
 import SuperAdmin from './pages/SuperAdmin'
 import { ModuleNonAutorise } from './pages/ModuleEnPreparation'
 
+// Module Conges charge en lazy (disponible pour tous les admins)
+const CongesModule = lazy(() => import('./modules/conges/index.jsx'))
+
 // Icones emoji du socle
 const ICONES_SOCLE = {
   dashboard: '🏠', planning: '📅', taches: '✅',
   messagerie: '💬', rappels: '🔔', personnel: '👥',
+  conges: '🏖',
 }
 
 // Composant de chargement pour Suspense
@@ -40,7 +44,6 @@ function AppInner() {
   const { modulesActifs, catalogue } = useModules()
   const [page, setPage] = useState(() => {
     const hash = window.location.hash.replace('#', '')
-    // Si non-super-admin arrive sur superadmin, rediriger vers dashboard
     return hash || 'dashboard'
   })
   const [menuOpen, setMenuOpen] = useState(false)
@@ -90,14 +93,17 @@ function AppInner() {
   if (!user) return <Login />
 
   const isSuperAdmin = profile?.is_super_admin
+  const isAdmin = ['admin', 'responsable'].includes(profile?.role) || isSuperAdmin
   const loadedModules = buildLoadedModules(modulesActifs, catalogue)
   // Navigation: socle toujours present + modules charges
   const socleNavItems = SOCLE_MENUS.map(m => ({ id: m.id, label: m.label || m.nom, icon: ICONES_SOCLE[m.id] || m.icone || '' }))
   const moduleNavItems = buildNavItems(loadedModules).map(m => ({ id: m.id, label: m.label || m.nom, icon: m.icone || '' }))
   const moduleIds = moduleNavItems.map(m => m.id)
   const uniqueSocle = socleNavItems.filter(m => !moduleIds.includes(m.id))
-  const superAdminItem = isSuperAdmin ? [{ id: 'superadmin', label: 'Super Admin', icon: '🛡️' }] : []
-  const navItems = [...superAdminItem, ...uniqueSocle, ...moduleNavItems]
+  const superAdminItem = isSuperAdmin ? [{ id: 'superadmin', label: 'Super Admin', icon: '🛡' }] : []
+  // Ajouter Conges & Absences pour les admins (meme sans module BDD actif)
+  const congesItem = isAdmin && !moduleIds.includes('conges') ? [{ id: 'conges', label: 'Congés & Absences', icon: '🏖' }] : []
+  const navItems = [...superAdminItem, ...uniqueSocle, ...moduleNavItems, ...congesItem]
   const routeMap = buildRouteMap(loadedModules)
 
   const navigate = (p) => { setPage(p); setMenuOpen(false); setShowUserMenu(false) }
@@ -116,6 +122,18 @@ function AppInner() {
     if (!isSuperAdmin && page === 'superadmin') return <Dashboard />
 
     const isSoclePage = SOCLE_MENUS.some(m => m.id === page)
+
+    // Pages conges : accessible aux admins directement
+    if (page === 'conges') {
+      if (!isAdmin) return <ModuleNonAutorise />
+      const permsConges = { voir: true, creer: true, modifier: isAdmin, supprimer: isAdmin, administrer: isAdmin }
+      return (
+        <Suspense fallback={<LoadingModule />}>
+          <CongesModule permissions={permsConges} profile={profile} />
+        </Suspense>
+      )
+    }
+
     if (!isSoclePage && !canAccessRoute(page, loadedModules, routeMap)) {
       if (page === 'dashboard') return <Dashboard />
       return <ModuleNonAutorise />
@@ -132,8 +150,13 @@ function AppInner() {
       case 'equipe': return <Personnel />
       default:
         if (routeMap[page]) {
-          const Comp = routeMap[page]
-          return <Suspense fallback={<LoadingModule />}><Comp /></Suspense>
+          const entry = routeMap[page]
+          const Comp = entry.composant || entry
+          return (
+            <Suspense fallback={<LoadingModule />}>
+              <Comp permissions={entry.permissions} profile={profile} />
+            </Suspense>
+          )
         }
         return <Dashboard />
     }
@@ -156,7 +179,7 @@ function AppInner() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {isSuperAdmin && (
             <button onClick={() => navigate('superadmin')} style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: '#6B7280' }}>
-              🛡️ Super Admin
+              🛡 Super Admin
             </button>
           )}
           <button onClick={signOut} title="Se deconnecter" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: '#DC2626', fontWeight: 500 }}>
@@ -175,7 +198,7 @@ function AppInner() {
                 </div>
                 {isSuperAdmin && (
                   <button onClick={() => { setShowUserMenu(false); navigate('superadmin') }} style={{ width: '100%', textAlign: 'left', padding: '8px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#374151' }}>
-                    🛡️ Super Admin
+                    🛡 Super Admin
                   </button>
                 )}
                 <button onClick={() => { setShowUserMenu(false); signOut() }} style={{ width: '100%', textAlign: 'left', padding: '8px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#DC2626' }}>
@@ -222,4 +245,4 @@ function AppInner() {
       </div>
     </div>
   )
-}
+    }
