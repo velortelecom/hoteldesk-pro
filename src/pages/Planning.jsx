@@ -41,6 +41,9 @@ export default function Planning() {
   const [taches, setTaches] = useState([])
   const [employes, setEmployes] = useState([])
   const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [quickCreateDate, setQuickCreateDate] = useState(null)
+  const [quickForm, setQuickForm] = useState({ titre: '', categorie: 'menage', priorite: 'normale' })
+  const [quickSaving, setQuickSaving] = useState(false)
   const [selectedDay, setSelectedDay] = useState(new Date())
   const [vue, setVue] = useState('mois') // 'mois' | 'jour'
   const [filtreEmp, setFiltreEmp] = useState('tous')
@@ -295,6 +298,28 @@ export default function Planning() {
     )
   }
 
+  async function createQuickTache(e) {
+    e.preventDefault()
+    if (!quickForm.titre.trim()) return
+    setQuickSaving(true)
+    const dateStr = format(quickCreateDate, 'yyyy-MM-dd') + 'T09:00:00'
+    const { error } = await supabase.from('taches').insert({
+      titre: quickForm.titre.trim(),
+      categorie: quickForm.categorie,
+      priorite: quickForm.priorite,
+      statut: 'a_faire',
+      date_echeance: dateStr,
+      entreprise_id: profile?.entreprise_id,
+      assigne_a: profile?.id,
+    })
+    setQuickSaving(false)
+    if (!error) {
+      setQuickCreateDate(null)
+      setQuickForm({ titre: '', categorie: 'menage', priorite: 'normale' })
+      fetchTaches()
+    }
+  }
+
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
       {/* Header with clock */}
@@ -351,6 +376,33 @@ export default function Planning() {
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e0dfd8', padding: 16 }}>
         {vue === 'mois' ? renderMonthCalendar() : renderDayTimeline()}
       </div>
-    </div>
+    
+      {quickCreateDate && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 400 }}>
+            <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Nouvelle tache</div>
+            <div style={{ fontSize: 12, color: '#aaa', marginBottom: 16 }}>{format(quickCreateDate, 'EEEE d MMMM yyyy', { locale: fr })}</div>
+            <form onSubmit={createQuickTache}>
+              <input autoFocus value={quickForm.titre} onChange={e => setQuickForm(f => ({ ...f, titre: e.target.value }))} placeholder="Titre de la tache *"
+                style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 13, outline: 'none', marginBottom: 10, boxSizing: 'border-box' }} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+                <select value={quickForm.categorie} onChange={e => setQuickForm(f => ({ ...f, categorie: e.target.value }))} style={{ padding: '8px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12, background: '#fff' }}>
+                  {['menage','maintenance','accueil','admin','urgence','restauration','securite'].map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                </select>
+                <select value={quickForm.priorite} onChange={e => setQuickForm(f => ({ ...f, priorite: e.target.value }))} style={{ padding: '8px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12, background: '#fff' }}>
+                  <option value="basse">Basse</option><option value="normale">Normale</option><option value="haute">Haute</option><option value="urgente">Urgente</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setQuickCreateDate(null)} style={{ padding: '8px 16px', border: '0.5px solid #d0cfc8', borderRadius: 8, background: 'none', cursor: 'pointer', fontSize: 13 }}>Annuler</button>
+                <button type="submit" disabled={quickSaving || !quickForm.titre.trim()} style={{ padding: '8px 16px', background: '#185FA5', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', opacity: (quickSaving || !quickForm.titre.trim()) ? .6 : 1, fontWeight: 600 }}>
+                  {quickSaving ? 'Creation...' : 'Creer la tache'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+</div>
   )
 }
