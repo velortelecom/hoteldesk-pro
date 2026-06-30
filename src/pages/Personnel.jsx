@@ -2,29 +2,19 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 
+const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL || 'https://vcpnrisxbnvyupsbieie.supabase.co'
+const SUPABASE_SERVICE_KEY = process.env.REACT_APP_SUPABASE_SERVICE_KEY || ''
+
 const PALETTE = [
   '#E53935','#D81B60','#8E24AA','#5E35B1','#3949AB','#1E88E5',
-  '#039BE5','#00ACC1','#00897B','#43A047','#7hCB342','#F9A825',
+  '#039BE5','#00ACC1','#00897B','#43A047','#7CB342','#F9A825',
   '#FB8C00','#F4511E','#6D4C41','#546E7A','#EC407A','#AB47BC',
 ]
 
 const DEPS = ['reception','menage','maintenance','restauration','direction','cuisine','securite','technique']
 const ROLES = ['employe','responsable','admin']
 
-const emptyForm = { prenom: '', nom: '', role: 'employe', departement: 'reception', couleur: '#1E88E5', telephone: '' }
-
-// Generer un identifiant 6 chiffres unique
-function genIdentifiant() {
-  return String(Math.floor(100000 + Math.random() * 900000))
-}
-
-// Generer un mot de passe aleatoire 8 caracteres
-function genPassword() {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
-  let pw = ''
-  for (let i = 0; i < 8; i++) pw += chars[Math.floor(Math.random() * chars.length)]
-  return pw
-}
+const emptyForm = { prenom: '', nom: '', email: '', password: '', role: 'employe', departement: 'reception', couleur: '#1E88E5', telephone: '' }
 
 export default function Personnel() {
   const { profile: moi } = useAuth()
@@ -69,64 +59,96 @@ export default function Personnel() {
     setTimeout(() => setErrorMsg(''), 6000)
   }
 
-  // Creer un nouveau compte employe (admin seulement)
+  // Creer un nouveau compte employe via Admin API (sans changer la session courante)
   async function creerCompte() {
     if (!form.prenom.trim() || !form.nom.trim()) {
       showError('Prenom et nom obligatoires')
       return
     }
+    if (!form.email.trim() || !form.email.includes('@')) {
+      showError('Email valide obligatoire')
+      return
+    }
+    if (!form.password || form.password.length < 6) {
+      showError('Mot de passe obligatoire (min 6 caracteres)')
+      return
+    }
     setSaving(true)
 
-    const identifiant = genIdentifiant()
-    const password = genPassword()
+    try {
+      // Utiliser la Admin API Supabase pour creer l'utilisateur SANS changer la session courante
+      const createRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_SERVICE_KEY,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        },
+        body: JSON.stringify({
+          email: form.email.trim().toLowerCase(),
+          password: form.password,
+          email_confirm: true,
+          user_metadata: { prenom: form.prenom.trim(), nom: form.nom.trim() },
+        }),
+      })
 
-    // Create auth user via supabase.auth.signUp
-        const email = identifiant + '@hoteldesk.local'
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-                email,
-                password,
-                options: { data: { prenom: form.prenom.trim(), nom: form.nom.trim() } }
-        })
+      const authData = await createRes.json()
 
-        if (authError) {
-                showError('Erreur auth : ' + authError.message)
-                setSaving(false)
-                return
-        }
-
-        // Insert profile
-        const { error: profError } = await supabase.from('profiles').insert({
-                id: authData.user.id,
-                prenom: form.prenom.trim(),
-                nom: form.nom.trim(),
-                role: form.role,
-                departement: form.departement,
-                couleur: form.couleur,
-                telephone: form.telephone?.trim() || null,
-                entreprise_id: moi.entreprise_id,
-                actif: true,
-                identifiant,
-        })
-
-        if (profError) {
-                showError('Erreur profil : ' + profError.message)
-                setSaving(false)
-                return
-        }
-
-        // Afficher les identifiants generes
-        setNouvellesCreds({
-                prenom: form.prenom.trim(),
-                nom: form.nom.trim(),
-                identifiant,
-                password,
-        })
-        setShowCredsModal(true)
-        setShowModal(false)
-        setForm(emptyForm)
-        await fetchEmployes()
+      if (!createRes.ok || authData.error) {
+        showError('Erreur creation compte : ' + (authData.error_description || authData.message || authData.error || 'Erreur inconnue'))
         setSaving(false)
+        return
+      }
+
+      const userId = authData.id
+
+      // Inserer le profil via service role (upsert pour eviter les conflits)
+      const profRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_SERVICE_KEY,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({
+          id: userId,
+          prenom: form.prenom.trim(),
+          nom: form.nom.trim(),
+          role: form.role,
+          departement: form.departement,
+          couleur: form.couleur,
+          telephone: form.telephone?.trim() || null,
+          entreprise_id: moi.entreprise_id,
+          actif: true,
+          avatar_initiales: (form.prenom.trim()[0] + form.nom.trim()[0]).toUpperCase(),
+        }),
+      })
+
+      if (!profRes.ok) {
+        const profErr = await profRes.text()
+        showError('Erreur profil : ' + profErr)
+        setSaving(false)
+        return
+      }
+
+      setNouvellesCreds({
+        prenom: form.prenom.trim(),
+        nom: form.nom.trim(),
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+        role: form.role,
+      })
+      setShowCredsModal(true)
+      setShowModal(false)
+      setForm(emptyForm)
+      await fetchEmployes()
+    } catch (err) {
+      showError('Erreur reseau : ' + err.message)
+    }
+    setSaving(false)
   }
+
   // Modifier un profil existant (sans changer le mot de passe)
   async function modifierProfil() {
     if (!form.prenom.trim() || !form.nom.trim()) {
@@ -183,6 +205,8 @@ export default function Personnel() {
     setForm({
       prenom: emp.prenom || '',
       nom: emp.nom || '',
+      email: '',
+      password: '',
       role: emp.role || 'employe',
       departement: emp.departement || 'reception',
       couleur: emp.couleur || '#1E88E5',
@@ -300,16 +324,16 @@ export default function Personnel() {
         <div style={{ textAlign: 'center', color: '#bbb', padding: 50, fontSize: 14 }}>Aucun resultat</div>
       )}
 
-      {/* Modal creation employe */}
+      {/* Modal creation / edition employe */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 420, maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 440, maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
               {editId ? 'Modifier le profil' : 'Creer un employe'}
             </div>
             {!editId && (
               <div style={{ fontSize: 12, color: '#888', marginBottom: 18 }}>
-                Un identifiant 6 chiffres et un mot de passe seront generes automatiquement
+                Definissez l email et le mot de passe. Le compte sera immediatement actif.
               </div>
             )}
 
@@ -327,6 +351,19 @@ export default function Personnel() {
                 </div>
               ))}
             </div>
+
+            {!editId && (
+              <>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={lbl}>Email *</label>
+                  <input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="employe@example.com" style={inp} />
+                </div>
+                <div style={{ marginBottom: 12 }}>
+                  <label style={lbl}>Mot de passe * (min 6 caracteres)</label>
+                  <input type="text" value={form.password} onChange={e => set('password', e.target.value)} placeholder="Definir un mot de passe" style={inp} />
+                </div>
+              </>
+            )}
 
             <div style={{ marginBottom: 12 }}>
               <label style={lbl}>Telephone</label>
@@ -378,10 +415,10 @@ export default function Personnel() {
         </div>
       )}
 
-      {/* Modal affichage identifiants */}
+      {/* Modal confirmation identifiants */}
       {showCredsModal && nouvellesCreds && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 380 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 400 }}>
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
               <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
               <div style={{ fontSize: 17, fontWeight: 700, color: '#065F46' }}>Compte cree !</div>
@@ -395,23 +432,30 @@ export default function Personnel() {
                 Identifiants de connexion
               </div>
 
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>Identifiant (6 chiffres)</div>
-                <div style={{ fontSize: 28, fontWeight: 800, color: '#185FA5', letterSpacing: 8, textAlign: 'center', fontFamily: 'monospace', background: '#EFF6FF', padding: '10px 0', borderRadius: 8 }}>
-                  {nouvellesCreds.identifiant}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>Email</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#185FA5', background: '#EFF6FF', padding: '8px 12px', borderRadius: 8, fontFamily: 'monospace' }}>
+                  {nouvellesCreds.email}
                 </div>
               </div>
 
-              <div>
+              <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>Mot de passe</div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: '#374151', letterSpacing: 4, textAlign: 'center', fontFamily: 'monospace', background: '#F9FAFB', padding: '8px 0', borderRadius: 8 }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: '#374151', letterSpacing: 4, textAlign: 'center', fontFamily: 'monospace', background: '#F9FAFB', padding: '8px 0', borderRadius: 8 }}>
                   {nouvellesCreds.password}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 0 }}>
+                <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>Role</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', background: '#F9FAFB', padding: '6px 12px', borderRadius: 8 }}>
+                  {nouvellesCreds.role}
                 </div>
               </div>
             </div>
 
             <div style={{ background: '#FEF3C7', color: '#92400E', fontSize: 12, padding: '10px 14px', borderRadius: 8, marginBottom: 20, lineHeight: 1.6 }}>
-              Notez ces identifiants et transmettez-les a l employe. Ils ne pourront pas etre affiches a nouveau.
+              Transmettez ces identifiants a l employe. L email et mot de passe sont ceux que vous avez definis.
             </div>
 
             <button onClick={() => { setShowCredsModal(false); setNouvellesCreds(null); showSuccess('Employe cree avec succes') }}
@@ -461,9 +505,10 @@ function EmployeCard({ emp, canEdit, isAdmin, isResponsable, onEdit, onToggleAct
             {isSelf && <span style={{ fontSize: 10, background: '#E6F1FB', color: '#0C447C', padding: '1px 6px', borderRadius: 8 }}>moi</span>}
             <span style={{ fontSize: 10, background: rc.bg, color: rc.color, padding: '1px 7px', borderRadius: 8, fontWeight: 700, textTransform: 'uppercase' }}>{emp.role}</span>
           </div>
-          <div style={{ fontSize: 12, color: '#888', marginTop: 3, display: 'flex', gap: 10 }}>
+          <div style={{ fontSize: 12, color: '#888', marginTop: 3, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <span>{emp.departement}</span>
             {emp.telephone && <span>{emp.telephone}</span>}
+            {emp.email && <span style={{ color: '#aaa' }}>{emp.email}</span>}
           </div>
         </div>
 
