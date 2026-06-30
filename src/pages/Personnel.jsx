@@ -227,6 +227,50 @@ export default function Personnel() {
     }
   }
 
+  async function changePassword(emp, newPassword) {
+    if (!isAdmin) return
+    if (!newPassword || newPassword.length < 6) {
+      showError('Mot de passe trop court (min 6 caracteres)')
+      return
+    }
+    try {
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${emp.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_SERVICE_KEY,
+          'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+        },
+        body: JSON.stringify({ password: newPassword }),
+      })
+      if (res.ok) {
+        showSuccess('Mot de passe modifie pour ' + emp.prenom)
+      } else {
+        showError('Erreur changement mot de passe')
+      }
+    } catch(e) {
+      showError('Erreur reseau : ' + e.message)
+    }
+  }
+
+  async function supprimerDefinitivement(emp) {
+    if (!isAdmin) return
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${emp.id}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'Prefer': 'return=minimal' }
+      })
+      await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${emp.id}`, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` }
+      })
+      showSuccess(emp.prenom + ' supprime definitivement')
+      await fetchEmployes()
+    } catch(e) {
+      showError('Erreur : ' + e.message)
+    }
+  }
+
   function openEdit(emp) {
     setForm({
       prenom: emp.prenom || '',
@@ -325,7 +369,7 @@ export default function Personnel() {
             {actifs.map(emp => (
               <EmployeCard key={emp.id} emp={emp} canEdit={canEdit} isAdmin={isAdmin} isResponsable={isResponsable}
                 onEdit={openEdit} onToggleActif={toggleActif} onCouleur={updateCouleur}
-                onChangeRole={changeRole} moi={moi} />
+                onChangeRole={changeRole} onChangePassword={changePassword} onSupprimerDefinitivement={supprimerDefinitivement} moi={moi} />
             ))}
           </div>
         </>
@@ -340,7 +384,7 @@ export default function Personnel() {
             {inactifs.map(emp => (
               <EmployeCard key={emp.id} emp={emp} canEdit={canEdit} isAdmin={isAdmin} isResponsable={isResponsable}
                 onEdit={openEdit} onToggleActif={toggleActif} onCouleur={updateCouleur}
-                onChangeRole={changeRole} moi={moi} />
+                onChangeRole={changeRole} onChangePassword={changePassword} onSupprimerDefinitivement={supprimerDefinitivement} moi={moi} />
             ))}
           </div>
         </>
@@ -444,7 +488,7 @@ export default function Personnel() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 400 }}>
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
-              <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>â</div>
               <div style={{ fontSize: 17, fontWeight: 700, color: '#065F46' }}>Compte cree !</div>
               <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>{nouvellesCreds.prenom} {nouvellesCreds.nom}</div>
             </div>
@@ -488,7 +532,7 @@ export default function Personnel() {
   )
 }
 
-function EmployeCard({ emp, canEdit, isAdmin, isResponsable, onEdit, onToggleActif, onCouleur, onChangeRole, moi }) {
+function EmployeCard({ emp, canEdit, isAdmin, isResponsable, onEdit, onToggleActif, onCouleur, onChangeRole, onChangePassword, onSupprimerDefinitivement, moi }) {
   const [showPalette, setShowPalette] = useState(false)
   const [showActions, setShowActions] = useState(false)
   const couleur = emp.couleur || '#1E88E5'
@@ -556,6 +600,14 @@ function EmployeCard({ emp, canEdit, isAdmin, isResponsable, onEdit, onToggleAct
                       <button onClick={() => { onToggleActif(emp); setShowActions(false) }}
                         style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: emp.actif !== false ? '#FEF2F2' : '#F0FDF4', padding: '6px 8px', cursor: 'pointer', fontSize: 12, color: emp.actif !== false ? '#EF4444' : '#16A34A', borderRadius: 4, marginTop: 2 }}>
                         {emp.actif !== false ? 'Desactiver' : 'Reactiver'}
+                      </button>
+                      <button onClick={() => { onChangePassword(emp, window.prompt('Nouveau mot de passe pour ' + emp.prenom + ' (min 6 car.) :')); setShowActions(false) }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '6px 8px', cursor: 'pointer', fontSize: 12, color: '#185FA5', borderRadius: 4, marginTop: 2 }}>
+                        Changer le mot de passe
+                      </button>
+                      <button onClick={() => { if(window.confirm('Supprimer definitivement ' + emp.prenom + ' ' + emp.nom + ' ?')) { onSupprimerDefinitivement(emp); setShowActions(false) } }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: '#FEF2F2', padding: '6px 8px', cursor: 'pointer', fontSize: 12, color: '#DC2626', borderRadius: 4, marginTop: 2, fontWeight: 600 }}>
+                        Supprimer definitivement
                       </button>
                     </div>
                   </div>
