@@ -348,7 +348,7 @@ export default function SuperAdmin() {
             </div>
             {templateSecteur && (
               <div style={{ marginTop: 10, padding: '8px 12px', background: '#F0FDF4', borderRadius: 8, fontSize: 12, color: '#166534' }}>
-                {templateSecteur.icone} {templateSecteur.description} â {deptsTemplate.length} depts et {templateSecteur.postes.length} postes charges automatiquement
+                {templateSecteur.icone} {templateSecteur.description} — {deptsTemplate.length} depts et {templateSecteur.postes.length} postes charges automatiquement
               </div>
             )}
           </Section>
@@ -559,7 +559,7 @@ export default function SuperAdmin() {
               return (
                 <div key={e.id} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
-                    <div style={{ fontSize: 24, flexShrink: 0 }}>{secteurInfo?.icone || 'ð¢'}</div>
+                    <div style={{ fontSize: 24, flexShrink: 0 }}>{secteurInfo?.icone || '🏢'}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 700, fontSize: 15 }}>{e.nom}</span>
@@ -567,8 +567,8 @@ export default function SuperAdmin() {
                         <span style={{ color: e.actif ? '#10B981' : '#EF4444', fontSize: 12, fontWeight: 600 }}>{e.actif ? 'Actif' : 'Inactif'}</span>
                       </div>
                       <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
-                        {secteurInfo?.label || e.secteur} â {e.max_utilisateurs || '?'} users max
-                        {e.email_contact && ' â ' + e.email_contact}
+                        {secteurInfo?.label || e.secteur} — {e.max_utilisateurs || '?'} users max
+                        {e.email_contact && ' — ' + e.email_contact}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -576,17 +576,17 @@ export default function SuperAdmin() {
                         {entDetails[e.id] && (
                           <div style={{ borderTop: '1px solid #F3F4F6', marginTop: 10, paddingTop: 10 }}>
                             <div style={{ display: 'flex', gap: 16, marginBottom: 8, fontSize: 12, color: '#6B7280' }}>
-                              <span>ð¢ <strong style={{ color: '#374151' }}>{entDetails[e.id].nb_sites}</strong> site{entDetails[e.id].nb_sites > 1 ? 's' : ''}</span>
-                              <span>ð¤ <strong style={{ color: '#3B82F6' }}>{entDetails[e.id].nb_admins}</strong> admin{entDetails[e.id].nb_admins > 1 ? 's' : ''}</span>
-                              <span>ð¥ <strong style={{ color: '#10B981' }}>{entDetails[e.id].nb_personnel}</strong> personnel</span>
+                              <span>🏢 <strong style={{ color: '#374151' }}>{entDetails[e.id].nb_sites}</strong> site{entDetails[e.id].nb_sites > 1 ? 's' : ''}</span>
+                              <span>👤 <strong style={{ color: '#3B82F6' }}>{entDetails[e.id].nb_admins}</strong> admin{entDetails[e.id].nb_admins > 1 ? 's' : ''}</span>
+                              <span>👥 <strong style={{ color: '#10B981' }}>{entDetails[e.id].nb_personnel}</strong> personnel</span>
                             </div>
                             {entDetails[e.id].sites && entDetails[e.id].sites.length > 0 ? (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                 {entDetails[e.id].sites.map((site, si) => (
                                   <div key={si} style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 6, padding: '8px 10px', fontSize: 12 }}>
                                     <div style={{ fontWeight: 600, color: '#1F2937', marginBottom: 4 }}>
-                                      ð¨ {site.site_nom}{site.site_ville ? ' â ' + site.site_ville : ''}
-                                      <span style={{ marginLeft: 6, fontSize: 10, color: site.site_actif ? '#10B981' : '#EF4444' }}>â {site.site_actif ? 'Actif' : 'Inactif'}</span>
+                                      🏨 {site.site_nom}{site.site_ville ? ' — ' + site.site_ville : ''}
+                                      <span style={{ marginLeft: 6, fontSize: 10, color: site.site_actif ? '#10B981' : '#EF4444' }}>✏ {site.site_actif ? 'Actif' : 'Inactif'}</span>
                                     </div>
                                     {site.admins && site.admins.length > 0 && (
                                       <div style={{ marginTop: 4 }}>
@@ -603,7 +603,7 @@ export default function SuperAdmin() {
                                         <span style={{ color: '#10B981', fontWeight: 600, fontSize: 10 }}>PERSONNEL: </span>
                                         {site.personnel.map((p, pi) => (
                                           <span key={pi} style={{ background: '#D1FAE5', color: '#065F46', padding: '1px 6px', borderRadius: 4, fontSize: 10, marginLeft: 4 }}>
-                                            {p.prenom} {p.nom} ({p.role}{p.departement ? ' â ' + p.departement : ''})
+                                            {p.prenom} {p.nom} ({p.role}{p.departement ? ' — ' + p.departement : ''})
                                           </span>
                                         ))}
                                       </div>
@@ -615,7 +615,7 @@ export default function SuperAdmin() {
                                 ))}
                               </div>
                             ) : (
-                              <div style={{ color: '#9CA3AF', fontSize: 11, fontStyle: 'italic' }}>Aucun site créé pour cette entreprise.</div>
+                              <div style={{ color: '#9CA3AF', fontSize: 11, fontStyle: 'italic' }}>Aucun site cr�� pour cette entreprise.</div>
                             )}
                           </div>
                         )}
@@ -626,7 +626,7 @@ export default function SuperAdmin() {
                         {e.actif ? 'Desactiver' : 'Reactiver'}
                       </button>
                                          <button onClick={() => { setAdminModalEnt(e); setAdminForm({ prenom: '', nom: '', email: '', password: '' }); setAdminMsg(null); setShowAdminModal(true) }} style={{ padding: '6px 12px', border: '1px solid #8B5CF6', color: '#8B5CF6', background: '#F5F3FF', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>+ Admin</button>
-                      <button onClick={() => setDeleteConfirm(e)} style={{ padding: '6px 12px', border: '1px solid #EF4444', color: '#EF4444', background: '#FEF2F2', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>ð Supprimer</button>
+                      <button onClick={() => setDeleteConfirm(e)} style={{ padding: '6px 12px', border: '1px solid #EF4444', color: '#EF4444', background: '#FEF2F2', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>🗑 Supprimer</button>
                        </div>
                   </div>
                   {expandedEnt === e.id && (
@@ -705,7 +705,7 @@ export default function SuperAdmin() {
             {deleteConfirm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: 32, maxWidth: 420, width: '90%', textAlign: 'center' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>ð</div>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🗑</div>
             <h3 style={{ fontWeight: 700, fontSize: 18, color: '#111827', marginBottom: 8 }}>Supprimer cette entreprise ?</h3>
             <p style={{ color: '#6B7280', fontSize: 14, marginBottom: 24 }}>
               Cette action va supprimer <strong>"{deleteConfirm.nom}"</strong> ainsi que tous ses sites, utilisateurs et modules. Cette action est <strong>irreversible</strong>.
