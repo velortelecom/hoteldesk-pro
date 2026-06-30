@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
 
@@ -11,6 +11,17 @@ export default function Login() {
   const [resetEmail, setResetEmail] = useState('')
   const [resetLoading, setResetLoading] = useState(false)
   const [resetError, setResetError] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newPassword2, setNewPassword2] = useState('')
+  const [updateLoading, setUpdateLoading] = useState(false)
+  const [updateError, setUpdateError] = useState('')
+
+  useEffect(() => {
+    const hash = window.location.hash
+    if (hash.includes('type=recovery')) {
+      setView('new_password')
+    }
+  }, [])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -38,13 +49,39 @@ export default function Login() {
     setResetLoading(true)
     setResetError('')
     const { error: err } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
-      redirectTo: window.location.origin + '/reset-password'
+      redirectTo: window.location.origin
     })
     setResetLoading(false)
     if (err) {
       setResetError('Erreur lors de envoi. Verifiez votre email.')
     } else {
       setView('forgot_sent')
+    }
+  }
+
+  async function handleNewPassword(e) {
+    e.preventDefault()
+    if (!newPassword.trim()) {
+      setUpdateError('Veuillez entrer un nouveau mot de passe')
+      return
+    }
+    if (newPassword !== newPassword2) {
+      setUpdateError('Les mots de passe ne correspondent pas')
+      return
+    }
+    if (newPassword.length < 8) {
+      setUpdateError('Le mot de passe doit faire au moins 8 caracteres')
+      return
+    }
+    setUpdateLoading(true)
+    setUpdateError('')
+    const { error: err } = await supabase.auth.updateUser({ password: newPassword })
+    setUpdateLoading(false)
+    if (err) {
+      setUpdateError('Erreur: ' + err.message)
+    } else {
+      setView('password_updated')
+      window.location.hash = ''
     }
   }
 
@@ -155,6 +192,41 @@ export default function Login() {
               </div>
               <div style={{ fontSize: 13, color: '#888', marginBottom: 24 }}>Verifiez votre boite mail et cliquez sur le lien.</div>
               <button type="button" onClick={() => setView('login')} style={btnPrimary}>Retour a la connexion</button>
+            </div>
+          </div>
+        )}
+
+        {view === 'new_password' && (
+          <div style={cardStyle}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a', marginBottom: 8 }}>Nouveau mot de passe</div>
+            <div style={{ fontSize: 13, color: '#888', marginBottom: 24 }}>Choisissez un nouveau mot de passe pour votre compte.</div>
+            <form onSubmit={handleNewPassword}>
+              <div style={{ marginBottom: 18 }}>
+                <label style={labelStyle}>Nouveau mot de passe</label>
+                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="8 caracteres minimum" style={inputStyle} />
+              </div>
+              <div style={{ marginBottom: 18 }}>
+                <label style={labelStyle}>Confirmer le mot de passe</label>
+                <input type="password" value={newPassword2} onChange={e => setNewPassword2(e.target.value)} placeholder="Repeter le mot de passe" style={inputStyle} />
+              </div>
+              {updateError && (
+                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#DC2626', marginBottom: 18 }}>
+                  {updateError}
+                </div>
+              )}
+              <button type="submit" disabled={updateLoading} style={updateLoading ? btnPrimaryDis : btnPrimary}>
+                {updateLoading ? 'Mise a jour...' : 'Enregistrer le mot de passe'}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {view === 'password_updated' && (
+          <div style={cardStyle}>
+            <div style={{ textAlign: 'center', padding: '12px 0' }}>
+              <div style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a', marginBottom: 8 }}>Mot de passe mis a jour !</div>
+              <div style={{ fontSize: 14, color: '#555', marginBottom: 24 }}>Votre mot de passe a ete modifie avec succes.</div>
+              <button type="button" onClick={() => setView('login')} style={btnPrimary}>Se connecter</button>
             </div>
           </div>
         )}
