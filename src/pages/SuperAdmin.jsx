@@ -615,7 +615,7 @@ export default function SuperAdmin() {
                                 ))}
                               </div>
                             ) : (
-                              <div style={{ color: '#9CA3AF', fontSize: 11, fontStyle: 'italic' }}>Aucun site cr�� pour cette entreprise.</div>
+                              <div style={{ color: '#9CA3AF', fontSize: 11, fontStyle: 'italic' }}>Aucun site créé pour cette entreprise.</div>
                             )}
                           </div>
                         )}
