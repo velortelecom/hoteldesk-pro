@@ -102,14 +102,14 @@ export default function Personnel() {
 
       const userId = authData.id
 
-      // Inserer le profil via service role (upsert pour eviter les conflits)
+      // Upsert du profil via service role (gere le cas ou un trigger a deja cree le profil)
       const profRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'apikey': SUPABASE_SERVICE_KEY,
           'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-          'Prefer': 'return=minimal',
+          'Prefer': 'resolution=merge-duplicates,return=minimal',
         },
         body: JSON.stringify({
           id: userId,
