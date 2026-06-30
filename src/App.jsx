@@ -18,8 +18,8 @@ import { ModuleNonAutorise } from './pages/ModuleEnPreparation'
 
 // Icones emoji du socle
 const ICONES_SOCLE = {
-  dashboard: '🏠', planning: '📅', taches: '✅',
-  messagerie: '💬', rappels: '🔔', personnel: '👥',
+  dashboard: 'ð ', planning: 'ð', taches: 'â',
+  messagerie: 'ð¬', rappels: 'ð', personnel: 'ð¥',
 }
 
 // Composant de chargement pour Suspense
@@ -50,6 +50,16 @@ function AppInner() {
         .then(({ data }) => { if (data?.nom) setNomEntreprise(data.nom) })
     }
   }, [profile?.entreprise_id])
+
+  // Auto-corriger le prenom si c'est 'Nouveau' (profil par defaut du trigger)
+  useEffect(() => {
+    if (profile?.id && (profile.prenom === 'Nouveau' || !profile.prenom)) {
+      const emailParts = user?.email?.split('@')[0]?.split('_') || []
+      const autoPrenom = emailParts[0] ? emailParts[0].charAt(0).toUpperCase() + emailParts[0].slice(1) : 'Admin'
+      supabase.from('profiles').update({ prenom: autoPrenom }).eq('id', profile.id)
+    }
+  }, [profile?.id, profile?.prenom])
+
 
   // Hash navigation sync
   useEffect(() => {
@@ -120,7 +130,7 @@ function AppInner() {
             {nomEntreprise[0]}
           </div>
           <div style={{ fontSize: 14, fontWeight: 600, color: '#111' }}>{nomEntreprise}</div>
-          <div style={{ fontSize: 12, color: '#aaa' }}>— {pageTitle}</div>
+          <div style={{ fontSize: 12, color: '#aaa' }}>â {pageTitle}</div>
           {isSuperAdmin && (
             <span style={{ fontSize: 10, background: '#FEF3C7', color: '#92400E', padding: '2px 7px', borderRadius: 8, fontWeight: 700 }}>SUPER ADMIN</span>
           )}
@@ -132,7 +142,7 @@ function AppInner() {
           title="Se deconnecter"
           style={{ padding: '5px 12px', background: 'none', border: '0.5px solid #e0dfd8', borderRadius: 8, cursor: 'pointer', fontSize: 12, color: '#888', display: 'flex', alignItems: 'center', gap: 5 }}
         >
-          <span>⏻</span> <span style={{ display: 'none', '@media(min-width:600px)': { display: 'inline' } }}>Quitter</span>
+          <span>â»</span> <span style={{ display: 'none', '@media(min-width:600px)': { display: 'inline' } }}>Quitter</span>
         </button>
 
         {/* Avatar + menu profil */}
@@ -152,11 +162,11 @@ function AppInner() {
               </div>
               {isSuperAdmin && (
                 <button onClick={() => navigate('superadmin')} style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '8px 12px', cursor: 'pointer', fontSize: 13, color: '#185FA5', borderRadius: 6 }}>
-                  ⚙️ Super Admin
+                  âï¸ Super Admin
                 </button>
               )}
               <button onClick={() => { signOut(); setShowUserMenu(false) }} style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: '#FEF2F2', padding: '8px 12px', cursor: 'pointer', fontSize: 13, color: '#EF4444', borderRadius: 6, marginTop: 2, fontWeight: 600 }}>
-                ⏻ Se deconnecter
+                â» Se deconnecter
               </button>
             </div>
           )}
