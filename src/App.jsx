@@ -91,7 +91,13 @@ function AppInner() {
 
   const isSuperAdmin = profile?.is_super_admin
   const loadedModules = buildLoadedModules(modulesActifs, catalogue)
-  const navItems = buildNavItems(loadedModules, ICONES_SOCLE, SOCLE_MENUS, isSuperAdmin)
+  // Navigation: socle toujours present + modules charges
+  const socleNavItems = SOCLE_MENUS.map(m => ({ id: m.id, label: m.label || m.nom, icon: ICONES_SOCLE[m.id] || m.icone || '' }))
+  const moduleNavItems = buildNavItems(loadedModules).map(m => ({ id: m.id, label: m.label || m.nom, icon: m.icone || '' }))
+  const moduleIds = moduleNavItems.map(m => m.id)
+  const uniqueSocle = socleNavItems.filter(m => !moduleIds.includes(m.id))
+  const superAdminItem = isSuperAdmin ? [{ id: 'superadmin', label: 'Super Admin', icon: '🛡️' }] : []
+  const navItems = [...superAdminItem, ...uniqueSocle, ...moduleNavItems]
   const routeMap = buildRouteMap(loadedModules)
 
   const navigate = (p) => { setPage(p); setMenuOpen(false); setShowUserMenu(false) }
