@@ -115,7 +115,8 @@ function AppInner() {
     if (isSuperAdmin && page === 'superadmin') return <SuperAdmin />
     if (!isSuperAdmin && page === 'superadmin') return <Dashboard />
 
-    if (!canAccessRoute(page, loadedModules, routeMap)) {
+    const isSoclePage = SOCLE_MENUS.some(m => m.id === page)
+    if (!isSoclePage && !canAccessRoute(page, loadedModules, routeMap)) {
       if (page === 'dashboard') return <Dashboard />
       return <ModuleNonAutorise />
     }
