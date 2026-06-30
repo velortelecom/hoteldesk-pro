@@ -118,7 +118,7 @@ function AppInner() {
     messagerie: <Messagerie />,
     rappels: <Rappels />,
     personnel: <Personnel />,
-    superadmin: <SuperAdmin />,
+    superadmin: profile?.is_super_admin ? <SuperAdmin /> : <Dashboard />,
   }
 
   // Resolution de la page courante
@@ -154,7 +154,7 @@ function AppInner() {
   const couleurProfil = profile?.couleur || '#185FA5'
   const initiales = ((profile?.prenom?.[0] || '') + (profile?.nom?.[0] || '')).toUpperCase()
   const pageNav = NAV.find(n => n.id === page)
-  const pageTitre = pageNav?.label || pageNav?.nom || (page === 'superadmin' ? 'Super Admin' : 'Accueil')
+  const pageTitre = pageNav?.label || pageNav?.nom || (page === 'superadmin' && profile?.is_super_admin ? 'Super Admin' : 'Accueil')
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f5f3', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
