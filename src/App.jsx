@@ -53,7 +53,7 @@ function Toast({ toasts, remove }) {
 function AppInner() {
   const { user, profile, loading: authLoading, signOut } = useAuth()
   const { modulesActifs, catalogue } = useModules()
-  const [page, setPage] = useState('dashboard')
+  const [page, setPage] = useState(() => window.location.hash.replace('#', '') || 'dashboard')
   const [menuOpen, setMenuOpen] = useState(false)
   const [toasts, setToasts] = useState([])
   const [nomEntreprise, setNomEntreprise] = useState('Velor One')
@@ -64,6 +64,23 @@ function AppInner() {
         .then(({ data }) => { if (data?.nom) setNomEntreprise(data.nom) })
     }
   }, [profile?.entreprise_id])
+
+  // Sync URL hash -> page (navigation arriere/avant)
+  useEffect(() => {
+    const onHash = () => {
+      const h = window.location.hash.replace('#', '') || 'dashboard';
+      setPage(h);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  // Sync page -> URL hash
+  useEffect(() => {
+    if (window.location.hash.replace('#', '') !== page) {
+      window.location.hash = page;
+    }
+  }, [page]);
 
   const addToast = (msg, type = 'info') => {
     const id = Date.now()
