@@ -18,8 +18,8 @@ import { ModuleNonAutorise } from './pages/ModuleEnPreparation'
 
 // Icones emoji du socle
 const ICONES_SOCLE = {
-  dashboard: 'ð ', planning: 'ð', taches: 'â',
-  messagerie: 'ð¬', rappels: 'ð', personnel: 'ð¥',
+  dashboard: '🏠', planning: '📅', taches: '✅',
+  messagerie: '💬', rappels: '🔔', personnel: '👥',
 }
 
 // Composant de chargement pour Suspense
@@ -38,7 +38,11 @@ export default function App() {
 function AppInner() {
   const { user, profile, loading: authLoading, signOut } = useAuth()
   const { modulesActifs, catalogue } = useModules()
-  const [page, setPage] = useState(() => window.location.hash.replace('#', '') || 'dashboard')
+  const [page, setPage] = useState(() => {
+    const hash = window.location.hash.replace('#', '')
+    // Si non-super-admin arrive sur superadmin, rediriger vers dashboard
+    return hash || 'dashboard'
+  })
   const [menuOpen, setMenuOpen] = useState(false)
   const [toasts, setToasts] = useState([])
   const [nomEntreprise, setNomEntreprise] = useState('Velor One')
@@ -60,6 +64,13 @@ function AppInner() {
     }
   }, [profile?.id, profile?.prenom])
 
+  // Si admin non-super-admin arrive sur superadmin, rediriger vers dashboard
+  useEffect(() => {
+    if (profile && !profile.is_super_admin && page === 'superadmin') {
+      setPage('dashboard')
+      window.location.hash = 'dashboard'
+    }
+  }, [profile, page])
 
   // Hash navigation sync
   useEffect(() => {
@@ -96,7 +107,7 @@ function AppInner() {
 
   function renderPage() {
     if (isSuperAdmin && page === 'superadmin') return <SuperAdmin />
-    if (!isSuperAdmin && page === 'superadmin') return <div style={{ padding: 40, color: '#EF4444', fontWeight: 600 }}>Acces refuse</div>
+    if (!isSuperAdmin && page === 'superadmin') return <Dashboard />
 
     if (!canAccessRoute(page, loadedModules, routeMap)) {
       if (page === 'dashboard') return <Dashboard />
@@ -119,94 +130,85 @@ function AppInner() {
     }
   }
 
-  const pageTitle = navItems.find(n => n.page === page)?.label || (page === 'superadmin' ? 'Super Admin' : 'Accueil')
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100dvh', background: '#f5f4ef', fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#F5F6FA', fontFamily: "'Inter', sans-serif" }}>
       {/* Header */}
-      <header style={{ height: 48, background: '#fff', borderBottom: '0.5px solid #e0dfd8', display: 'flex', alignItems: 'center', padding: '0 16px', gap: 12, flexShrink: 0, position: 'sticky', top: 0, zIndex: 30 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: '#185FA5', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
-            {nomEntreprise[0]}
-          </div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#111' }}>{nomEntreprise}</div>
-          <div style={{ fontSize: 12, color: '#aaa' }}>â {pageTitle}</div>
+      <header style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, zIndex: 100 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 32, height: 32, background: '#1E40AF', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 16 }}>V</div>
+          <span style={{ fontWeight: 700, fontSize: 16, color: '#111' }}>{nomEntreprise}</span>
           {isSuperAdmin && (
-            <span style={{ fontSize: 10, background: '#FEF3C7', color: '#92400E', padding: '2px 7px', borderRadius: 8, fontWeight: 700 }}>SUPER ADMIN</span>
+            <span style={{ background: '#FEF3C7', color: '#92400E', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4 }}>SUPER ADMIN</span>
+          )}
+          {!isSuperAdmin && profile?.role === 'admin' && (
+            <span style={{ background: '#EEF2FF', color: '#3730A3', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4 }}>ADMIN</span>
           )}
         </div>
-
-        {/* Bouton deconnexion visible */}
-        <button
-          onClick={() => signOut()}
-          title="Se deconnecter"
-          style={{ padding: '5px 12px', background: 'none', border: '0.5px solid #e0dfd8', borderRadius: 8, cursor: 'pointer', fontSize: 12, color: '#888', display: 'flex', alignItems: 'center', gap: 5 }}
-        >
-          <span>â»</span> <span style={{ display: 'none', '@media(min-width:600px)': { display: 'inline' } }}>Quitter</span>
-        </button>
-
-        {/* Avatar + menu profil */}
-        <div style={{ position: 'relative' }}>
-          <button
-            onClick={() => setShowUserMenu(v => !v)}
-            style={{ width: 34, height: 34, borderRadius: '50%', background: profile?.couleur ? profile.couleur + '22' : '#E6F1FB', border: '2px solid ' + (profile?.couleur || '#185FA5'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: profile?.couleur || '#185FA5', cursor: 'pointer' }}
-          >
-            {initiales}
-          </button>
-          {showUserMenu && (
-            <div style={{ position: 'absolute', right: 0, top: 42, background: '#fff', border: '0.5px solid #e0dfd8', borderRadius: 12, padding: 8, zIndex: 100, boxShadow: '0 4px 20px rgba(0,0,0,.12)', minWidth: 200 }}>
-              <div style={{ padding: '8px 12px', borderBottom: '0.5px solid #f0efe8', marginBottom: 4 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{prenomDisplay} {profile?.nom || ''}</div>
-                <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>{user?.email}</div>
-                <div style={{ fontSize: 11, color: '#7C3AED', marginTop: 2, textTransform: 'uppercase', fontWeight: 600 }}>{profile?.role || 'employe'}</div>
-              </div>
-              {isSuperAdmin && (
-                <button onClick={() => navigate('superadmin')} style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '8px 12px', cursor: 'pointer', fontSize: 13, color: '#185FA5', borderRadius: 6 }}>
-                  âï¸ Super Admin
-                </button>
-              )}
-              <button onClick={() => { signOut(); setShowUserMenu(false) }} style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: '#FEF2F2', padding: '8px 12px', cursor: 'pointer', fontSize: 13, color: '#EF4444', borderRadius: 6, marginTop: 2, fontWeight: 600 }}>
-                â» Se deconnecter
-              </button>
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {isSuperAdmin && (
+            <button onClick={() => navigate('superadmin')} style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: '#6B7280' }}>
+              🛡️ Super Admin
+            </button>
           )}
-          {showUserMenu && <div onClick={() => setShowUserMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 99 }} />}
+          <button onClick={signOut} title="Se deconnecter" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: '#DC2626', fontWeight: 500 }}>
+            ⏻ Se deconnecter
+          </button>
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowUserMenu(m => !m)} style={{ width: 36, height: 36, borderRadius: '50%', background: '#1E40AF', color: '#fff', fontWeight: 700, fontSize: 13, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {initiales}
+            </button>
+            {showUserMenu && (
+              <div style={{ position: 'absolute', right: 0, top: 44, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, padding: '8px 0', minWidth: 200, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 200 }}>
+                <div style={{ padding: '8px 16px', borderBottom: '1px solid #F3F4F6' }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: '#111' }}>{prenomDisplay} {profile?.nom || ''}</div>
+                  <div style={{ fontSize: 12, color: '#6B7280' }}>{user?.email}</div>
+                  <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{profile?.role || 'employe'}</div>
+                </div>
+                {isSuperAdmin && (
+                  <button onClick={() => { setShowUserMenu(false); navigate('superadmin') }} style={{ width: '100%', textAlign: 'left', padding: '8px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#374151' }}>
+                    🛡️ Super Admin
+                  </button>
+                )}
+                <button onClick={() => { setShowUserMenu(false); signOut() }} style={{ width: '100%', textAlign: 'left', padding: '8px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#DC2626' }}>
+                  ⏻ Se deconnecter
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* Main content */}
-      <main style={{ flex: 1, overflow: 'auto', padding: '0 16px 80px' }}>
-        {renderPage()}
-      </main>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        {/* Sidebar */}
+        <nav style={{ width: 220, background: '#fff', borderRight: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', paddingTop: 16, flexShrink: 0, overflowY: 'auto' }}>
+          {navItems.map(item => (
+            <button key={item.id} onClick={() => navigate(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 20px', background: page === item.id ? '#EEF2FF' : 'none', border: 'none', borderLeft: page === item.id ? '3px solid #1E40AF' : '3px solid transparent', cursor: 'pointer', fontSize: 13, fontWeight: page === item.id ? 600 : 400, color: page === item.id ? '#1E40AF' : '#374151', textAlign: 'left', width: '100%' }}>
+              <span style={{ fontSize: 16 }}>{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
 
-      {/* Bottom nav */}
-      <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '0.5px solid #e0dfd8', display: 'flex', overflowX: 'auto', zIndex: 20, flexShrink: 0 }}>
-        {navItems.map(item => (
-          <button
-            key={item.page}
-            onClick={() => navigate(item.page)}
-            style={{
-              flex: '0 0 auto', minWidth: 60, padding: '6px 8px 4px', border: 'none', background: 'none',
-              cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-              color: page === item.page ? '#185FA5' : '#888',
-              borderTop: page === item.page ? '2px solid #185FA5' : '2px solid transparent',
-            }}
-          >
+        {/* Main */}
+        <main style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+          {renderPage()}
+        </main>
+      </div>
+
+      {/* Mobile nav */}
+      <nav style={{ display: 'none', position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #E5E7EB', padding: '8px 0', zIndex: 50 }} className="mobile-nav">
+        {navItems.slice(0, 7).map(item => (
+          <button key={item.id} onClick={() => navigate(item.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px', color: page === item.id ? '#1E40AF' : '#6B7280', fontSize: 10 }}>
             <span style={{ fontSize: 18 }}>{item.icon}</span>
-            <span style={{ fontSize: 9, fontWeight: page === item.page ? 600 : 400, whiteSpace: 'nowrap' }}>{item.label}</span>
+            {item.label}
           </button>
         ))}
       </nav>
 
       {/* Toasts */}
-      <div style={{ position: 'fixed', top: 60, right: 16, zIndex: 999, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ position: 'fixed', bottom: 80, right: 16, zIndex: 300, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {toasts.map(t => (
-          <div key={t.id} style={{
-            background: t.color, color: '#fff', padding: '10px 14px', borderRadius: 10, fontSize: 13, cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(0,0,0,.1)', maxWidth: 280, lineHeight: 1.4,
-          }}>
-            {t.msg}
-          </div>
+          <div key={t.id} style={{ background: t.color, color: '#fff', padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 500, boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>{t.msg}</div>
         ))}
       </div>
     </div>
