@@ -66,6 +66,7 @@ export default function SuperAdmin() {
   const [adminForm, setAdminForm] = useState({ prenom: '', nom: '', email: '', password: '' })
   const [adminSaving, setAdminSaving] = useState(false)
   const [adminMsg, setAdminMsg] = useState(null)
+  const [deleteConfirm, setDeleteConfirm] = useState(null)
 
   useEffect(() => {
     if (!profile?.is_super_admin) return
@@ -278,6 +279,21 @@ export default function SuperAdmin() {
     }
   }
 
+  async function deleteEntreprise(ent) {
+    setDeleteConfirm(null)
+    try {
+      await supabase.from('profiles').delete().eq('entreprise_id', ent.id).neq('is_super_admin', true)
+      await supabase.from('entreprise_modules').delete().eq('entreprise_id', ent.id)
+      await supabase.from('sites').delete().eq('entreprise_id', ent.id)
+      const { error } = await supabase.from('entreprises').delete().eq('id', ent.id)
+      if (error) throw error
+      setMsg({ type: 'success', text: 'Entreprise "' + ent.nom + '" supprimee.' })
+      await fetchData()
+    } catch (err) {
+      setMsg({ type: 'error', text: 'Erreur: ' + err.message })
+    }
+  }
+
   async function toggleActifEntreprise(ent) {
     await supabase.from('entreprises').update({ actif: !ent.actif }).eq('id', ent.id)
     fetchData()
@@ -444,37 +460,60 @@ export default function SuperAdmin() {
     setAdminSaving(true)
     setAdminMsg(null)
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: adminForm.email,
-        password: adminForm.password,
-        options: {
-          data: {
-            prenom: adminForm.prenom,
-            nom: adminForm.nom,
-            role: 'admin',
-            entreprise_id: entrepriseId,
-          }
-        }
-      })
-      if (authError) throw authError
-      const userId = authData.user?.id
-      if (userId) {
-        const { error: profileError } = await supabase.from('profiles').insert({
-          id: userId,
-          prenom: adminForm.prenom,
-          nom: adminForm.nom,
-          role: 'admin',
-          entreprise_id: entrepriseId,
-          is_super_admin: false,
+      // Utiliser l'API Admin Supabase pour creer le compte sans affecter la session courante
+      const supabaseUrl = process.env.REACT_APP_SUPABASE_URL
+      const serviceKey = process.env.REACT_APP_SUPABASE_SERVICE_KEY
+      let userId = null
+
+      if (serviceKey) {
+        // Methode 1: Admin API (cree compte confirme immediatement)
+        const resp = await fetch(supabaseUrl + '/auth/v1/admin/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': serviceKey,
+            'Authorization': 'Bearer ' + serviceKey,
+          },
+          body: JSON.stringify({
+            email: adminForm.email,
+            password: adminForm.password,
+            email_confirm: true,
+            user_metadata: { prenom: adminForm.prenom, nom: adminForm.nom, role: 'admin', entreprise_id: entrepriseId }
+          })
         })
-        if (profileError) throw profileError
+        const adminData = await resp.json()
+        if (!resp.ok) throw new Error(adminData.message || adminData.msg || 'Erreur creation compte')
+        userId = adminData.id
+      } else {
+        // Methode 2: signUp classique (necessite que "Confirm email" soit desactive dans Supabase)
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: adminForm.email,
+          password: adminForm.password,
+          options: { data: { prenom: adminForm.prenom, nom: adminForm.nom, role: 'admin', entreprise_id: entrepriseId } }
+        })
+        if (authError) throw authError
+        userId = authData.user?.id
+        // Restaurer la session super admin
+        await supabase.auth.refreshSession()
       }
-            setAdminSuccessInfo({ email: adminForm.email, password: adminForm.password, url: 'https://hoteldesk-pro.vercel.app', nom: adminForm.prenom + ' ' + adminForm.nom })
+
+      if (!userId) throw new Error('ID utilisateur non trouve')
+
+      // Creer le profil dans la table profiles
+      const { error: profileError } = await supabase.from('profiles').upsert({
+        id: userId,
+        prenom: adminForm.prenom,
+        nom: adminForm.nom,
+        role: 'admin',
+        entreprise_id: entrepriseId,
+        is_super_admin: false,
+        created_at: new Date().toISOString(),
+      })
+      if (profileError) throw profileError
+
+      setAdminSuccessInfo({ email: adminForm.email, password: adminForm.password, url: 'https://hoteldesk-pro.vercel.app', nom: adminForm.prenom + ' ' + adminForm.nom })
       setAdminForm({ prenom: '', nom: '', email: '', password: '' })
       await fetchData()
-      setAdminForm({ prenom: '', nom: '', email: '', password: '' })
-      await fetchData()
-      setTimeout(() => { setShowAdminModal(false); setAdminMsg(null); setAdminModalEnt(null) }, 2000)
     } catch (err) {
       setAdminMsg({ type: 'error', text: err.message || 'Erreur lors de la creation' })
     } finally {
@@ -482,7 +521,7 @@ export default function SuperAdmin() {
     }
   }
 
-  // VUE PRINCIPALE
+    // VUE PRINCIPALE
   return (
     <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
@@ -587,6 +626,8 @@ export default function SuperAdmin() {
                         {e.actif ? 'Desactiver' : 'Reactiver'}
                       </button>
                                          <button onClick={() => { setAdminModalEnt(e); setAdminForm({ prenom: '', nom: '', email: '', password: '' }); setAdminMsg(null); setShowAdminModal(true) }} style={{ padding: '6px 12px', border: '1px solid #8B5CF6', color: '#8B5CF6', background: '#F5F3FF', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>+ Admin</button>
+                      <button onClick={() => setDeleteConfirm(e)} style={{ padding: '6px 12px', border: '1px solid #EF4444', color: '#EF4444', background: '#FEF2F2', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>🗑 Supprimer</button>
+                      <button onClick={() => setDeleteConfirm(e)} style={{ padding: '6px 12px', border: '1px solid #EF4444', color: '#EF4444', background: '#FEF2F2', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>🗑 Supprimer</button>
                        </div>
                   </div>
                   {expandedEnt === e.id && (
@@ -659,6 +700,21 @@ export default function SuperAdmin() {
                 <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>Sur ce plan : <strong>{stats.par_plan[p.id] || 0}</strong> entreprise(s)</div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+            {deleteConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 32, maxWidth: 420, width: '90%', textAlign: 'center' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🗑</div>
+            <h3 style={{ fontWeight: 700, fontSize: 18, color: '#111827', marginBottom: 8 }}>Supprimer cette entreprise ?</h3>
+            <p style={{ color: '#6B7280', fontSize: 14, marginBottom: 24 }}>
+              Cette action va supprimer <strong>"{deleteConfirm.nom}"</strong> ainsi que tous ses sites, utilisateurs et modules. Cette action est <strong>irreversible</strong>.
+            </p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+              <button onClick={() => setDeleteConfirm(null)} style={{ padding: '10px 24px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', fontSize: 14 }}>Annuler</button>
+              <button onClick={() => deleteEntreprise(deleteConfirm)} style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: '#EF4444', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>Oui, supprimer</button>
+            </div>
           </div>
         </div>
       )}
