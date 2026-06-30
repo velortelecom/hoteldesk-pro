@@ -125,9 +125,11 @@ function AppInner() {
       case 'dashboard': return <Dashboard />
       case 'planning': return <Planning />
       case 'taches': return <Taches />
-      case 'messages': return profile?.entreprise_id ? <Messagerie /> : <Dashboard />
+      case 'messages':
+      case 'messagerie': return profile?.entreprise_id ? <Messagerie /> : <Dashboard />
       case 'rappels': return <Rappels />
-      case 'personnel': return <Personnel />
+      case 'personnel':
+      case 'equipe': return <Personnel />
       default:
         if (routeMap[page]) {
           const Comp = routeMap[page]
