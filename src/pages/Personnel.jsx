@@ -76,7 +76,7 @@ export default function Personnel() {
     setSaving(true)
 
     try {
-      // Utiliser la Admin API Supabase pour creer l'utilisateur SANS changer la session courante
+      // Utiliser la Admin API Supabase pour creer l utilisateur SANS changer la session courante
       const createRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
         method: 'POST',
         headers: {
@@ -102,17 +102,19 @@ export default function Personnel() {
 
       const userId = authData.id
 
-      // Upsert du profil via service role (gere le cas ou un trigger a deja cree le profil)
-      const profRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles`, {
-        method: 'POST',
+      // Attendre un court instant que le trigger Supabase cree le profil de base
+      await new Promise(resolve => setTimeout(resolve, 800))
+
+      // PATCH (UPDATE) le profil existant cree par le trigger avec les vraies donnees
+      const profRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'apikey': SUPABASE_SERVICE_KEY,
           'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-          'Prefer': 'resolution=merge-duplicates,return=minimal',
+          'Prefer': 'return=minimal',
         },
         body: JSON.stringify({
-          id: userId,
           prenom: form.prenom.trim(),
           nom: form.nom.trim(),
           role: form.role,
@@ -127,9 +129,33 @@ export default function Personnel() {
 
       if (!profRes.ok) {
         const profErr = await profRes.text()
-        showError('Erreur profil : ' + profErr)
-        setSaving(false)
-        return
+        // Si le profil n existe pas encore, on le cree avec PUT
+        const putRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_SERVICE_KEY,
+            'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify({
+            id: userId,
+            prenom: form.prenom.trim(),
+            nom: form.nom.trim(),
+            role: form.role,
+            departement: form.departement,
+            couleur: form.couleur,
+            telephone: form.telephone?.trim() || null,
+            entreprise_id: moi.entreprise_id,
+            actif: true,
+            avatar_initiales: (form.prenom.trim()[0] + form.nom.trim()[0]).toUpperCase(),
+          }),
+        })
+        if (!putRes.ok) {
+          showError('Erreur profil : ' + profErr)
+          setSaving(false)
+          return
+        }
       }
 
       setNouvellesCreds({
@@ -324,7 +350,6 @@ export default function Personnel() {
         <div style={{ textAlign: 'center', color: '#bbb', padding: 50, fontSize: 14 }}>Aucun resultat</div>
       )}
 
-      {/* Modal creation / edition employe */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 440, maxHeight: '90vh', overflowY: 'auto' }}>
@@ -415,38 +440,32 @@ export default function Personnel() {
         </div>
       )}
 
-      {/* Modal confirmation identifiants */}
       {showCredsModal && nouvellesCreds && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 400 }}>
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
               <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
               <div style={{ fontSize: 17, fontWeight: 700, color: '#065F46' }}>Compte cree !</div>
-              <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>
-                {nouvellesCreds.prenom} {nouvellesCreds.nom}
-              </div>
+              <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>{nouvellesCreds.prenom} {nouvellesCreds.nom}</div>
             </div>
 
             <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 12, padding: 20, marginBottom: 20 }}>
               <div style={{ fontSize: 12, color: '#166534', fontWeight: 600, marginBottom: 14, textTransform: 'uppercase', letterSpacing: '.05em' }}>
                 Identifiants de connexion
               </div>
-
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>Email</div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: '#185FA5', background: '#EFF6FF', padding: '8px 12px', borderRadius: 8, fontFamily: 'monospace' }}>
                   {nouvellesCreds.email}
                 </div>
               </div>
-
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>Mot de passe</div>
                 <div style={{ fontSize: 18, fontWeight: 700, color: '#374151', letterSpacing: 4, textAlign: 'center', fontFamily: 'monospace', background: '#F9FAFB', padding: '8px 0', borderRadius: 8 }}>
                   {nouvellesCreds.password}
                 </div>
               </div>
-
-              <div style={{ marginBottom: 0 }}>
+              <div>
                 <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 4 }}>Role</div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#374151', background: '#F9FAFB', padding: '6px 12px', borderRadius: 8 }}>
                   {nouvellesCreds.role}
@@ -455,7 +474,7 @@ export default function Personnel() {
             </div>
 
             <div style={{ background: '#FEF3C7', color: '#92400E', fontSize: 12, padding: '10px 14px', borderRadius: 8, marginBottom: 20, lineHeight: 1.6 }}>
-              Transmettez ces identifiants a l employe. L email et mot de passe sont ceux que vous avez definis.
+              Transmettez ces identifiants a l employe.
             </div>
 
             <button onClick={() => { setShowCredsModal(false); setNouvellesCreds(null); showSuccess('Employe cree avec succes') }}
