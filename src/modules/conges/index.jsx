@@ -80,7 +80,7 @@ export default function CongesModule({ permissions, profile }) {
   const [success, setSuccess] = useState('')
   const [editSolde, setEditSolde] = useState(null) // { employe_id, cp_acquis, rtt_acquis }
 
-  const isAdmin = ['admin', 'responsable', 'super_admin'].includes(profile?.role)
+  const isAdmin = ['admin', 'responsable', 'super_admin'].includes(profile?.role) || permissions?.administrer === true
   const nbJours = calculerJoursOuvres(form.date_debut, form.date_fin)
   const annee = new Date().getFullYear()
 
