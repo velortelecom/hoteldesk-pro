@@ -31,6 +31,20 @@ function LoadingModule() {
   return <div style={{ padding: 40, textAlign: 'center', color: '#aaa', fontSize: 14 }}>Chargement...</div>
 }
 
+
+// CSS responsive mobile
+const MOBILE_STYLE = `
+  @media (max-width: 768px) {
+    .desktop-nav { display: none !important; }
+    .mobile-nav { display: flex !important; }
+    .main-content { padding-bottom: 70px !important; }
+  }
+`
+
+function MobileStyles() {
+  return <style>{MOBILE_STYLE}</style>
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -164,6 +178,7 @@ function AppInner() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#F5F6FA', fontFamily: "'Inter', sans-serif" }}>
+      <MobileStyles />
       {/* Header */}
       <header style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -212,7 +227,7 @@ function AppInner() {
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Sidebar */}
-        <nav style={{ width: 220, background: '#fff', borderRight: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', paddingTop: 16, flexShrink: 0, overflowY: 'auto' }}>
+        <nav className="desktop-nav" style={{ width: 220, background: '#fff', borderRight: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', paddingTop: 16, flexShrink: 0, overflowY: 'auto' }}>
           {navItems.map(item => (
             <button key={item.id} onClick={() => navigate(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 20px', background: page === item.id ? '#EEF2FF' : 'none', border: 'none', borderLeft: page === item.id ? '3px solid #1E40AF' : '3px solid transparent', cursor: 'pointer', fontSize: 13, fontWeight: page === item.id ? 600 : 400, color: page === item.id ? '#1E40AF' : '#374151', textAlign: 'left', width: '100%' }}>
               <span style={{ fontSize: 16 }}>{item.icon}</span>
@@ -222,13 +237,13 @@ function AppInner() {
         </nav>
 
         {/* Main */}
-        <main style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+        <main className="main-content" style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
           {renderPage()}
         </main>
       </div>
 
       {/* Mobile nav */}
-      <nav style={{ display: 'none', position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #E5E7EB', padding: '8px 0', zIndex: 50 }} className="mobile-nav">
+      <nav className="mobile-nav" style={{ display: 'none', position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #E5E7EB', padding: '8px 0', zIndex: 50 }}>
         {navItems.slice(0, 7).map(item => (
           <button key={item.id} onClick={() => navigate(item.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px', color: page === item.id ? '#1E40AF' : '#6B7280', fontSize: 10 }}>
             <span style={{ fontSize: 18 }}>{item.icon}</span>
