@@ -534,6 +534,7 @@ export default function SuperAdmin() {
         userId = adminData.id
       } else {
         // Methode 2: signUp classique (necessite que "Confirm email" soit desactive dans Supabase)
+        const { data: { session: superAdminSession } } = await supabase.auth.getSession()
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: adminForm.email,
           password: adminForm.password,
@@ -542,7 +543,9 @@ export default function SuperAdmin() {
         if (authError) throw authError
         userId = authData.user?.id
         // Restaurer la session super admin
-        await supabase.auth.refreshSession()
+        if (superAdminSession) {
+          await supabase.auth.setSession({ access_token: superAdminSession.access_token, refresh_token: superAdminSession.refresh_token })
+        }
       }
 
       if (!userId) throw new Error('ID utilisateur non trouve')
@@ -594,6 +597,7 @@ export default function SuperAdmin() {
         if (!resp.ok) throw new Error(empData.message || empData.msg || 'Erreur creation employe')
         userId = empData.id
       } else {
+        const { data: { session: superAdminSessionEmp } } = await supabase.auth.getSession()
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: employeForm.email,
           password: employeForm.password,
@@ -601,7 +605,10 @@ export default function SuperAdmin() {
         })
         if (authError) throw authError
         userId = authData.user?.id
-        await supabase.auth.refreshSession()
+        // Restaurer la session super admin
+        if (superAdminSessionEmp) {
+          await supabase.auth.setSession({ access_token: superAdminSessionEmp.access_token, refresh_token: superAdminSessionEmp.refresh_token })
+        }
       }
       if (!userId) throw new Error('ID utilisateur non trouve')
       const { error: profileError } = await supabase.from('profiles').upsert({
