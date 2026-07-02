@@ -93,6 +93,14 @@ export default function SuperAdmin() {
       const par_plan = {}
       ents.forEach(e => { par_plan[e.plan] = (par_plan[e.plan] || 0) + 1 })
       setStats({ total: ents.length, actives: ents.filter(e => e.actif).length, par_plan })
+      // Auto-chargement utilisateurs de chaque entreprise
+      ents.forEach(ent => {
+        supabase.from('profiles_with_email').select('id, prenom, nom, role, email').eq('entreprise_id', ent.id).eq('is_super_admin', false).order('role').then(({ data }) => {
+          const admins = (data || []).filter(u => u.role === 'admin')
+          const employes = (data || []).filter(u => u.role !== 'admin')
+          setEntUsers(prev => ({ ...prev, [ent.id]: { admins, employes } }))
+        })
+      })
     }
     if (mods) setModules(mods)
     if (details) {
@@ -110,7 +118,7 @@ export default function SuperAdmin() {
 
   async function fetchEntUsers(entId) {
     const { data } = await supabase
-      .from('profiles')
+      .from('profiles_with_email')
       .select('id, prenom, nom, role, email')
       .eq('entreprise_id', entId)
       .eq('is_super_admin', false)
