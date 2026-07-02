@@ -139,7 +139,6 @@ function AppInner() {
 
     // Pages conges : accessible aux admins directement
     if (page === 'conges') {
-      if (!isAdmin) return <ModuleNonAutorise />
       const permsConges = { voir: true, creer: true, modifier: isAdmin, supprimer: isAdmin, administrer: isAdmin }
       return (
         <Suspense fallback={<LoadingModule />}>
