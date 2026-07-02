@@ -72,6 +72,9 @@ export default function SuperAdmin() {
   const [employeSaving, setEmployeSaving] = useState(false)
   const [employeMsg, setEmployeMsg] = useState(null)
   const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [entUsers, setEntUsers] = useState({})
+  const [expandedUsersEnt, setExpandedUsersEnt] = useState(null)
+  const [userDeleteConfirm, setUserDeleteConfirm] = useState(null)
 
   useEffect(() => {
     if (!profile?.is_super_admin) return
@@ -103,6 +106,38 @@ export default function SuperAdmin() {
   async function fetchEntModules(entId) {
     const { data } = await supabase.from('entreprise_modules').select('module_id,actif').eq('entreprise_id', entId)
     setEntModules(prev => ({ ...prev, [entId]: data || [] }))
+  }
+
+  async function fetchEntUsers(entId) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, prenom, nom, role, email')
+      .eq('entreprise_id', entId)
+      .eq('is_super_admin', false)
+      .order('role')
+    const admins = (data || []).filter(u => u.role === 'admin')
+    const employes = (data || []).filter(u => u.role !== 'admin')
+    setEntUsers(prev => ({ ...prev, [entId]: { admins, employes } }))
+  }
+
+  async function deleteUser(userId, entId) {
+    setUserDeleteConfirm(null)
+    try {
+      const supabaseUrl = process.env.REACT_APP_SUPABASE_URL
+      const serviceKey = process.env.REACT_APP_SUPABASE_SERVICE_KEY
+      if (serviceKey) {
+        await fetch(supabaseUrl + '/auth/v1/admin/users/' + userId, {
+          method: 'DELETE',
+          headers: { 'apikey': serviceKey, 'Authorization': 'Bearer ' + serviceKey }
+        })
+      }
+      await supabase.from('profiles').delete().eq('id', userId)
+      setMsg({ type: 'success', text: 'Utilisateur supprimé.' })
+      fetchEntUsers(entId)
+      fetchData()
+    } catch (err) {
+      setMsg({ type: 'error', text: 'Erreur suppression : ' + err.message })
+    }
   }
 
   // Quand on change de secteur, charger automatiquement deps + postes + modules
@@ -686,7 +721,8 @@ export default function SuperAdmin() {
                       <button onClick={() => toggleActifEntreprise(e)} style={{ padding: '6px 12px', border: '1px solid ' + (e.actif ? '#EF4444' : '#10B981'), color: e.actif ? '#EF4444' : '#10B981', background: '#fff', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
                         {e.actif ? 'Desactiver' : 'Reactiver'}
                       </button>
-                                         <button onClick={() => { setAdminModalEnt(e); setAdminForm({ prenom: '', nom: '', email: '', password: '' }); setAdminMsg(null); setShowAdminModal(true) }} style={{ padding: '6px 12px', border: '1px solid #8B5CF6', color: '#8B5CF6', background: '#F5F3FF', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>+ Admin</button>
+                                         <button onClick={() => { const w = expandedUsersEnt === e.id; setExpandedUsersEnt(w ? null : e.id); if (!w) fetchEntUsers(e.id) }} style={{ padding: '6px 12px', border: '1px solid #6366F1', color: '#6366F1', background: '#EEF2FF', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>👥 Utilisateurs</button>
+                      <button onClick={() => { setAdminModalEnt(e); setAdminForm({ prenom: '', nom: '', email: '', password: '' }); setAdminMsg(null); setShowAdminModal(true) }} style={{ padding: '6px 12px', border: '1px solid #8B5CF6', color: '#8B5CF6', background: '#F5F3FF', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>+ Admin</button>
                                          <button onClick={() => { setEmployeModalEnt(e); setShowEmployeModal(true) }} style={{ background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontSize: 12 }}>+ Employe</button>
                       <button onClick={() => setDeleteConfirm(e)} style={{ padding: '6px 12px', border: '1px solid #EF4444', color: '#EF4444', background: '#FEF2F2', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>🗑 Supprimer</button>
                        </div>
@@ -712,6 +748,61 @@ export default function SuperAdmin() {
                       </div>
                     </div>
                   )}
+                {expandedUsersEnt === e.id && (
+                  <div style={{ borderTop: '1px solid #C7D2FE', padding: '14px 16px', background: '#EEF2FF' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#4338CA' }}>👥 Utilisateurs ({(entUsers[e.id]?.admins.length||0) + (entUsers[e.id]?.employes.length||0)} au total)</div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => { setAdminModalEnt(e); setAdminForm({ prenom: '', nom: '', email: '', password: '' }); setAdminMsg(null); setShowAdminModal(true) }} style={{ background: '#7C3AED', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>+ Admin</button>
+                        <button onClick={() => { setEmployeModalEnt(e); setEmployeForm({ prenom: '', nom: '', email: '', password: '' }); setEmployeMsg(null); setShowEmployeModal(true) }} style={{ background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>+ Employé</button>
+                      </div>
+                    </div>
+                    {!entUsers[e.id] ? (
+                      <div style={{ color: '#9CA3AF', fontSize: 12, fontStyle: 'italic' }}>Chargement...</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#7C3AED', marginBottom: 6, letterSpacing: 0.5 }}>👤 ADMINS ({entUsers[e.id].admins.length})</div>
+                          {entUsers[e.id].admins.length === 0 ? (
+                            <div style={{ color: '#9CA3AF', fontSize: 11, fontStyle: 'italic', paddingLeft: 8 }}>Aucun admin</div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              {entUsers[e.id].admins.map(u => (
+                                <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#EDE9FE', borderRadius: 8, padding: '7px 10px' }}>
+                                  <div>
+                                    <span style={{ fontWeight: 600, fontSize: 12, color: '#4C1D95' }}>{u.prenom} {u.nom}</span>
+                                    {u.email && <span style={{ fontSize: 11, color: '#6D28D9', marginLeft: 8 }}>{u.email}</span>}
+                                    <span style={{ marginLeft: 8, background: '#7C3AED', color: '#fff', borderRadius: 4, padding: '1px 6px', fontSize: 10 }}>admin</span>
+                                  </div>
+                                  <button onClick={() => setUserDeleteConfirm({ user: u, entId: e.id })} style={{ background: 'none', border: '1px solid #EF4444', color: '#EF4444', borderRadius: 5, padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>🗑 Supprimer</button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#065F46', marginBottom: 6, letterSpacing: 0.5 }}>👥 EMPLOYÉS ({entUsers[e.id].employes.length})</div>
+                          {entUsers[e.id].employes.length === 0 ? (
+                            <div style={{ color: '#9CA3AF', fontSize: 11, fontStyle: 'italic', paddingLeft: 8 }}>Aucun employé</div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                              {entUsers[e.id].employes.map(u => (
+                                <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#D1FAE5', borderRadius: 8, padding: '7px 10px' }}>
+                                  <div>
+                                    <span style={{ fontWeight: 600, fontSize: 12, color: '#064E3B' }}>{u.prenom} {u.nom}</span>
+                                    {u.email && <span style={{ fontSize: 11, color: '#065F46', marginLeft: 8 }}>{u.email}</span>}
+                                    <span style={{ marginLeft: 8, background: '#10B981', color: '#fff', borderRadius: 4, padding: '1px 6px', fontSize: 10 }}>{u.role}</span>
+                                  </div>
+                                  <button onClick={() => setUserDeleteConfirm({ user: u, entId: e.id })} style={{ background: 'none', border: '1px solid #EF4444', color: '#EF4444', borderRadius: 5, padding: '3px 8px', cursor: 'pointer', fontSize: 11 }}>🗑 Supprimer</button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 </div>
               )
             })}
@@ -764,7 +855,21 @@ export default function SuperAdmin() {
           </div>
         </div>
       )}
-            {deleteConfirm && (
+            {userDeleteConfirm && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001 }}>
+            <div style={{ background: '#fff', borderRadius: 12, padding: 32, maxWidth: 400, width: '90%', textAlign: 'center' }}>
+              <div style={{ fontSize: 40, marginBottom: 10 }}>⚠️</div>
+              <h3 style={{ fontWeight: 700, fontSize: 17, color: '#111827', marginBottom: 8 }}>Supprimer cet utilisateur ?</h3>
+              <p style={{ color: '#374151', fontSize: 14, marginBottom: 4 }}><strong>{userDeleteConfirm.user.prenom} {userDeleteConfirm.user.nom}</strong></p>
+              <p style={{ color: '#6B7280', fontSize: 12, marginBottom: 20 }}>{userDeleteConfirm.user.email}<br/>Cette action est <strong>irréversible</strong>.</p>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                <button onClick={() => setUserDeleteConfirm(null)} style={{ padding: '9px 20px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer' }}>Annuler</button>
+                <button onClick={() => deleteUser(userDeleteConfirm.user.id, userDeleteConfirm.entId)} style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: '#EF4444', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>Oui, supprimer</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {deleteConfirm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: 32, maxWidth: 420, width: '90%', textAlign: 'center' }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>🗑</div>
