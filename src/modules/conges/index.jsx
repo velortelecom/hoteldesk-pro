@@ -86,6 +86,13 @@ export default function CongesModule({ permissions, profile }) {
 
   useEffect(() => { chargerDonnees() }, [onglet])
 
+  // Crediter automatiquement 2.5j CP par mois au chargement
+  useEffect(() => {
+    if (!profile?.entreprise_id) return
+    supabase.rpc('crediter_cp_mensuel', { p_entreprise_id: profile.entreprise_id })
+      .then(({ error }) => { if (error) console.warn('crediter_cp_mensuel:', error.message) })
+  }, [profile?.entreprise_id])
+
   async function chargerDonnees() {
     setLoading(true)
     try {
