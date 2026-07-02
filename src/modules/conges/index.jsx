@@ -80,7 +80,7 @@ export default function CongesModule({ permissions, profile }) {
   const [success, setSuccess] = useState('')
   const [editSolde, setEditSolde] = useState(null) // { employe_id, cp_acquis, rtt_acquis }
 
-  const isAdmin = ['admin', 'responsable', 'super_admin'].includes(profile?.role) || permissions?.administrer === true
+  const isAdmin = ['admin', 'responsable', 'super_admin'].includes(profile?.role)
   const nbJours = calculerJoursOuvres(form.date_debut, form.date_fin)
   const annee = new Date().getFullYear()
 
@@ -203,18 +203,21 @@ export default function CongesModule({ permissions, profile }) {
 
   async function changerStatut(id, statut) {
     setSaving(true)
-    const { error } = await supabase.from('conges').update({
-      statut,
-      validateur_id: profile?.id,
-      validated_at: new Date().toISOString(),
-    }).eq('id', id)
+    // Utiliser la RPC valider_conge qui gere les droits admin correctement
+    const { error } = await supabase.rpc('valider_conge', {
+      p_conge_id: id,
+      p_statut: statut,
+      p_validateur_id: profile?.id,
+    })
     if (!error) {
       const msg = statut === 'approuve'
-        ? '✅ Conge approuve - solde debite + ajout au planning automatiquement !'
+        ? '✅ Conge approuve !'
         : '❌ Demande refusee.'
       setSuccess(msg)
       setTimeout(() => setSuccess(''), 5000)
       chargerDonnees()
+    } else {
+      setErreur('Erreur: ' + (error.message || 'impossible de valider'))
     }
     setSaving(false)
   }
