@@ -1,7 +1,6 @@
 -- ============================================
 -- HOTELDESK PRO - Schéma Supabase complet
--- Coller dans : Supabase > SQL Editor > New query
--- ============================================
+feat: fonctions RLS helper + RPC valider_conge pour admins-- ============================================
 
 -- Extensions
 create extension if not exists "uuid-ossp";
@@ -309,3 +308,54 @@ FOR DELETE USING (
   OR expediteur_id = auth.uid()
   OR (get_my_role() = 'admin' AND entreprise_id = get_my_entreprise_id())
 );
+
+
+-- =====================================================
+-- FONCTIONS HELPER pour RLS
+-- =====================================================
+CREATE OR REPLACE FUNCTION get_my_role()
+RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER AS $$
+  SELECT role FROM profiles WHERE id = auth.uid() LIMIT 1;
+$$;
+
+CREATE OR REPLACE FUNCTION get_my_entreprise_id()
+RETURNS UUID LANGUAGE sql STABLE SECURITY DEFINER AS $$
+  SELECT entreprise_id FROM profiles WHERE id = auth.uid() LIMIT 1;
+$$;
+
+CREATE OR REPLACE FUNCTION is_super_admin()
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER AS $$
+  SELECT COALESCE(is_super_admin, false) FROM profiles WHERE id = auth.uid() LIMIT 1;
+$$;
+
+GRANT EXECUTE ON FUNCTION get_my_role() TO authenticated;
+GRANT EXECUTE ON FUNCTION get_my_entreprise_id() TO authenticated;
+GRANT EXECUTE ON FUNCTION is_super_admin() TO authenticated;
+
+-- =====================================================
+-- RPC : Valider/refuser une demande de conge (admin)
+-- Bypasse la RLS pour les admins de la meme entreprise
+-- =====================================================
+CREATE OR REPLACE FUNCTION valider_conge(
+  p_conge_id UUID,
+  p_statut TEXT,
+  p_validateur_id UUID
+) RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_conge RECORD;
+  v_validateur RECORD;
+BEGIN
+  SELECT * INTO v_conge FROM conges WHERE id = p_conge_id;
+  SELECT * INTO v_validateur FROM profiles WHERE id = p_validateur_id;
+  IF v_validateur.is_super_admin = true
+     OR (v_validateur.role IN ('admin','responsable') AND v_validateur.entreprise_id = v_conge.entreprise_id)
+  THEN
+    UPDATE conges SET statut = p_statut, validateur_id = p_validateur_id, validated_at = NOW()
+    WHERE id = p_conge_id;
+  ELSE
+    RAISE EXCEPTION 'Non autorise';
+  END IF;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION valider_conge(UUID, TEXT, UUID) TO authenticated;
