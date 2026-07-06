@@ -131,7 +131,7 @@ export default function SuperAdmin() {
   async function deleteUser(userId, entId) {
     setUserDeleteConfirm(null)
     try {
-      const supabaseUrl = process.env.REACT_APP_SUPABASE_URL
+      const { error: rpcErr } = await supabase.rpc('supprimer_membre_complet', { p_user_id: userId }); if (rpcErr) throw rpcErr; if (false) {
       const serviceKey = process.env.REACT_APP_SUPABASE_SERVICE_KEY
       if (serviceKey) {
         await fetch(supabaseUrl + '/auth/v1/admin/users/' + userId, {
@@ -139,7 +139,7 @@ export default function SuperAdmin() {
           headers: { 'apikey': serviceKey, 'Authorization': 'Bearer ' + serviceKey }
         })
       }
-      await supabase.from('profiles').delete().eq('id', userId)
+      await supabase.from('profiles').delete().eq('id', userId) }
       setMsg({ type: 'success', text: 'Utilisateur supprimé.' })
       fetchEntUsers(entId)
       fetchData()
@@ -330,10 +330,10 @@ export default function SuperAdmin() {
   async function deleteEntreprise(ent) {
     setDeleteConfirm(null)
     try {
-      await supabase.from('profiles').delete().eq('entreprise_id', ent.id).neq('is_super_admin', true)
+      const { error } = await supabase.rpc('supprimer_entreprise_complete', { p_entreprise_id: ent.id }); if (false) {
       await supabase.from('entreprise_modules').delete().eq('entreprise_id', ent.id)
       await supabase.from('sites').delete().eq('entreprise_id', ent.id)
-      const { error } = await supabase.from('entreprises').delete().eq('id', ent.id)
+      await supabase.from('entreprises').delete().eq('id', ent.id) }
       if (error) throw error
       setMsg({ type: 'success', text: 'Entreprise "' + ent.nom + '" supprimee.' })
       await fetchData()
