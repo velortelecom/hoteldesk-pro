@@ -835,10 +835,10 @@ async function creerCompteMembre(entrepriseId, formData, role) {
             </div>
             <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>Entreprise : <strong>{adminModalEnt.nom}</strong></div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <input placeholder="Prenom *" value={adminForm.prenom} onChange={ev => setAdminForm(f => ({ ...f, prenom: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
-              <input placeholder="Nom *" value={adminForm.nom} onChange={ev => setAdminForm(f => ({ ...f, nom: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
-              <input placeholder="Email *" type="email" value={adminForm.email} onChange={ev => setAdminForm(f => ({ ...f, email: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
-              <input placeholder="Mot de passe * (min. 6 car.)" type="password" value={adminForm.password} onChange={ev => setAdminForm(f => ({ ...f, password: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
+              <input autoComplete="off" placeholder="Prenom *" value={adminForm.prenom} onChange={ev => setAdminForm(f => ({ ...f, prenom: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
+              <input autoComplete="off" placeholder="Nom *" value={adminForm.nom} onChange={ev => setAdminForm(f => ({ ...f, nom: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
+              <input autoComplete="off" placeholder="Email *" type="email" value={adminForm.email} onChange={ev => setAdminForm(f => ({ ...f, email: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
+              <input autoComplete="new-password" placeholder="Mot de passe * (min. 6 car.)" type="password" value={adminForm.password} onChange={ev => setAdminForm(f => ({ ...f, password: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
             </div>
             {adminSuccessInfo ? (
               <div style={{ marginTop: 12, padding: 12, background: '#D1FAE5', borderRadius: 8, fontSize: 12, color: '#065F46' }}>
@@ -865,10 +865,10 @@ async function creerCompteMembre(entrepriseId, formData, role) {
           <div style={{ background: '#fff', borderRadius: 12, padding: 32, width: 420, maxWidth: '90vw' }}>
             <h3 style={{ marginBottom: 16, color: '#1F2937' }}>Ajouter un employe - {employeModalEnt.nom}</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <input placeholder='Prenom' value={employeForm.prenom} onChange={e => setEmployeForm(f => ({ ...f, prenom: e.target.value }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #D1D5DB' }} />
-              <input placeholder='Nom' value={employeForm.nom} onChange={e => setEmployeForm(f => ({ ...f, nom: e.target.value }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #D1D5DB' }} />
-              <input placeholder='Email' type='email' value={employeForm.email} onChange={e => setEmployeForm(f => ({ ...f, email: e.target.value }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #D1D5DB' }} />
-              <input placeholder='Mot de passe' type='password' value={employeForm.password} onChange={e => setEmployeForm(f => ({ ...f, password: e.target.value }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #D1D5DB' }} />
+              <input autoComplete='off' placeholder='Prenom' value={employeForm.prenom} onChange={e => setEmployeForm(f => ({ ...f, prenom: e.target.value }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #D1D5DB' }} />
+              <input autoComplete='off' placeholder='Nom' value={employeForm.nom} onChange={e => setEmployeForm(f => ({ ...f, nom: e.target.value }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #D1D5DB' }} />
+              <input autoComplete='off' placeholder='Email' type='email' value={employeForm.email} onChange={e => setEmployeForm(f => ({ ...f, email: e.target.value }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #D1D5DB' }} />
+              <input autoComplete='new-password' placeholder='Mot de passe' type='password' value={employeForm.password} onChange={e => setEmployeForm(f => ({ ...f, password: e.target.value }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #D1D5DB' }} />
               {employeMsg && <div style={{ padding: '8px 12px', borderRadius: 6, background: employeMsg.type === 'error' ? '#FEE2E2' : '#D1FAE5', color: employeMsg.type === 'error' ? '#DC2626' : '#065F46', fontSize: 13 }}>{employeMsg.text}</div>}
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                 <button onClick={() => createEmploye(employeModalEnt.id)} disabled={employeSaving} style={{ flex: 1, background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 0', cursor: 'pointer', fontWeight: 600 }}>{employeSaving ? 'Creation...' : 'Creer employe'}</button>
