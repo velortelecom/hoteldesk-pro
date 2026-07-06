@@ -504,134 +504,61 @@ export default function SuperAdmin() {
     )
   }
 
-  async function createAdmin(entrepriseId) {
-    setAdminSaving(true)
-    setAdminMsg(null)
-    try {
-      // Utiliser l'API Admin Supabase pour creer le compte sans affecter la session courante
-      const supabaseUrl = process.env.REACT_APP_SUPABASE_URL
-      const serviceKey = process.env.REACT_APP_SUPABASE_SERVICE_KEY
-      let userId = null
-
-      if (serviceKey) {
-        // Methode 1: Admin API (cree compte confirme immediatement)
-        const resp = await fetch(supabaseUrl + '/auth/v1/admin/users', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': serviceKey,
-            'Authorization': 'Bearer ' + serviceKey,
-          },
-          body: JSON.stringify({
-            email: adminForm.email,
-            password: adminForm.password,
-            email_confirm: true,
-            user_metadata: { prenom: adminForm.prenom, nom: adminForm.nom, role: 'admin', entreprise_id: entrepriseId }
-          })
-        })
-        const adminData = await resp.json()
-        if (!resp.ok) throw new Error(adminData.message || adminData.msg || 'Erreur creation compte')
-        userId = adminData.id
-      } else {
-        // Methode 2: signUp classique (necessite que "Confirm email" soit desactive dans Supabase)
-        const { data: { session: superAdminSession } } = await supabase.auth.getSession()
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: adminForm.email,
-          password: adminForm.password,
-          options: { data: { prenom: adminForm.prenom, nom: adminForm.nom, role: 'admin', entreprise_id: entrepriseId } }
-        })
-        if (authError) throw authError
-        userId = authData.user?.id
-        // Restaurer la session super admin
-        if (superAdminSession) {
-          await supabase.auth.setSession({ access_token: superAdminSession.access_token, refresh_token: superAdminSession.refresh_token })
-        }
-      }
-
-      if (!userId) throw new Error('ID utilisateur non trouve')
-
-      // Creer le profil dans la table profiles
-      const { error: profileError } = await supabase.from('profiles').upsert({
-        id: userId,
-        prenom: adminForm.prenom,
-        nom: adminForm.nom,
-        role: 'admin',
-        entreprise_id: entrepriseId,
-        is_super_admin: false,
-        created_at: new Date().toISOString(),
+async function creerCompteMembre(entrepriseId, formData, role) {
+      const { data: { session: superAdminSession } } = await supabase.auth.getSession()
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+              email: formData.email,
+              password: formData.password,
+              options: { data: { prenom: formData.prenom, nom: formData.nom, role, entreprise_id: entrepriseId } }
       })
-      if (profileError) throw profileError
-
-      setAdminSuccessInfo({ email: adminForm.email, password: adminForm.password, url: 'https://hoteldesk-pro.vercel.app', nom: adminForm.prenom + ' ' + adminForm.nom })
-      setAdminForm({ prenom: '', nom: '', email: '', password: '' })
-      await fetchData()
-    } catch (err) {
-      setAdminMsg({ type: 'error', text: err.message || 'Erreur lors de la creation' })
-    } finally {
-      setAdminSaving(false)
-    }
-
-  async function createEmploye(entrepriseId) {
-    setEmployeSaving(true)
-    setEmployeMsg(null)
-    try {
-      const supabaseUrl = process.env.REACT_APP_SUPABASE_URL
-      const serviceKey = process.env.REACT_APP_SUPABASE_SERVICE_KEY
-      let userId = null
-      if (serviceKey) {
-        const resp = await fetch(supabaseUrl + '/auth/v1/admin/users', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': serviceKey,
-            'Authorization': 'Bearer ' + serviceKey,
-          },
-          body: JSON.stringify({
-            email: employeForm.email,
-            password: employeForm.password,
-            email_confirm: true,
-            user_metadata: { prenom: employeForm.prenom, nom: employeForm.nom, role: 'employe', entreprise_id: entrepriseId }
-          })
-        })
-        const empData = await resp.json()
-        if (!resp.ok) throw new Error(empData.message || empData.msg || 'Erreur creation employe')
-        userId = empData.id
-      } else {
-        const { data: { session: superAdminSessionEmp } } = await supabase.auth.getSession()
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: employeForm.email,
-          password: employeForm.password,
-          options: { data: { prenom: employeForm.prenom, nom: employeForm.nom, role: 'employe', entreprise_id: entrepriseId } }
-        })
-        if (authError) throw authError
-        userId = authData.user?.id
-        // Restaurer la session super admin
-        if (superAdminSessionEmp) {
-          await supabase.auth.setSession({ access_token: superAdminSessionEmp.access_token, refresh_token: superAdminSessionEmp.refresh_token })
-        }
+      if (authError) throw authError
+      const userId = authData.user?.id
+      if (superAdminSession) {
+              await supabase.auth.setSession({ access_token: superAdminSession.access_token, refresh_token: superAdminSession.refresh_token })
       }
       if (!userId) throw new Error('ID utilisateur non trouve')
-      const { error: profileError } = await supabase.from('profiles').upsert({
-        id: userId,
-        prenom: employeForm.prenom,
-        nom: employeForm.nom,
-        role: 'employe',
-        entreprise_id: entrepriseId,
-        is_super_admin: false,
-        created_at: new Date().toISOString(),
-      })
-      if (profileError) throw profileError
-      setEmployeMsg({ type: 'success', text: 'Employe cree : ' + employeForm.email })
-      setEmployeForm({ prenom: '', nom: '', email: '', password: '' })
-      await fetchData()
-    } catch (err) {
-      setEmployeMsg({ type: 'error', text: err.message || 'Erreur creation employe' })
-    } finally {
-      setEmployeSaving(false)
-    }
-  }
-  }
 
+      const { error: rpcError } = await supabase.rpc('creer_membre_entreprise', {
+              p_user_id: userId,
+              p_prenom: formData.prenom,
+              p_nom: formData.nom,
+              p_role: role,
+              p_entreprise_id: entrepriseId,
+      })
+      if (rpcError) throw rpcError
+}
+
+    async function createAdmin(entrepriseId) {
+          setAdminSaving(true)
+          setAdminMsg(null)
+          try {
+                  await creerCompteMembre(entrepriseId, adminForm, 'admin')
+                  setAdminSuccessInfo({ email: adminForm.email, password: adminForm.password, url: 'https://hoteldesk-pro.vercel.app', nom: adminForm.prenom + ' ' + adminForm.nom })
+                  setAdminForm({ prenom: '', nom: '', email: '', password: '' })
+                  await fetchData()
+          } catch (err) {
+                  setAdminMsg({ type: 'error', text: err.message || 'Erreur lors de la creation' })
+          } finally {
+                  setAdminSaving(false)
+          }
+    }
+
+    async function createEmploye(entrepriseId) {
+          setEmployeSaving(true)
+          setEmployeMsg(null)
+          try {
+                  await creerCompteMembre(entrepriseId, employeForm, 'employe')
+                  setEmployeMsg({ type: 'success', text: 'Employe cree : ' + employeForm.email })
+                  setEmployeForm({ prenom: '', nom: '', email: '', password: '' })
+                  await fetchData()
+          } catch (err) {
+                  setEmployeMsg({ type: 'error', text: err.message || 'Erreur creation employe' })
+          } finally {
+                  setEmployeSaving(false)
+          }
+    }
+
+  
     // VUE PRINCIPALE
   return (
     <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
