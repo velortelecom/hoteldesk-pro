@@ -108,7 +108,7 @@ function AppInner() {
 
   const isSuperAdmin = profile?.is_super_admin
   const isAdmin = ['admin', 'responsable'].includes(profile?.role) || isSuperAdmin
-  const loadedModules = buildLoadedModules(modulesActifs, catalogue)
+  const loadedModules = buildLoadedModules(modulesActifs, profile)
   // Navigation: socle toujours present + modules charges
   const socleNavItems = SOCLE_MENUS.map(m => ({ id: m.id, label: m.label || m.nom, icon: ICONES_SOCLE[m.id] || m.icone || '' }))
   const moduleNavItems = buildNavItems(loadedModules).map(m => ({ id: m.id, label: m.label || m.nom, icon: m.icone || '' }))
