@@ -27,26 +27,30 @@ export default function OrganisationModule({ profile, permissions: permissionsLo
 
   // Utiliser les permissions du loader ou calculer depuis le rôle
   const permissions = useMemo(() => {
-    if (permissionsLoader) return permissionsLoader;
-    return getPermissionsForRole(profile?.role || 'employe');
-  }, [permissionsLoader, profile?.role]);
+    // Le module Organisation possede son propre systeme de permissions granulaires
+    // (canView/canCreate/canEdit/canDelete/canManageDepts/canManagePostes/canViewNotes).
+    // Le "permissionsLoader" (registry.js, modele generique voir/creer/modifier/...) sert
+    // uniquement de garde-fou supplementaire au niveau du module (activation globale),
+    // jamais de source pour les droits fins consommes par les composants enfants.
+    return getPermissionsForRole(profile?.role || 'employe')
+  }, [profile?.role])
 
-  const entrepriseId = profile?.entreprise_id;
-  const { stats } = useStatsOrganisation(entrepriseId);
+  const entrepriseId = profile?.entreprise_id
+  const { stats } = useStatsOrganisation(entrepriseId)
 
   // Navigation vers la fiche employé
   const handleViewEmploye = (id) => {
-    setSelectedEmployeId(id);
-    setActiveTab('fiche');
-  };
+    setSelectedEmployeId(id)
+    setActiveTab('fiche')
+  }
 
   const handleBackToList = () => {
-    setSelectedEmployeId(null);
-    setActiveTab('employes');
-  };
+    setSelectedEmployeId(null)
+    setActiveTab('employes')
+  }
 
-  // Vérification d'accès (canView depuis les permissions du loader ou de la config)
-  const canView = permissions?.voir ?? permissions?.canView ?? true;
+  // Verification d'acces : droits locaux (canView) ET garde-fou global du registre (voir)
+  const canView = permissions.canView && (permissionsLoader?.voir ?? true)
 
   if (!canView) {
     return (
