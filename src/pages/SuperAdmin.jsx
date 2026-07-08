@@ -63,14 +63,17 @@ export default function SuperAdmin() {
   const [adminSuccessInfo, setAdminSuccessInfo] = useState(null)
   const [showAdminModal, setShowAdminModal] = useState(false)
   const [adminModalEnt, setAdminModalEnt] = useState(null)
-  const [adminForm, setAdminForm] = useState({ prenom: '', nom: '', email: '', password: '' })
+  const [adminForm, setAdminForm] = useState({ prenom: '', nom: '', email: '', telephone: '', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true })
   const [adminSaving, setAdminSaving] = useState(false)
   const [adminMsg, setAdminMsg] = useState(null)
   const [showEmployeModal, setShowEmployeModal] = useState(false)
   const [employeModalEnt, setEmployeModalEnt] = useState(null)
-  const [employeForm, setEmployeForm] = useState({ prenom: '', nom: '', email: '', password: '' })
+  const [employeForm, setEmployeForm] = useState({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true })
   const [employeSaving, setEmployeSaving] = useState(false)
   const [employeMsg, setEmployeMsg] = useState(null)
+  const [employeSuccessInfo, setEmployeSuccessInfo] = useState(null)
+  const [entPostes, setEntPostes] = useState({})
+  const [entDeps, setEntDeps] = useState({})
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [entUsers, setEntUsers] = useState({})
   const [expandedUsersEnt, setExpandedUsersEnt] = useState(null)
@@ -126,6 +129,15 @@ export default function SuperAdmin() {
     const admins = (data || []).filter(u => u.role === 'admin')
     const employes = (data || []).filter(u => u.role !== 'admin')
     setEntUsers(prev => ({ ...prev, [entId]: { admins, employes } }))
+  }
+
+  async function fetchPostesEtDeps(entId) {
+    const [{ data: postes }, { data: deps }] = await Promise.all([
+      supabase.from('postes').select('id, nom, departement_id, actif').eq('entreprise_id', entId).eq('actif', true).order('nom'),
+      supabase.from('departements').select('id, nom, code, actif').eq('entreprise_id', entId).eq('actif', true).order('nom'),
+    ])
+    setEntPostes(prev => ({ ...prev, [entId]: postes || [] }))
+    setEntDeps(prev => ({ ...prev, [entId]: deps || [] }))
   }
 
   async function deleteUser(userId, entId) {
@@ -505,61 +517,55 @@ export default function SuperAdmin() {
   }
 
 async function creerCompteMembre(entrepriseId, formData, role) {
-      const { data: { session: superAdminSession } } = await supabase.auth.getSession()
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-              email: formData.email,
-              password: formData.password,
-              options: { data: { prenom: formData.prenom, nom: formData.nom, role, entreprise_id: entrepriseId } }
-      })
-      if (authError) throw authError
-      const userId = authData.user?.id
-      if (superAdminSession) {
-              await supabase.auth.setSession({ access_token: superAdminSession.access_token, refresh_token: superAdminSession.refresh_token })
-      }
-      if (!userId) throw new Error('ID utilisateur non trouve')
-
-      const { error: rpcError } = await supabase.rpc('creer_membre_entreprise', {
-              p_user_id: userId,
-              p_prenom: formData.prenom,
-              p_nom: formData.nom,
-              p_role: role,
-              p_entreprise_id: entrepriseId,
-      })
-      if (rpcError) throw rpcError
+    const payload = {
+      prenom: formData.prenom,
+      nom: formData.nom,
+      role,
+      entreprise_id: entrepriseId,
+      email: formData.email || undefined,
+      telephone: formData.telephone || null,
+      poste_id: formData.poste_id || null,
+      poste_secondaire_id: formData.poste_secondaire_id || null,
+      departement_ids: (formData.departement_ids && formData.departement_ids.length > 0) ? formData.departement_ids : undefined,
+      actif: formData.actif !== false,
+    }
+    const { data, error } = await supabase.functions.invoke('create-user', { body: payload })
+    if (error) throw error
+    if (data && data.success === false) throw new Error(data.error || 'Erreur lors de la creation du compte')
+    return data
 }
 
-    async function createAdmin(entrepriseId) {
-          setAdminSaving(true)
-          setAdminMsg(null)
-          try {
-                  await creerCompteMembre(entrepriseId, adminForm, 'admin')
-                  setAdminSuccessInfo({ email: adminForm.email, password: adminForm.password, url: 'https://hoteldesk-pro.vercel.app', nom: adminForm.prenom + ' ' + adminForm.nom })
-                  setAdminForm({ prenom: '', nom: '', email: '', password: '' })
-                  await fetchData()
-          } catch (err) {
-                  setAdminMsg({ type: 'error', text: err.message || 'Erreur lors de la creation' })
-          } finally {
-                  setAdminSaving(false)
-          }
+async function createAdmin(entrepriseId) {
+    setAdminSaving(true)
+    setAdminMsg(null)
+    try {
+      const result = await creerCompteMembre(entrepriseId, adminForm, 'admin')
+      setAdminSuccessInfo({ email: result.email, password: result.temp_password, url: 'https://hoteldesk-pro.vercel.app', nom: adminForm.prenom + ' ' + adminForm.nom })
+      setAdminForm({ prenom: '', nom: '', email: '', telephone: '', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true })
+      await fetchData()
+    } catch (err) {
+      setAdminMsg({ type: 'error', text: err.message || 'Erreur lors de la creation' })
+    } finally {
+      setAdminSaving(false)
     }
+}
 
-    async function createEmploye(entrepriseId) {
-          setEmployeSaving(true)
-          setEmployeMsg(null)
-          try {
-                  await creerCompteMembre(entrepriseId, employeForm, 'employe')
-                  setEmployeMsg({ type: 'success', text: 'Employe cree : ' + employeForm.email })
-                  setEmployeForm({ prenom: '', nom: '', email: '', password: '' })
-                  await fetchData()
-          } catch (err) {
-                  setEmployeMsg({ type: 'error', text: err.message || 'Erreur creation employe' })
-          } finally {
-                  setEmployeSaving(false)
-          }
+async function createEmploye(entrepriseId) {
+    setEmployeSaving(true)
+    setEmployeMsg(null)
+    try {
+      const result = await creerCompteMembre(entrepriseId, employeForm, employeForm.role || 'employe')
+      setEmployeSuccessInfo({ email: result.email, password: result.temp_password, url: 'https://hoteldesk-pro.vercel.app', nom: employeForm.prenom + ' ' + employeForm.nom })
+      setEmployeForm({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true })
+      await fetchData()
+    } catch (err) {
+      setEmployeMsg({ type: 'error', text: err.message || 'Erreur creation employe' })
+    } finally {
+      setEmployeSaving(false)
     }
+}
 
-  
-    // VUE PRINCIPALE
+// VUE PRINCIPALE
   return (
     <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
@@ -664,8 +670,8 @@ async function creerCompteMembre(entrepriseId, formData, role) {
                         {e.actif ? 'Desactiver' : 'Reactiver'}
                       </button>
                                          <button onClick={() => { const w = expandedUsersEnt === e.id; setExpandedUsersEnt(w ? null : e.id); if (!w) fetchEntUsers(e.id) }} style={{ padding: '6px 12px', border: '1px solid #6366F1', color: '#6366F1', background: '#EEF2FF', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>👥 Utilisateurs</button>
-                      <button onClick={() => { setAdminModalEnt(e); setAdminForm({ prenom: '', nom: '', email: '', password: '' }); setAdminMsg(null); setShowAdminModal(true) }} style={{ padding: '6px 12px', border: '1px solid #8B5CF6', color: '#8B5CF6', background: '#F5F3FF', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>+ Admin</button>
-                                         <button onClick={() => { setEmployeModalEnt(e); setShowEmployeModal(true) }} style={{ background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontSize: 12 }}>+ Employe</button>
+                      <button onClick={() => { setAdminModalEnt(e); setAdminForm({ prenom: '', nom: '', email: '', telephone: '', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true }); setAdminMsg(null); setAdminSuccessInfo(null); fetchPostesEtDeps(e.id); setShowAdminModal(true) }} style={{ padding: '6px 12px', border: '1px solid #8B5CF6', color: '#8B5CF6', background: '#F5F3FF', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>+ Admin</button>
+                                         <button onClick={() => { setEmployeModalEnt(e); setEmployeForm({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true }); setEmployeMsg(null); setEmployeSuccessInfo(null); fetchPostesEtDeps(e.id); setShowEmployeModal(true) }} style={{ background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontSize: 12 }}>+ Employe</button>
                       <button onClick={() => setDeleteConfirm(e)} style={{ padding: '6px 12px', border: '1px solid #EF4444', color: '#EF4444', background: '#FEF2F2', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>🗑 Supprimer</button>
                        </div>
                   </div>
@@ -695,8 +701,8 @@ async function creerCompteMembre(entrepriseId, formData, role) {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: '#4338CA' }}>👥 Utilisateurs ({(entUsers[e.id]?.admins.length||0) + (entUsers[e.id]?.employes.length||0)} au total)</div>
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <button onClick={() => { setAdminModalEnt(e); setAdminForm({ prenom: '', nom: '', email: '', password: '' }); setAdminMsg(null); setShowAdminModal(true) }} style={{ background: '#7C3AED', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>+ Admin</button>
-                        <button onClick={() => { setEmployeModalEnt(e); setEmployeForm({ prenom: '', nom: '', email: '', password: '' }); setEmployeMsg(null); setShowEmployeModal(true) }} style={{ background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>+ Employé</button>
+                        <button onClick={() => { setAdminModalEnt(e); setAdminForm({ prenom: '', nom: '', email: '', telephone: '', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true }); setAdminMsg(null); setAdminSuccessInfo(null); fetchPostesEtDeps(e.id); setShowAdminModal(true) }} style={{ background: '#7C3AED', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>+ Admin</button>
+                        <button onClick={() => { setEmployeModalEnt(e); setEmployeForm({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true }); setEmployeMsg(null); setEmployeSuccessInfo(null); fetchPostesEtDeps(e.id); setShowEmployeModal(true) }} style={{ background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>+ Employé</button>
                       </div>
                     </div>
                     {!entUsers[e.id] ? (
@@ -828,7 +834,7 @@ async function creerCompteMembre(entrepriseId, formData, role) {
       )}
       {showAdminModal && adminModalEnt && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 32, width: 420, maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 32, width: 460, maxWidth: '90vw', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Ajouter un Admin</h3>
               <button onClick={() => { setShowAdminModal(false); setAdminMsg(null); setAdminSuccessInfo(null) }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#6B7280' }}>X</button>
@@ -837,42 +843,116 @@ async function creerCompteMembre(entrepriseId, formData, role) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <input readOnly onFocus={e => e.target.removeAttribute('readonly')} autoComplete="off" placeholder="Prenom *" value={adminForm.prenom} onChange={ev => setAdminForm(f => ({ ...f, prenom: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
               <input readOnly onFocus={e => e.target.removeAttribute('readonly')} autoComplete="off" placeholder="Nom *" value={adminForm.nom} onChange={ev => setAdminForm(f => ({ ...f, nom: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
-              <input readOnly onFocus={e => e.target.removeAttribute('readonly')} autoComplete="off" placeholder="Email *" type="email" value={adminForm.email} onChange={ev => setAdminForm(f => ({ ...f, email: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
-              <input readOnly onFocus={e => e.target.removeAttribute('readonly')} autoComplete="new-password" placeholder="Mot de passe * (min. 6 car.)" type="password" value={adminForm.password} onChange={ev => setAdminForm(f => ({ ...f, password: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
+              <input readOnly onFocus={e => e.target.removeAttribute('readonly')} autoComplete="off" placeholder="Email (optionnel)" type="email" value={adminForm.email} onChange={ev => setAdminForm(f => ({ ...f, email: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
+              <input readOnly onFocus={e => e.target.removeAttribute('readonly')} autoComplete="off" placeholder="Telephone (optionnel)" value={adminForm.telephone} onChange={ev => setAdminForm(f => ({ ...f, telephone: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
+              <Field label="Poste principal">
+                <select value={adminForm.poste_id} onChange={ev => setAdminForm(f => ({ ...f, poste_id: ev.target.value }))} style={inputStyle}>
+                  <option value="">Aucun</option>
+                  {(entPostes[adminModalEnt.id] || []).map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
+                </select>
+              </Field>
+              <Field label="Poste secondaire (optionnel)">
+                <select value={adminForm.poste_secondaire_id} onChange={ev => setAdminForm(f => ({ ...f, poste_secondaire_id: ev.target.value }))} style={inputStyle}>
+                  <option value="">Aucun</option>
+                  {(entPostes[adminModalEnt.id] || []).map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
+                </select>
+              </Field>
+              <Field label="Departements">
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {(entDeps[adminModalEnt.id] || []).map(d => {
+                    const sel = (adminForm.departement_ids || []).includes(d.id)
+                    return (
+                      <button key={d.id} type="button" onClick={() => setAdminForm(f => ({ ...f, departement_ids: sel ? f.departement_ids.filter(x => x !== d.id) : [...(f.departement_ids || []), d.id] }))} style={{ padding: '5px 12px', borderRadius: 16, border: '1.5px solid ' + (sel ? '#8B5CF6' : '#E5E7EB'), background: sel ? '#8B5CF618' : '#fff', color: sel ? '#8B5CF6' : '#6B7280', cursor: 'pointer', fontSize: 12, fontWeight: sel ? 700 : 400 }}>{d.nom}</button>
+                    )
+                  })}
+                  {(entDeps[adminModalEnt.id] || []).length === 0 && <span style={{ fontSize: 12, color: '#9CA3AF' }}>Aucun departement pour cette entreprise</span>}
+                </div>
+              </Field>
+              <Field label="Statut">
+                <select value={adminForm.actif ? 'actif' : 'inactif'} onChange={ev => setAdminForm(f => ({ ...f, actif: ev.target.value === 'actif' }))} style={inputStyle}>
+                  <option value="actif">Actif</option>
+                  <option value="inactif">Inactif</option>
+                </select>
+              </Field>
             </div>
             {adminSuccessInfo ? (
               <div style={{ marginTop: 12, padding: 12, background: '#D1FAE5', borderRadius: 8, fontSize: 12, color: '#065F46' }}>
-                <div style={{ fontWeight: 700, marginBottom: 6 }}>Admin cree ! Transmettez ces infos :</div>
-                <div>Email : <strong>{adminSuccessInfo.email}</strong></div>
-                <div>Mot de passe : <strong>{adminSuccessInfo.password}</strong></div>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>Admin cree ! Transmettez ces infos une seule fois :</div>
+                <div>Identifiant/Email : <strong>{adminSuccessInfo.email}</strong></div>
+                <div>Mot de passe temporaire : <strong>{adminSuccessInfo.password}</strong></div>
                 <div>URL : <strong>{adminSuccessInfo.url}</strong></div>
               </div>
             ) : adminMsg ? (
               <div style={{ marginTop: 12, padding: '10px 14px', background: adminMsg.type === 'success' ? '#D1FAE5' : '#FEE2E2', color: adminMsg.type === 'success' ? '#065F46' : '#991B1B', borderRadius: 8, fontSize: 13 }}>
                 {adminMsg.text}
               </div>
-            ) : null}            <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
+            ) : null} <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
               <button onClick={() => { setShowAdminModal(false); setAdminMsg(null) }} style={{ padding: '10px 20px', border: '1px solid #D1D5DB', background: '#fff', borderRadius: 8, cursor: 'pointer', fontSize: 14 }}>Annuler</button>
-              <button onClick={() => createAdmin(adminModalEnt.id)} disabled={adminSaving || !adminForm.email || !adminForm.password || !adminForm.prenom || !adminForm.nom} style={{ padding: '10px 20px', background: adminSaving ? '#A78BFA' : '#8B5CF6', color: '#fff', border: 'none', borderRadius: 8, cursor: adminSaving ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 600 }}>
+              <button onClick={() => createAdmin(adminModalEnt.id)} disabled={adminSaving || !adminForm.prenom || !adminForm.nom} style={{ padding: '10px 20px', background: adminSaving ? '#A78BFA' : '#8B5CF6', color: '#fff', border: 'none', borderRadius: 8, cursor: adminSaving ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 600 }}>
                 {adminSaving ? 'Creation...' : "Creer l'admin"}
               </button>
             </div>
           </div>
         </div>
       )}
-      {showEmployeModal && employeModalEnt && (
+{showEmployeModal && employeModalEnt && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 32, width: 420, maxWidth: '90vw' }}>
-            <h3 style={{ marginBottom: 16, color: '#1F2937' }}>Ajouter un employe - {employeModalEnt.nom}</h3>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 32, width: 460, maxWidth: '90vw', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 style={{ marginBottom: 16, color: '#1F2937' }}>Ajouter un membre - {employeModalEnt.nom}</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <input readOnly onFocus={e => e.target.removeAttribute('readonly')} autoComplete='off' placeholder='Prenom' value={employeForm.prenom} onChange={e => setEmployeForm(f => ({ ...f, prenom: e.target.value }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #D1D5DB' }} />
               <input readOnly onFocus={e => e.target.removeAttribute('readonly')} autoComplete='off' placeholder='Nom' value={employeForm.nom} onChange={e => setEmployeForm(f => ({ ...f, nom: e.target.value }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #D1D5DB' }} />
-              <input readOnly onFocus={e => e.target.removeAttribute('readonly')} autoComplete='off' placeholder='Email' type='email' value={employeForm.email} onChange={e => setEmployeForm(f => ({ ...f, email: e.target.value }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #D1D5DB' }} />
-              <input readOnly onFocus={e => e.target.removeAttribute('readonly')} autoComplete='new-password' placeholder='Mot de passe' type='password' value={employeForm.password} onChange={e => setEmployeForm(f => ({ ...f, password: e.target.value }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #D1D5DB' }} />
-              {employeMsg && <div style={{ padding: '8px 12px', borderRadius: 6, background: employeMsg.type === 'error' ? '#FEE2E2' : '#D1FAE5', color: employeMsg.type === 'error' ? '#DC2626' : '#065F46', fontSize: 13 }}>{employeMsg.text}</div>}
+              <input readOnly onFocus={e => e.target.removeAttribute('readonly')} autoComplete='off' placeholder='Email (optionnel)' type='email' value={employeForm.email} onChange={e => setEmployeForm(f => ({ ...f, email: e.target.value }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #D1D5DB' }} />
+              <input readOnly onFocus={e => e.target.removeAttribute('readonly')} autoComplete='off' placeholder='Telephone (optionnel)' value={employeForm.telephone} onChange={e => setEmployeForm(f => ({ ...f, telephone: e.target.value }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #D1D5DB' }} />
+              <Field label="Role">
+                <select value={employeForm.role} onChange={e => setEmployeForm(f => ({ ...f, role: e.target.value }))} style={inputStyle}>
+                  <option value="employe">Employe</option>
+                  <option value="responsable">Responsable</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </Field>
+              <Field label="Poste principal">
+                <select value={employeForm.poste_id} onChange={e => setEmployeForm(f => ({ ...f, poste_id: e.target.value }))} style={inputStyle}>
+                  <option value="">Aucun</option>
+                  {(entPostes[employeModalEnt.id] || []).map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
+                </select>
+              </Field>
+              <Field label="Poste secondaire (optionnel)">
+                <select value={employeForm.poste_secondaire_id} onChange={e => setEmployeForm(f => ({ ...f, poste_secondaire_id: e.target.value }))} style={inputStyle}>
+                  <option value="">Aucun</option>
+                  {(entPostes[employeModalEnt.id] || []).map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
+                </select>
+              </Field>
+              <Field label="Departements">
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {(entDeps[employeModalEnt.id] || []).map(d => {
+                    const sel = (employeForm.departement_ids || []).includes(d.id)
+                    return (
+                      <button key={d.id} type="button" onClick={() => setEmployeForm(f => ({ ...f, departement_ids: sel ? f.departement_ids.filter(x => x !== d.id) : [...(f.departement_ids || []), d.id] }))} style={{ padding: '5px 12px', borderRadius: 16, border: '1.5px solid ' + (sel ? '#10B981' : '#E5E7EB'), background: sel ? '#10B98118' : '#fff', color: sel ? '#10B981' : '#6B7280', cursor: 'pointer', fontSize: 12, fontWeight: sel ? 700 : 400 }}>{d.nom}</button>
+                    )
+                  })}
+                  {(entDeps[employeModalEnt.id] || []).length === 0 && <span style={{ fontSize: 12, color: '#9CA3AF' }}>Aucun departement pour cette entreprise</span>}
+                </div>
+              </Field>
+              <Field label="Statut">
+                <select value={employeForm.actif ? 'actif' : 'inactif'} onChange={e => setEmployeForm(f => ({ ...f, actif: e.target.value === 'actif' }))} style={inputStyle}>
+                  <option value="actif">Actif</option>
+                  <option value="inactif">Inactif</option>
+                </select>
+              </Field>
+              {employeSuccessInfo ? (
+                <div style={{ padding: 12, background: '#D1FAE5', borderRadius: 8, fontSize: 12, color: '#065F46' }}>
+                  <div style={{ fontWeight: 700, marginBottom: 6 }}>Membre cree ! Transmettez ces infos une seule fois :</div>
+                  <div>Identifiant/Email : <strong>{employeSuccessInfo.email}</strong></div>
+                  <div>Mot de passe temporaire : <strong>{employeSuccessInfo.password}</strong></div>
+                  <div>URL : <strong>{employeSuccessInfo.url}</strong></div>
+                </div>
+              ) : employeMsg ? (
+                <div style={{ padding: '8px 12px', borderRadius: 6, background: employeMsg.type === 'error' ? '#FEE2E2' : '#D1FAE5', color: employeMsg.type === 'error' ? '#DC2626' : '#065F46', fontSize: 13 }}>{employeMsg.text}</div>
+              ) : null}
               <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                <button onClick={() => createEmploye(employeModalEnt.id)} disabled={employeSaving} style={{ flex: 1, background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 0', cursor: 'pointer', fontWeight: 600 }}>{employeSaving ? 'Creation...' : 'Creer employe'}</button>
-                <button onClick={() => { setShowEmployeModal(false); setEmployeMsg(null) }} style={{ flex: 1, background: '#F3F4F6', color: '#374151', border: 'none', borderRadius: 6, padding: '10px 0', cursor: 'pointer' }}>Annuler</button>
+                <button onClick={() => createEmploye(employeModalEnt.id)} disabled={employeSaving || !employeForm.prenom || !employeForm.nom} style={{ flex: 1, background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 0', cursor: 'pointer', fontWeight: 600 }}>{employeSaving ? 'Creation...' : 'Creer'}</button>
+                <button onClick={() => { setShowEmployeModal(false); setEmployeMsg(null); setEmployeSuccessInfo(null) }} style={{ flex: 1, background: '#F3F4F6', color: '#374151', border: 'none', borderRadius: 6, padding: '10px 0', cursor: 'pointer' }}>Annuler</button>
               </div>
             </div>
           </div>
