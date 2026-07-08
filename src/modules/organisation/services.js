@@ -161,11 +161,63 @@ export async function updateEmploye(id, payload) {
 
 // Désactivation logique — jamais suppression physique
 export async function desactiverEmploye(id) {
-  return updateEmploye(id, { actif: false });
+  const { data, error } = await supabase.functions.invoke('toggle-user-actif', { body: { user_id: id, actif: false } });
+  if (error) throw error;
+  if (data && data.success === false) throw new Error(data.error || 'Erreur lors de la desactivation');
+  return data;
 }
 
 export async function reactiversEmploye(id) {
-  return updateEmploye(id, { actif: true });
+  const { data, error } = await supabase.functions.invoke('toggle-user-actif', { body: { user_id: id, actif: true } });
+  if (error) throw error;
+  if (data && data.success === false) throw new Error(data.error || 'Erreur lors de la reactivation');
+  return data;
+}
+
+// ============================================================
+// ACTIONS SENSIBLES — via Edge Functions (create-user, delete-user, update-user-role, reset-password, toggle-user-actif)
+// Aucune de ces actions ne doit jamais manipuler directement service_role ou l'API admin depuis le frontend.
+// ============================================================
+
+export async function creerEmploye(entrepriseId, payload) {
+  const body = {
+    prenom: payload.prenom,
+    nom: payload.nom,
+    role: payload.role,
+    entreprise_id: entrepriseId,
+    email: payload.email || undefined,
+    telephone: payload.telephone || null,
+    poste_id: payload.poste_id || null,
+    poste_secondaire_id: payload.poste_secondaire_id || null,
+    departement_ids: (payload.departement_ids && payload.departement_ids.length > 0) ? payload.departement_ids : undefined,
+    langue: payload.langue || 'fr',
+    actif: payload.actif !== false,
+  };
+  const { data, error } = await supabase.functions.invoke('create-user', { body });
+  if (error) throw error;
+  if (data && data.success === false) throw new Error(data.error || 'Erreur lors de la creation du compte');
+  return data;
+}
+
+export async function supprimerEmploye(employeId) {
+  const { data, error } = await supabase.functions.invoke('delete-user', { body: { user_id: employeId } });
+  if (error) throw error;
+  if (data && data.success === false) throw new Error(data.error || 'Erreur lors de la suppression');
+  return data;
+}
+
+export async function changerRoleEmploye(employeId, nouveauRole) {
+  const { data, error } = await supabase.functions.invoke('update-user-role', { body: { user_id: employeId, new_role: nouveauRole } });
+  if (error) throw error;
+  if (data && data.success === false) throw new Error(data.error || 'Erreur lors du changement de role');
+  return data;
+}
+
+export async function reinitialiserMotDePasseEmploye(employeId) {
+  const { data, error } = await supabase.functions.invoke('reset-password', { body: { user_id: employeId } });
+  if (error) throw error;
+  if (data && data.success === false) throw new Error(data.error || 'Erreur lors de la reinitialisation du mot de passe');
+  return data;
 }
 
 // ============================================================
