@@ -143,15 +143,8 @@ export default function SuperAdmin() {
   async function deleteUser(userId, entId) {
     setUserDeleteConfirm(null)
     try {
-      const { error: rpcErr } = await supabase.rpc('supprimer_membre_complet', { p_user_id: userId }); if (rpcErr) throw rpcErr; if (false) {
-      const serviceKey = process.env.REACT_APP_SUPABASE_SERVICE_KEY
-      if (serviceKey) {
-        await fetch(supabaseUrl + '/auth/v1/admin/users/' + userId, {
-          method: 'DELETE',
-          headers: { 'apikey': serviceKey, 'Authorization': 'Bearer ' + serviceKey }
-        })
-      }
-      await supabase.from('profiles').delete().eq('id', userId) }
+      const { error: rpcErr } = await supabase.rpc('supprimer_membre_complet', { p_user_id: userId })
+      if (rpcErr) throw rpcErr
       setMsg({ type: 'success', text: 'Utilisateur supprimé.' })
       fetchEntUsers(entId)
       fetchData()
