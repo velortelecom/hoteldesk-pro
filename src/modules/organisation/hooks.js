@@ -9,6 +9,7 @@ import {
   createDepartement, updateDepartement, toggleDepartementActif,
   createPoste, updatePoste, togglePosteActif,
   updateEmploye, desactiverEmploye, reactiversEmploye,
+  creerEmploye, supprimerEmploye, changerRoleEmploye, reinitialiserMotDePasseEmploye,
   setEmployeDepartements, getStatsOrganisation,
 } from './services.js';
 
@@ -143,7 +144,29 @@ export function useEmployes(entrepriseId, options = {}) {
     return result;
   };
 
-  return { employes, loading, error, reload: load, update, desactiver, reactiver, updateDepartements };
+  const creer = async (payload) => {
+    const result = await creerEmploye(entrepriseId, payload);
+    await load();
+    return result;
+  };
+
+  const supprimer = async (id) => {
+    const result = await supprimerEmploye(id);
+    setEmployes(prev => prev.filter(x => x.id !== id));
+    return result;
+  };
+
+  const changerRole = async (id, nouveauRole) => {
+    const result = await changerRoleEmploye(id, nouveauRole);
+    setEmployes(prev => prev.map(x => x.id === id ? { ...x, role: nouveauRole } : x));
+    return result;
+  };
+
+  const reinitialiserMotDePasse = async (id) => {
+    return await reinitialiserMotDePasseEmploye(id);
+  };
+
+  return { employes, loading, error, reload: load, update, desactiver, reactiver, updateDepartements, creer, supprimer, changerRole, reinitialiserMotDePasse };
 }
 
 // ============================================================
