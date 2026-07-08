@@ -2,9 +2,6 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 
-const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL || 'https://vcpnrisxbnvyupsbieie.supabase.co'
-const SUPABASE_SERVICE_KEY = process.env.REACT_APP_SUPABASE_SERVICE_KEY || ''
-
 const PALETTE = [
   '#E53935','#D81B60','#8E24AA','#5E35B1','#3949AB','#1E88E5',
   '#039BE5','#00ACC1','#00897B','#43A047','#7CB342','#F9A825',
@@ -14,7 +11,7 @@ const PALETTE = [
 const DEPS = ['reception','menage','maintenance','restauration','direction','cuisine','securite','technique']
 const ROLES = ['employe','responsable','admin']
 
-const emptyForm = { prenom: '', nom: '', email: '', password: '', role: 'employe', departement: 'reception', couleur: '#1E88E5', telephone: '' }
+const emptyForm = { prenom: '', nom: '', email: '', role: 'employe', departement: 'reception', couleur: '#1E88E5', telephone: '' }
 
 export default function Personnel() {
   const { profile: moi } = useAuth()
@@ -59,7 +56,7 @@ export default function Personnel() {
     setTimeout(() => setErrorMsg(''), 6000)
   }
 
-  // Creer un nouveau compte employe via Admin API (sans changer la session courante)
+  // Creer un nouveau compte employe via l'Edge Function create-user (aucun appel direct a l'Admin API depuis le frontend)
   async function creerCompte() {
     if (!form.prenom.trim() || !form.nom.trim()) {
       showError('Prenom et nom obligatoires')
@@ -69,101 +66,36 @@ export default function Personnel() {
       showError('Email valide obligatoire')
       return
     }
-    if (!form.password || form.password.length < 6) {
-      showError('Mot de passe obligatoire (min 6 caracteres)')
-      return
-    }
     setSaving(true)
 
     try {
-      // Utiliser la Admin API Supabase pour creer l utilisateur SANS changer la session courante
-      const createRes = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_SERVICE_KEY,
-          'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          prenom: form.prenom.trim(),
+          nom: form.nom.trim(),
+          role: form.role,
+          entreprise_id: moi.entreprise_id,
           email: form.email.trim().toLowerCase(),
-          password: form.password,
-          email_confirm: true,
-          user_metadata: { prenom: form.prenom.trim(), nom: form.nom.trim() },
-        }),
+          departement: form.departement,
+          telephone: form.telephone.trim() || null,
+          couleur: form.couleur,
+          actif: true,
+        },
       })
 
-      const authData = await createRes.json()
-
-      if (!createRes.ok || authData.error) {
-        showError('Erreur creation compte : ' + (authData.error_description || authData.message || authData.error || 'Erreur inconnue'))
+      if (error || !data || !data.success) {
+        showError('Erreur creation compte : ' + ((data && data.error) || (error && error.message) || 'Erreur inconnue'))
         setSaving(false)
         return
       }
 
-      const userId = authData.id
-
-      // Attendre un court instant que le trigger Supabase cree le profil de base
-      await new Promise(resolve => setTimeout(resolve, 800))
-
-      // PATCH (UPDATE) le profil existant cree par le trigger avec les vraies donnees
-      const profRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${userId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_SERVICE_KEY,
-          'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-          'Prefer': 'return=minimal',
-        },
-        body: JSON.stringify({
-          prenom: form.prenom.trim(),
-          nom: form.nom.trim(),
-          role: form.role,
-          departement: form.departement,
-          couleur: form.couleur,
-          telephone: form.telephone?.trim() || null,
-          entreprise_id: moi.entreprise_id,
-          actif: true,
-          avatar_initiales: (form.prenom.trim()[0] + form.nom.trim()[0]).toUpperCase(),
-        }),
-      })
-
-      if (!profRes.ok) {
-        const profErr = await profRes.text()
-        // Si le profil n existe pas encore, on le cree avec PUT
-        const putRes = await fetch(`${SUPABASE_URL}/rest/v1/profiles`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': SUPABASE_SERVICE_KEY,
-            'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-            'Prefer': 'return=minimal',
-          },
-          body: JSON.stringify({
-            id: userId,
-            prenom: form.prenom.trim(),
-            nom: form.nom.trim(),
-            role: form.role,
-            departement: form.departement,
-            couleur: form.couleur,
-            telephone: form.telephone?.trim() || null,
-            entreprise_id: moi.entreprise_id,
-            actif: true,
-            avatar_initiales: (form.prenom.trim()[0] + form.nom.trim()[0]).toUpperCase(),
-          }),
-        })
-        if (!putRes.ok) {
-          showError('Erreur profil : ' + profErr)
-          setSaving(false)
-          return
-        }
-      }
-
       setNouvellesCreds({
-        prenom: form.prenom.trim(),
-        nom: form.nom.trim(),
-        email: form.email.trim().toLowerCase(),
-        password: form.password,
-        role: form.role,
+        action: 'created',
+        prenom: data.prenom,
+        nom: data.nom,
+        email: data.email,
+        password: data.temp_password,
+        role: data.role,
       })
       setShowCredsModal(true)
       setShowModal(false)
@@ -175,20 +107,33 @@ export default function Personnel() {
     setSaving(false)
   }
 
-  // Modifier un profil existant (sans changer le mot de passe)
+  // Modifier un profil existant (le changement de role passe par l'Edge Function update-user-role)
   async function modifierProfil() {
     if (!form.prenom.trim() || !form.nom.trim()) {
       showError('Prenom et nom obligatoires')
       return
     }
     setSaving(true)
+
+    const original = employes.find(e => e.id === editId)
+
+    if (original && form.role !== original.role) {
+      const { data, error } = await supabase.functions.invoke('update-user-role', {
+        body: { user_id: editId, new_role: form.role },
+      })
+      if (error || !data || !data.success) {
+        showError('Erreur changement de role : ' + ((data && data.error) || (error && error.message) || 'Erreur inconnue'))
+        setSaving(false)
+        return
+      }
+    }
+
     const { error } = await supabase.from('profiles').update({
       prenom: form.prenom.trim(),
       nom: form.nom.trim(),
-      role: form.role,
       departement: form.departement,
       couleur: form.couleur,
-      telephone: form.telephone?.trim() || null,
+      telephone: form.telephone.trim() || null,
       avatar_initiales: (form.prenom[0] + form.nom[0]).toUpperCase(),
     }).eq('id', editId)
 
@@ -211,43 +156,49 @@ export default function Personnel() {
 
   async function toggleActif(emp) {
     if (!isAdmin) return
-    const { error } = await supabase.from('profiles').update({ actif: !emp.actif }).eq('id', emp.id)
-    if (!error) {
+    const { data, error } = await supabase.functions.invoke('toggle-user-actif', {
+      body: { user_id: emp.id, actif: !emp.actif },
+    })
+    if (!error && data && data.success) {
       fetchEmployes()
       showSuccess(emp.actif ? 'Employe desactive' : 'Employe reactive')
+    } else {
+      showError('Erreur : ' + ((data && data.error) || (error && error.message) || 'Erreur inconnue'))
     }
   }
 
   async function changeRole(emp, newRole) {
     if (!isAdmin) return
-    const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', emp.id)
-    if (!error) {
-      setEmployes(prev => prev.map(e => e.id === emp.id ? { ...e, role: newRole } : e))
-      showSuccess('Role mis a jour : ' + newRole)
-    }
-  }
-
-  async function changePassword(emp, newPassword) {
-    if (!isAdmin) return
-    if (!newPassword || newPassword.length < 6) {
-      showError('Mot de passe trop court (min 6 caracteres)')
+    const { data, error } = await supabase.functions.invoke('update-user-role', {
+      body: { user_id: emp.id, new_role: newRole },
+    })
+    if (error || !data || !data.success) {
+      showError('Erreur changement de role : ' + ((data && data.error) || (error && error.message) || 'Erreur inconnue'))
       return
     }
+    setEmployes(prev => prev.map(e => e.id === emp.id ? { ...e, role: newRole } : e))
+    showSuccess('Role mis a jour : ' + newRole)
+  }
+
+  async function changePassword(emp) {
+    if (!isAdmin) return
     try {
-      const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${emp.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_SERVICE_KEY,
-          'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-        },
-        body: JSON.stringify({ password: newPassword }),
+      const { data, error } = await supabase.functions.invoke('reset-password', {
+        body: { user_id: emp.id },
       })
-      if (res.ok) {
-        showSuccess('Mot de passe modifie pour ' + emp.prenom)
-      } else {
-        showError('Erreur changement mot de passe')
+      if (error || !data || !data.success) {
+        showError('Erreur changement mot de passe : ' + ((data && data.error) || (error && error.message) || 'Erreur inconnue'))
+        return
       }
+      setNouvellesCreds({
+        action: 'reset',
+        prenom: data.prenom || emp.prenom,
+        nom: data.nom || emp.nom,
+        email: data.email || '',
+        password: data.temp_password,
+        role: emp.role,
+      })
+      setShowCredsModal(true)
     } catch(e) {
       showError('Erreur reseau : ' + e.message)
     }
@@ -256,14 +207,13 @@ export default function Personnel() {
   async function supprimerDefinitivement(emp) {
     if (!isAdmin) return
     try {
-      await fetch(`${SUPABASE_URL}/rest/v1/profiles?id=eq.${emp.id}`, {
-        method: 'DELETE',
-        headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'Prefer': 'return=minimal' }
+      const { data, error } = await supabase.functions.invoke('delete-user', {
+        body: { user_id: emp.id },
       })
-      await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${emp.id}`, {
-        method: 'DELETE',
-        headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` }
-      })
+      if (error || !data || !data.success) {
+        showError('Erreur suppression : ' + ((data && data.error) || (error && error.message) || 'Erreur inconnue'))
+        return
+      }
       showSuccess(emp.prenom + ' supprime definitivement')
       await fetchEmployes()
     } catch(e) {
@@ -276,7 +226,6 @@ export default function Personnel() {
       prenom: emp.prenom || '',
       nom: emp.nom || '',
       email: '',
-      password: '',
       role: emp.role || 'employe',
       departement: emp.departement || 'reception',
       couleur: emp.couleur || '#1E88E5',
@@ -402,7 +351,7 @@ export default function Personnel() {
             </div>
             {!editId && (
               <div style={{ fontSize: 12, color: '#888', marginBottom: 18 }}>
-                Definissez l email et le mot de passe. Le compte sera immediatement actif.
+                Definissez l email. Un mot de passe temporaire sera genere automatiquement et affiche une seule fois.
               </div>
             )}
 
@@ -427,10 +376,7 @@ export default function Personnel() {
                   <label style={lbl}>Email *</label>
                   <input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="employe@example.com" style={inp} />
                 </div>
-                <div style={{ marginBottom: 12 }}>
-                  <label style={lbl}>Mot de passe * (min 6 caracteres)</label>
-                  <input type="text" value={form.password} onChange={e => set('password', e.target.value)} placeholder="Definir un mot de passe" style={inp} />
-                </div>
+                
               </>
             )}
 
@@ -489,7 +435,7 @@ export default function Personnel() {
           <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 400 }}>
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
               <div style={{ fontSize: 40, marginBottom: 8 }}>â</div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: '#065F46' }}>Compte cree !</div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: '#065F46' }}>{nouvellesCreds.action === 'reset' ? 'Mot de passe reinitialise !' : 'Compte cree !'}</div>
               <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>{nouvellesCreds.prenom} {nouvellesCreds.nom}</div>
             </div>
 
@@ -521,7 +467,7 @@ export default function Personnel() {
               Transmettez ces identifiants a l employe.
             </div>
 
-            <button onClick={() => { setShowCredsModal(false); setNouvellesCreds(null); showSuccess('Employe cree avec succes') }}
+            <button onClick={() => { setShowCredsModal(false); setNouvellesCreds(null); showSuccess(nouvellesCreds.action === 'reset' ? 'Mot de passe reinitialise' : 'Employe cree avec succes') }}
               style={{ width: '100%', padding: '12px', background: '#185FA5', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
               Compris, fermer
             </button>
@@ -601,7 +547,7 @@ function EmployeCard({ emp, canEdit, isAdmin, isResponsable, onEdit, onToggleAct
                         style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: emp.actif !== false ? '#FEF2F2' : '#F0FDF4', padding: '6px 8px', cursor: 'pointer', fontSize: 12, color: emp.actif !== false ? '#EF4444' : '#16A34A', borderRadius: 4, marginTop: 2 }}>
                         {emp.actif !== false ? 'Desactiver' : 'Reactiver'}
                       </button>
-                      <button onClick={() => { onChangePassword(emp, window.prompt('Nouveau mot de passe pour ' + emp.prenom + ' (min 6 car.) :')); setShowActions(false) }}
+                      <button onClick={() => { onChangePassword(emp); setShowActions(false) }}
                         style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'none', padding: '6px 8px', cursor: 'pointer', fontSize: 12, color: '#185FA5', borderRadius: 4, marginTop: 2 }}>
                         Changer le mot de passe
                       </button>
