@@ -38,7 +38,7 @@ export const MODULES_REGISTRY = [
     composant: lazy(() => import('./organisation/index.jsx')),
     permissions: {
       voir:        { employe: true,  responsable: true,  admin: true,  super_admin: true  },
-      creer:       { employe: false, responsable: true,  admin: true,  super_admin: true  },
+      creer:       { employe: false, responsable: false, admin: true,  super_admin: true  },
       modifier:    { employe: false, responsable: true,  admin: true,  super_admin: true  },
       supprimer:   { employe: false, responsable: false, admin: true,  super_admin: true  },
       exporter:    { employe: false, responsable: true,  admin: true,  super_admin: true  },
