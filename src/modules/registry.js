@@ -36,13 +36,10 @@ export const MODULES_REGISTRY = [
     description: 'Gestion des employés, départements, postes et organigramme',
     route: '/organisation',
     composant: lazy(() => import('./organisation/index.jsx')),
-    permissions: {
-      voir:        { employe: true,  responsable: true,  admin: true,  super_admin: true  },
-      creer:       { employe: false, responsable: false, admin: true,  super_admin: true  },
-      modifier:    { employe: false, responsable: true,  admin: true,  super_admin: true  },
-      supprimer:   { employe: false, responsable: false, admin: true,  super_admin: true  },
-      exporter:    { employe: false, responsable: true,  admin: true,  super_admin: true  },
-      administrer: { employe: false, responsable: false, admin: true,  super_admin: true  },
+    permissionsParRole: {
+      employe: { voir: true, creer: false, modifier: false, supprimer: false, exporter: false, valider: false, administrer: false },
+      responsable: { voir: true, creer: true, modifier: true, supprimer: false, exporter: true, valider: true, administrer: false },
+      admin: { voir: true, creer: true, modifier: true, supprimer: true, exporter: true, valider: true, administrer: true },
     },
     dependances: [], plans: ['starter', 'business', 'premium', 'enterprise'],
     templates: ['hotel', 'pharmacie', 'commerce', 'mairie', 'restaurant', 'residence'],
