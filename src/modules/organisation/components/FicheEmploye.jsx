@@ -6,11 +6,12 @@
 import React, { useState } from 'react';
 import { useEmployeDetail, useDepartements, usePostes } from '../hooks.js';
 import { ROLE_COLORS, NIVEAUX_POSTE } from '../config.js';
-import { updateEmploye, setEmployeDepartements } from '../services.js';
+import { updateEmploye, setEmployeDepartements, desactiverEmploye, reactiversEmploye, changerRoleEmploye, supprimerEmploye, reinitialiserMotDePasseEmploye } from '../services.js';
 
 const ROLE_LABELS = { admin: 'Admin', responsable: 'Responsable', employe: 'Employé', super_admin: 'Super Admin' };
+const LANGUE_LABELS = { fr: 'Français', en: 'English', es: 'Español', ar: 'Arabe' };
 
-export default function FicheEmploye({ employeId, entrepriseId, permissions, onBack }) {
+export default function FicheEmploye({ employeId, entrepriseId, permissions, profile, onBack }) {
   const { employe, loading, error } = useEmployeDetail(employeId);
   const { departements } = useDepartements(entrepriseId);
   const { postes } = usePostes(entrepriseId);
@@ -30,6 +31,8 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, onB
         poste_secondaire_id: employe.poste_secondaire_id || '',
         date_entree: employe.date_entree || '',
         notes_internes: employe.notes_internes || '',
+        langue: employe.langue || 'fr',
+        photo_url: employe.photo_url || '',
       });
       const depts = (employe.employe_departements || []).map(ed => ed.departement_id);
       setSelectedDepts(depts);
@@ -57,6 +60,67 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, onB
       if (!next.includes(principalDept)) setPrincipalDept(next[0] || null);
       return next;
     });
+  };
+
+  const [actionSaving, setActionSaving] = useState(false);
+  const [nouveauRole, setNouveauRole] = useState('');
+  const [creds, setCreds] = useState(null);
+
+  const isSuperAdmin = profile?.is_super_admin === true;
+  const isAdminEntreprise = profile?.role === 'admin' || isSuperAdmin;
+  const canManageSensible = isAdminEntreprise;
+
+  const handleToggleActif = async () => {
+    if (!employe) return;
+    setActionSaving(true);
+    try {
+      if (employe.actif) await desactiverEmploye(employeId);
+      else await reactiversEmploye(employeId);
+      window.location.reload();
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
+  const handleChangerRole = async () => {
+    if (!nouveauRole || nouveauRole === employe.role) return;
+    if (!window.confirm(`Changer le rôle de ${employe.prenom} ${employe.nom} en "${ROLE_LABELS[nouveauRole] || nouveauRole}" ?`)) return;
+    setActionSaving(true);
+    try {
+      await changerRoleEmploye(employeId, nouveauRole);
+      window.location.reload();
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
+  const handleReinitialiserMdp = async () => {
+    if (!window.confirm(`Réinitialiser le mot de passe de ${employe.prenom} ${employe.nom} ?`)) return;
+    setActionSaving(true);
+    try {
+      const result = await reinitialiserMotDePasseEmploye(employeId);
+      setCreds({ prenom: employe.prenom, nom: employe.nom, email: result.email, temp_password: result.temp_password });
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
+  const handleSupprimer = async () => {
+    if (!window.confirm(`Supprimer définitivement ${employe.prenom} ${employe.nom} ? Cette action est irréversible.`)) return;
+    setActionSaving(true);
+    try {
+      await supprimerEmploye(employeId);
+      onBack();
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+      setActionSaving(false);
+    }
   };
 
   if (loading) return <div style={{ padding: '3rem', textAlign: 'center', color: '#6b7280' }}>⏳ Chargement...</div>;
@@ -108,6 +172,20 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, onB
               <Field label="Email" value={employe.email} edit={false} />
               <Field label="Téléphone" value={form?.telephone} onChange={v => setForm(p => ({...p, telephone: v}))} edit={editMode} />
               <Field label="Date d'entrée" value={form?.date_entree} onChange={v => setForm(p => ({...p, date_entree: v}))} edit={editMode} type="date" />
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8125rem', color: '#6b7280', marginBottom: '0.25rem' }}>Langue</label>
+              {editMode ? (
+                <select value={form?.langue || 'fr'} onChange={e => setForm(p => ({...p, langue: e.target.value}))} style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.875rem', boxSizing: 'border-box' }}>
+                  <option value="fr">Français</option>
+                  <option value="en">English</option>
+                  <option value="es">Español</option>
+                  <option value="ar">Arabe</option>
+                </select>
+              ) : (
+                <span style={{ fontSize: '0.875rem', color: '#111827' }}>{LANGUE_LABELS[employe.langue] || 'Français'}</span>
+              )}
+            </div>
+            <Field label="Photo (URL)" value={form?.photo_url} onChange={v => setForm(p => ({...p, photo_url: v}))} edit={editMode} />
             </div>
           </div>
 
@@ -183,6 +261,90 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, onB
             </div>
           )}
         </div>
+
+        {canManageSensible && (
+          <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #e5e7eb', marginTop: '0.5rem', paddingTop: '1.5rem' }}>
+            <h3 style={{ color: '#111827', fontWeight: 600, marginTop: 0, marginBottom: '1rem' }}>Actions</h3>
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <button onClick={handleToggleActif} disabled={actionSaving}
+                style={{ padding: '0.5rem 1rem', background: employe.actif ? '#f3f4f6' : '#d1fae5', color: employe.actif ? '#374151' : '#065f46', border: '1px solid ' + (employe.actif ? '#d1d5db' : '#6ee7b7'), borderRadius: '8px', cursor: 'pointer', fontSize: '0.8125rem' }}>
+                {employe.actif ? 'Désactiver' : 'Réactiver'}
+              </button>
+              <button onClick={handleReinitialiserMdp} disabled={actionSaving}
+                style={{ padding: '0.5rem 1rem', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8125rem' }}>
+                Réinitialiser mot de passe
+              </button>
+              <select value={nouveauRole} onChange={e => setNouveauRole(e.target.value)}
+                style={{ padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.8125rem' }}>
+                <option value="">-- Changer le rôle --</option>
+                <option value="employe">Employé</option>
+                <option value="responsable">Responsable</option>
+                {isSuperAdmin && <option value="admin">Admin</option>}
+              </select>
+              <button onClick={handleChangerRole} disabled={actionSaving || !nouveauRole}
+                style={{ padding: '0.5rem 1rem', background: '#eef2ff', color: '#6366f1', border: '1px solid #c7d2fe', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8125rem' }}>
+                Appliquer le rôle
+              </button>
+              <button onClick={handleSupprimer} disabled={actionSaving}
+                style={{ padding: '0.5rem 1rem', background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8125rem', marginLeft: 'auto' }}>
+                Supprimer définitivement
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #e5e7eb', marginTop: '0.5rem', paddingTop: '1.5rem' }}>
+          <h3 style={{ color: '#111827', fontWeight: 600, marginTop: 0, marginBottom: '1rem' }}>Modules (à venir)</h3>
+          <OngletsAVenir />
+        </div>
+      </div>
+
+      {creds && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', width: '100%', maxWidth: '420px' }}>
+            <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.125rem', fontWeight: 700, color: '#111827' }}>Mot de passe réinitialisé !</h3>
+            <p style={{ fontSize: '0.8125rem', color: '#6b7280', marginBottom: '1rem' }}>Notez ces identifiants maintenant : ils ne seront plus jamais affichés.</p>
+            <div style={{ background: '#f9fafb', borderRadius: '8px', padding: '1rem', fontSize: '0.875rem', display: 'grid', gap: '0.5rem' }}>
+              <div><strong>Nom :</strong> {creds.prenom} {creds.nom}</div>
+              <div><strong>Email :</strong> {creds.email}</div>
+              <div><strong>Mot de passe temporaire :</strong> <code style={{ background: '#eef2ff', padding: '0.125rem 0.375rem', borderRadius: '4px' }}>{creds.temp_password}</code></div>
+            </div>
+            <button onClick={() => setCreds(null)} style={{ marginTop: '1.25rem', width: '100%', padding: '0.625rem', border: 'none', background: '#6366f1', color: 'white', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
+              J'ai noté les identifiants
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OngletsAVenir() {
+  const [onglet, setOnglet] = useState('planning');
+  const onglets = [
+    { id: 'planning', label: 'Planning' },
+    { id: 'taches', label: 'Tâches' },
+    { id: 'conges', label: 'Congés' },
+    { id: 'pointages', label: 'Pointages' },
+    { id: 'documents', label: 'Documents' },
+    { id: 'vehicules', label: 'Véhicules' },
+    { id: 'historique', label: 'Historique' },
+  ];
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+        {onglets.map(o => (
+          <button key={o.id} onClick={() => setOnglet(o.id)}
+            style={{
+              padding: '0.5rem 0.875rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8125rem', border: 'none',
+              background: onglet === o.id ? '#eef2ff' : '#f9fafb', color: onglet === o.id ? '#6366f1' : '#6b7280', fontWeight: onglet === o.id ? 600 : 400,
+            }}>
+            {o.label}
+          </button>
+        ))}
+      </div>
+      <div style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af', background: '#f9fafb', borderRadius: '8px', fontSize: '0.875rem' }}>
+        Module « {onglets.find(o => o.id === onglet)?.label} » à venir.
       </div>
     </div>
   );
