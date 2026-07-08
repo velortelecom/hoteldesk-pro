@@ -15,6 +15,7 @@ import ListeEmployes from './components/ListeEmployes.jsx';
 import FicheEmploye from './components/FicheEmploye.jsx';
 import GestionDepartements from './components/GestionDepartements.jsx';
 import GestionPostes from './components/GestionPostes.jsx';
+import Organigramme from './components/Organigramme.jsx';
 
 // ============================================================
 // COMPOSANT PRINCIPAL
@@ -82,7 +83,7 @@ export default function OrganisationModule({ profile, permissions: permissionsLo
           background: 'white', borderBottom: '1px solid #e5e7eb',
           padding: '0 2rem', display: 'flex', gap: '0'
         }}>
-          {MODULE_TABS.filter(t => t.id !== 'organigramme').map(tab => (
+          {MODULE_TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -113,6 +114,7 @@ export default function OrganisationModule({ profile, permissions: permissionsLo
           <ListeEmployes
             entrepriseId={entrepriseId}
             permissions={permissions}
+            profile={profile}
             onViewEmploye={handleViewEmploye}
           />
         )}
@@ -122,6 +124,7 @@ export default function OrganisationModule({ profile, permissions: permissionsLo
             employeId={selectedEmployeId}
             entrepriseId={entrepriseId}
             permissions={permissions}
+            profile={profile}
             onBack={handleBackToList}
           />
         )}
@@ -137,6 +140,11 @@ export default function OrganisationModule({ profile, permissions: permissionsLo
           <GestionPostes
             entrepriseId={entrepriseId}
             permissions={permissions}
+          />
+        )}
+        {activeTab === 'organigramme' && (
+          <Organigramme
+            entrepriseId={entrepriseId}
           />
         )}
       </div>
