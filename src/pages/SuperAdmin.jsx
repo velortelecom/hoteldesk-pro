@@ -7,6 +7,7 @@ import { useAuth } from '../hooks/useAuth'
 import { PLANS } from '../lib/modules'
 import { MODULES_REGISTRY } from '../modules/registry'
 import { SECTEURS_METIERS, SECTEURS_OPTIONS, getDepartementsBySecteur, getPostesBySecteur, getModulesRecommandes } from '../lib/secteurs'
+import { BrandMark, APP_URL } from '../branding/Brand'
 
 const PLAN_COLORS = { starter: '#6B7280', business: '#3B82F6', premium: '#8B5CF6', enterprise: '#F59E0B' }
 const PLAN_MODULES = {
@@ -531,7 +532,7 @@ async function createAdmin(entrepriseId) {
     setAdminMsg(null)
     try {
       const result = await creerCompteMembre(entrepriseId, adminForm, 'admin')
-      setAdminSuccessInfo({ email: result.email, password: result.temp_password, url: 'https://hoteldesk-pro.vercel.app', nom: adminForm.prenom + ' ' + adminForm.nom })
+      setAdminSuccessInfo({ email: result.email, password: result.temp_password, url: APP_URL, nom: adminForm.prenom + ' ' + adminForm.nom })
       setAdminForm({ prenom: '', nom: '', email: '', telephone: '', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true })
       await fetchData()
     } catch (err) {
@@ -546,7 +547,7 @@ async function createEmploye(entrepriseId) {
     setEmployeMsg(null)
     try {
       const result = await creerCompteMembre(entrepriseId, employeForm, employeForm.role || 'employe')
-      setEmployeSuccessInfo({ email: result.email, password: result.temp_password, url: 'https://hoteldesk-pro.vercel.app', nom: employeForm.prenom + ' ' + employeForm.nom })
+      setEmployeSuccessInfo({ email: result.email, password: result.temp_password, url: APP_URL, nom: employeForm.prenom + ' ' + employeForm.nom })
       setEmployeForm({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true })
       await fetchData()
     } catch (err) {
@@ -559,7 +560,8 @@ async function createEmploye(entrepriseId) {
 // VUE PRINCIPALE
   return (
     <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+              <BrandMark size={28} radius={6} />
         <div style={{ background: '#1F2937', color: 'white', borderRadius: 8, padding: '6px 14px', fontSize: 12, fontWeight: 700 }}>VELOR SUPER ADMIN</div>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1F2937', flex: 1 }}>Back-office Velor One</h1>
       </div>
