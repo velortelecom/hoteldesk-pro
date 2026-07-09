@@ -8,7 +8,7 @@ import { fr } from 'date-fns/locale'
 const HORAIRES_RAPPEL = [8, 13, 18] // matin, midi, soir
 
 // Cle localStorage pour stocker les rappels deja envoyes aujourd'hui
-const STORAGE_KEY = 'hoteldesk_rappels_taches'
+const STORAGE_KEY = 'velor_one_rappels_taches'
 
 function toLocalISO(str) {
   if (!str) return null
@@ -161,7 +161,7 @@ export default function Rappels() {
         const msg = t.date_echeance
           ? 'Echeance: ' + format(parseISO(t.date_echeance), 'dd/MM HH:mm')
           : 'Tache non effectuee'
-        new Notification(String.fromCodePoint(0x1F3E8) + ' HotelDesk - Tache non effectuee', {
+        new Notification(String.fromCodePoint(0x1F3E8) + ' Velor One - Tache non effectuee', {
           body: t.titre + '\n' + msg,
           icon: '/favicon.ico',
           tag: 'tache-' + t.id + '-' + creneauActif
