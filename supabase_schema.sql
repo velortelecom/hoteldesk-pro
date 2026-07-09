@@ -1,5 +1,5 @@
 -- ============================================
--- HOTELDESK PRO - Schéma Supabase complet
+-- VELOR ONE - Schéma Supabase complet
 feat: fonctions RLS helper + RPC valider_conge pour admins-- ============================================
 
 -- Extensions
