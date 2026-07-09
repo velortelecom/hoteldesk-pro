@@ -1,1 +1,1 @@
-# hoteldesk-pro
+# velor-one
