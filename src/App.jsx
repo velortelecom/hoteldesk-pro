@@ -15,6 +15,7 @@ import Personnel from './pages/Personnel'
 import Dashboard from './pages/Dashboard'
 import SuperAdmin from './pages/SuperAdmin'
 import { ModuleNonAutorise } from './pages/ModuleEnPreparation'
+import { BrandMark } from './branding/Brand'
 
 // Module Conges charge en lazy (disponible pour tous les admins)
 const CongesModule = lazy(() => import('./modules/conges/index.jsx'))
@@ -28,7 +29,7 @@ const ICONES_SOCLE = {
 
 // Composant de chargement pour Suspense
 function LoadingModule() {
-  return <div style={{ padding: 40, textAlign: 'center', color: '#aaa', fontSize: 14 }}>Chargement...</div>
+  return <div style={{ padding: 40, textAlign: 'center', color: '#aaa', fontSize: 14 }}><BrandMark size={40} radius={10} /><br/>Chargement...</div>
 }
 
 
@@ -103,7 +104,7 @@ function AppInner() {
     window.location.hash = page
   }, [page])
 
-  if (authLoading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', fontSize: 14, color: '#aaa' }}>Chargement...</div>
+  if (authLoading) return <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: 16 }}><BrandMark size={64} radius={16} /><div style={{ fontSize: 14, color: '#aaa' }}>Chargement...</div></div>
   if (!user) return <Login />
 
   const isSuperAdmin = profile?.is_super_admin
@@ -181,7 +182,7 @@ function AppInner() {
       {/* Header */}
       <header style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 32, height: 32, background: '#1E40AF', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 16 }}>V</div>
+          <BrandMark size={32} radius={8} />
           <span style={{ fontWeight: 700, fontSize: 16, color: '#111' }}>{nomEntreprise}</span>
           {isSuperAdmin && (
             <span style={{ background: '#FEF3C7', color: '#92400E', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4 }}>SUPER ADMIN</span>
@@ -240,6 +241,7 @@ function AppInner() {
           {renderPage()}
         </main>
       </div>
+      <footer style={{ textAlign: 'center', padding: '6px 0', fontSize: 11, color: '#9CA3AF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, borderTop: '1px solid #E5E7EB', flexShrink: 0 }}><BrandMark size={16} radius={4} />Velor One</footer>
 
       {/* Mobile nav */}
       <nav className="mobile-nav" style={{ display: 'none', position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #E5E7EB', padding: '8px 0', zIndex: 50 }}>
