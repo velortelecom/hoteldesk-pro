@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import { supabase } from '../lib/supabase'
+import { APP_NAME, BrandMark } from '../branding/Brand'
 
 export default function Login() {
   const { signIn } = useAuth()
@@ -108,12 +109,8 @@ export default function Login() {
     }}>
       <div style={{ width: '100%', maxWidth: 400 }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{
-            width: 60, height: 60, background: '#185FA5', borderRadius: 16,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'white', fontSize: 26, fontWeight: 700, margin: '0 auto 14px'
-          }}>V</div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: '#1a1a1a' }}>HotelDesk Pro</div>
+            <BrandMark size={60} radius={16} fontSize={26} />
+                    <div style={{ fontSize: 24, fontWeight: 700, color: '#1a1a1a' }}>{APP_NAME}</div>
           <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>Connectez-vous a votre espace</div>
         </div>
 
