@@ -57,13 +57,13 @@ Ouvrez http://localhost:3000 — créez votre premier compte (admin).
 ### Option A — Via GitHub (recommandé)
 
 1. Créez un compte sur https://github.com
-2. Créez un nouveau dépôt (repository) privé appelé `hoteldesk`
+2. Creez un nouveau depot (repository) prive appele `velor-one`
 3. Dans le dossier `hotel-app` :
 ```bash
 git init
 git add .
 git commit -m "Initial commit"
-git remote add origin https://github.com/VOTRE_NOM/hoteldesk.git
+git remote add origin https://github.com/VOTRE_NOM/velor-one.git
 git push -u origin main
 ```
 4. Allez sur https://vercel.com → **New Project** → importez votre repo GitHub
@@ -80,7 +80,7 @@ npm run build
 vercel --prod
 ```
 
-Vercel vous donnera une URL du type : `https://hoteldesk-xxx.vercel.app`
+Vercel vous donnera une URL du type : `https://velor-one-xxx.vercel.app`
 
 ---
 
@@ -101,7 +101,7 @@ Vercel vous donnera une URL du type : `https://hoteldesk-xxx.vercel.app`
 
 ## ÉTAPE 6 — Nom de domaine (optionnel)
 
-Pour avoir `tasks.monhotel.fr` au lieu de `hoteldesk.vercel.app` :
+Pour avoir `tasks.monhotel.fr` au lieu de `velor-one.vercel.app` :
 
 1. Achetez un domaine sur OVH (~10€/an) ou Namecheap
 2. Dans Vercel : **Settings** → **Domains** → ajoutez votre domaine
