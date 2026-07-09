@@ -150,4 +150,4 @@ Vérifiez que le `.env` contient bien les bonnes valeurs et que vous avez relanc
 Il suffit qu'il s'inscrive via l'app. Vous pouvez changer son rôle depuis Supabase → Table Editor → profiles.
 
 **Puis-je personnaliser le nom de l'hôtel ?**
-Oui, cherchez "HôtelDesk" dans `App.jsx` et `public/index.html` et remplacez par le vrai nom.
+Oui, cherchez "Velor One" dans le fichier src/branding/Brand.jsx et remplacez APP_NAME.
