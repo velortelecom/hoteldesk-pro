@@ -312,19 +312,17 @@ export default function SuperAdmin() {
         }
       }
 
-      // Premier admin (creation seulement)
-      if (!editEntreprise && form.admin_email) {
-        const { data: adminResult } = await supabase.rpc('creer_premier_admin', {
-          p_entreprise_id: entId, p_email: form.admin_email,
-          p_prenom: form.admin_prenom || 'Admin', p_nom: form.admin_nom || entData.nom,
-          p_telephone: form.admin_telephone || null,
-        })
-        if (adminResult?.success === false) console.warn('Admin issue:', adminResult.error)
-      }
+            // Premier admin (creation via create-user, seul point d'entree autorise)
+            let adminCredentials = null
+            if (!editEntreprise && form.admin_email) {
+                      const adminResult = await creerCompteMembre(entId, { prenom: form.admin_prenom || 'Admin', nom: form.admin_nom || entData.nom, email: form.admin_email, telephone: form.admin_telephone || null, poste_id: null, poste_secondaire_id: null, departement_ids: [], actif: true }, 'admin')
+                      adminCredentials = { email: adminResult.email, password: adminResult.temp_password }
+            }
 
-      setMsg({ type: 'success', text: editEntreprise ? 'Entreprise modifiee !' : 'Entreprise creee avec ' + (form.departements_selectionnes?.length || 0) + ' depts et ' + (form.postes_selectionnes?.filter(p => p.selectionne).length || 0) + ' postes !' })
-      setShowForm(false)
-      fetchData()
+            const baseMsg = editEntreprise ? 'Entreprise modifiee !' : 'Entreprise creee avec ' + (form.departements_selectionnes?.length || 0) + ' depts et ' + (form.postes_selectionnes?.filter(p => p.selectionne).length || 0) + ' postes !'
+            setMsg({ type: 'success', text: adminCredentials ? (baseMsg + ' Admin cree - Identifiant : ' + adminCredentials.email + ' / Mot de passe temporaire : ' + adminCredentials.password + ' (a transmettre une seule fois)') : baseMsg })
+            setShowForm(false)
+            fetchData()
     } catch (e) {
       setMsg({ type: 'error', text: 'Erreur : ' + e.message })
     } finally {
