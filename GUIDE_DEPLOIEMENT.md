@@ -1,4 +1,4 @@
-# 🏨 HôtelDesk Pro — Guide de déploiement complet
+# Velor One - Guide de deploiement complet
 
 ## Ce que vous avez
 
