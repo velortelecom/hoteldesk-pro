@@ -91,6 +91,48 @@ BEGIN
 END $$;
 
 -- ============================================================
+-- 0bis. VERIFICATION PREREQUIS COMPLEMENTAIRES (RLS pointage)
+-- ============================================================
+DO $$
+DECLARE
+  v_missing_cols2 text[] := ARRAY[]::text[];
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='profiles' AND column_name='site_id') THEN
+    v_missing_cols2 := array_append(v_missing_cols2, 'profiles.site_id');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='entreprise_modules' AND column_name='entreprise_id') THEN
+    v_missing_cols2 := array_append(v_missing_cols2, 'entreprise_modules.entreprise_id');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='entreprise_modules' AND column_name='module_id') THEN
+    v_missing_cols2 := array_append(v_missing_cols2, 'entreprise_modules.module_id');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='entreprise_modules' AND column_name='actif') THEN
+    v_missing_cols2 := array_append(v_missing_cols2, 'entreprise_modules.actif');
+  END IF;
+
+  IF array_length(v_missing_cols2, 1) IS NOT NULL THEN
+    RAISE EXCEPTION 'Migration Pointage annulee : colonne(s) prerequise(s) manquante(s) : %.', array_to_string(v_missing_cols2, ', ');
+  END IF;
+END $$;
+ DO $$
+DECLARE
+  v_missing_fns text[] := ARRAY[]::text[];
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname = 'get_my_role') THEN
+    v_missing_fns := array_append(v_missing_fns, 'public.get_my_role()');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname = 'get_my_entreprise_id') THEN
+    v_missing_fns := array_append(v_missing_fns, 'public.get_my_entreprise_id()');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname = 'is_super_admin') THEN
+    v_missing_fns := array_append(v_missing_fns, 'public.is_super_admin()');
+  END IF;
+
+  IF array_length(v_missing_fns, 1) IS NOT NULL THEN
+    RAISE EXCEPTION 'Migration Pointage annulee : fonction(s) prerequise(s) manquante(s) : %. Ces fonctions sont requises par les policies RLS definies dans ce fichier.', array_to_string(v_missing_fns, ', ');
+  END IF;
+END $$;
+ -- ============================================================
 -- 1. Colonnes GPS sur sites
 -- ============================================================
 ALTER TABLE public.sites
