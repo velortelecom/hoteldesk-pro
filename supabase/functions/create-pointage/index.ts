@@ -93,17 +93,17 @@ async function validerGps(ctx: ContexteValidation): Promise<ResultatValidation> 
     if (latitude != null && longitude != null) {
           const { data: precedent } = await supabase
             .from("pointages")
-            .select("latitude, longitude, created_at")
+            .select("latitude, longitude, horodatage_evenement")
             .eq("profile_id", profileId)
             .not("latitude", "is", null)
             .not("longitude", "is", null)
-            .order("created_at", { ascending: false })
+            .order("horodatage_evenement", { ascending: false })
             .limit(1)
             .maybeSingle();
 
       if (precedent?.latitude != null && precedent?.longitude != null) {
               const distancePrecedenteM = haversineMetres(latitude, longitude, precedent.latitude, precedent.longitude);
-              const deltaSecondes = (Date.now() - new Date(precedent.created_at).getTime()) / 1000;
+              const deltaSecondes = (Date.now() - new Date(precedent.horodatage_evenement).getTime()) / 1000;
               if (deltaSecondes > 0) {
                         vitesseEstimeeKmh = Math.round((distancePrecedenteM / 1000) / (deltaSecondes / 3600) * 100) / 100;
                         // V1 : detection non bloquante, simple signalement pour revue admin future
@@ -197,11 +197,15 @@ Deno.serve(async (req: Request) => {
           return jsonResponse({ success: false, error: "module_inactive" }, 403);
     }
 
-             const { data: parametresRow } = await supabase
+             const { data: parametresRow, error: parametresError } = await supabase
       .from("entreprise_parametres_pointage")
       .select("precision_gps_max_metres, gps_obligatoire, autoriser_hors_zone_avec_validation, duree_max_entre_pointages_minutes, methodes_actives")
       .eq("entreprise_id", entrepriseId)
       .maybeSingle();
+    if (parametresError) {
+        console.error("create-pointage: echec lecture entreprise_parametres_pointage", { entrepriseId, error: parametresError });
+        return jsonResponse({ success: false, error: "parametres_pointage_unavailable" }, 500);
+    }
 
              const parametres = {
                    ...DEFAUT_PARAMETRES,
@@ -274,7 +278,7 @@ Deno.serve(async (req: Request) => {
                      .select("action")
                      .eq("profile_id", authUserId)
                      .in("statut", ["accepte", "en_attente_correction"])
-                     .order("created_at", { ascending: false })
+                     .order("horodatage_evenement", { ascending: false })
                      .limit(1)
                      .maybeSingle();
 
@@ -369,11 +373,11 @@ async function calculerHistoriqueEtBouton(
 
   const { data: pointagesJourRaw } = await supabase
       .from("pointages")
-      .select("action, statut, created_at")
+      .select("action, statut, horodatage_evenement")
       .eq("profile_id", profileId)
       .in("statut", ["accepte", "en_attente_correction"])
-      .gte("created_at", debutJour.toISOString())
-      .order("created_at", { ascending: true });
+      .gte("horodatage_evenement", debutJour.toISOString())
+      .order("horodatage_evenement", { ascending: true });
 
   const pointagesJour = pointagesJourRaw ?? [];
     const premier = pointagesJour[0] ?? null;
@@ -383,9 +387,9 @@ async function calculerHistoriqueEtBouton(
     let debutSession: Date | null = null;
     for (const p of pointagesJour) {
           if (p.action === "arrivee" || p.action === "fin_pause") {
-                  debutSession = new Date(p.created_at);
+                  debutSession = new Date(p.horodatage_evenement);
           } else if ((p.action === "depart" || p.action === "debut_pause") && debutSession) {
-                  minutesTravaillees += (new Date(p.created_at).getTime() - debutSession.getTime()) / 60000;
+                  minutesTravaillees += (new Date(p.horodatage_evenement).getTime() - debutSession.getTime()) / 60000;
                   debutSession = null;
           }
     }
