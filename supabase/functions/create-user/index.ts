@@ -105,7 +105,12 @@ Deno.serve(async (req: Request) => {
       langue,
     };
 
-    const { error: profileError } = await supabase.from('profiles').insert(profilePayload);
+    // Use upsert to handle databases where a trigger auto-creates a minimal profile
+    // when auth.users is inserted. Without upsert, the INSERT would fail with a
+    // unique-key violation and the rollback would leave an orphaned auth session.
+    const { error: profileError } = await supabase
+      .from('profiles')
+      .upsert(profilePayload, { onConflict: 'id' });
     if (profileError) throw profileError;
 
     if (departementIds.length > 0) {

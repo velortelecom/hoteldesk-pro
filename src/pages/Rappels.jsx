@@ -176,10 +176,33 @@ export default function Rappels() {
 
   async function save() {
     if (!form.titre.trim() || !form.date_rappel) return
+    // Guard: profile must exist in DB. Prevents rappels_cree_par_fkey violation
+    // that occurs when the user's profile was deleted while their Auth session
+    // was still active (e.g. deleted by a Super Admin).
+    if (!profile?.id) {
+      setShowModal(false)
+      return
+    }
     setSaving(true)
-    await supabase.from('rappels').insert({ ...form, date_rappel: toLocalISO(form.date_rappel), cree_par: profile.id, assigne_a: form.assigne_a || null, entreprise_id: profile.entreprise_id })
-    await fetchAll()
-    setShowModal(false); setForm(empty); setSaving(false)
+    try {
+      const { error } = await supabase
+        .from('rappels')
+        .insert({
+          ...form,
+          date_rappel: toLocalISO(form.date_rappel),
+          cree_par: profile.id,
+          assigne_a: form.assigne_a || null,
+          entreprise_id: profile.entreprise_id,
+        })
+      if (error) throw error
+      await fetchAll()
+      setShowModal(false)
+      setForm(empty)
+    } catch (err) {
+      alert('Erreur lors de la création du rappel : ' + (err.message || 'Erreur inconnue'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function deleteRappel(id) {

@@ -69,20 +69,16 @@ Deno.serve(async (req: Request) => {
     return corsResponse({ success: false, error: 'forbidden' }, 403);
   }
 
-  const deleteTables: Array<[string, string]> = [
+  // Tables that may NOT have a cascade FK to profiles — must be cleaned up explicitly
+  // BEFORE deleting the auth user.
+  // Tables WITH cascade FK to profiles (rappels.cree_par, conges.employe_id,
+  // messages.expediteur_id, etc.) are handled automatically by the cascade when
+  // the profile row is removed.
+  const tablesWithoutCascade: Array<[string, string]> = [
     ['credentials_temporaires', 'profile_id'],
     ['credentials_temporaires', 'user_id'],
     ['employe_departements', 'profile_id'],
-    ['pointages', 'profile_id'],
-    ['conges', 'employe_id'],
-    ['conges', 'validateur_id'],
     ['soldes_conges', 'employe_id'],
-    ['messages', 'expediteur_id'],
-    ['messages', 'destinataire_id'],
-    ['rappels', 'cree_par'],
-    ['rappels', 'assigne_a'],
-    ['taches', 'assigne_a'],
-    ['taches', 'cree_par'],
     ['handovers', 'profile_id'],
     ['feed_likes', 'profile_id'],
     ['feed_items', 'profile_id'],
@@ -90,13 +86,17 @@ Deno.serve(async (req: Request) => {
   ];
 
   try {
-    for (const [table, column] of deleteTables) {
+    // Step 1: clean tables without cascade FKs
+    for (const [table, column] of tablesWithoutCascade) {
       await safeDelete(supabase, table, column, userId);
     }
 
-    const { error: profileDeleteError } = await supabase.from('profiles').delete().eq('id', userId);
-    if (profileDeleteError) throw profileDeleteError;
-
+    // Step 2: delete auth user FIRST.
+    // This cascades to profiles (FK ON DELETE CASCADE) which in turn cascades
+    // to rappels.cree_par, conges.employe_id, messages.expediteur_id, etc.
+    // Deleting auth.users first ensures the user session is immediately
+    // invalidated, preventing the "profile gone but session still active" race
+    // that would cause rappels_cree_par_fkey violations.
     const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId);
     if (authDeleteError) throw authDeleteError;
 
@@ -113,6 +113,7 @@ Deno.serve(async (req: Request) => {
       user_agent: req.headers.get('user-agent'),
     });
 
+    // Step 3: profile is already gone via cascade — skip explicit profile delete
     return corsResponse({ success: true, user_id: userId, entreprise_id: target.entreprise_id }, 200);
   } catch (error) {
     return corsResponse({ success: false, error: error instanceof Error ? error.message : 'delete_failed' }, 500);
