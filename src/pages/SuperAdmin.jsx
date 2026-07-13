@@ -661,25 +661,27 @@ async function createEmploye(entrepriseId) {
             {entreprisesAffichees.map(e => {
               const secteurInfo = SECTEURS_METIERS[e.secteur]
               return (
-                <div key={e.id} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
-                    <div style={{ fontSize: 24, flexShrink: 0 }}>{secteurInfo?.icone || '🏢'}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: 700, fontSize: 15 }}>{e.nom}</span>
-                        <span style={{ background: PLAN_COLORS[e.plan] + '22', color: PLAN_COLORS[e.plan], borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>{e.plan}</span>
-                        <span style={{ color: e.actif ? '#10B981' : '#EF4444', fontSize: 12, fontWeight: 600 }}>{e.actif ? 'Actif' : 'Inactif'}</span>
-                      </div>
-                      <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
-                        {secteurInfo?.label || e.secteur} — {e.max_utilisateurs || '?'} users max
-                        {e.email_contact && ' — ' + e.email_contact}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 3 }}>
-                        Créée le {e.created_at ? new Date(e.created_at).toLocaleDateString('fr-FR') : 'N/A'}
-                        {' · '}Dernière activité {lastActivityByEntreprise[e.id] ? new Date(lastActivityByEntreprise[e.id]).toLocaleString('fr-FR') : 'non disponible'}
+                <div key={e.id} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px 16px' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                      <div style={{ fontSize: 24, flexShrink: 0 }}>{secteurInfo?.icone || '🏢'}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 700, fontSize: 15 }}>{e.nom}</span>
+                          <span style={{ background: PLAN_COLORS[e.plan] + '22', color: PLAN_COLORS[e.plan], borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>{e.plan}</span>
+                          <span style={{ color: e.actif ? '#10B981' : '#EF4444', fontSize: 12, fontWeight: 600 }}>{e.actif ? 'Actif' : 'Inactif'}</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
+                          {secteurInfo?.label || e.secteur} — {e.max_utilisateurs || '?'} users max
+                          {e.email_contact && ' — ' + e.email_contact}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 3 }}>
+                          Créée le {e.created_at ? new Date(e.created_at).toLocaleDateString('fr-FR') : 'N/A'}
+                          {' · '}Dernière activité {lastActivityByEntreprise[e.id] ? new Date(lastActivityByEntreprise[e.id]).toLocaleString('fr-FR') : 'non disponible'}
+                        </div>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       <button onClick={() => { const wasExpanded = expandedEnt === e.id; setExpandedEnt(wasExpanded ? null : e.id); if (!wasExpanded) fetchEntModules(e.id) }} style={{ padding: '6px 12px', border: '1px solid #E5E7EB', background: '#F9FAFB', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
                         {entDetails[e.id] && (
                           <div style={{ borderTop: '1px solid #F3F4F6', marginTop: 10, paddingTop: 10 }}>
@@ -737,7 +739,7 @@ async function createEmploye(entrepriseId) {
                       <button onClick={() => { setAdminModalEnt(e); setAdminForm({ prenom: '', nom: '', email: '', telephone: '', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true }); setAdminMsg(null); setAdminSuccessInfo(null); fetchPostesEtDeps(e.id); setShowAdminModal(true) }} style={{ padding: '6px 12px', border: '1px solid #8B5CF6', color: '#8B5CF6', background: '#F5F3FF', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>+ Admin</button>
                                          <button onClick={() => { setEmployeModalEnt(e); setEmployeForm({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true }); setEmployeMsg(null); setEmployeSuccessInfo(null); fetchPostesEtDeps(e.id); setShowEmployeModal(true) }} style={{ background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontSize: 12 }}>+ Employe</button>
                       <button onClick={() => setDeleteConfirm(e)} style={{ padding: '6px 12px', border: '1px solid #EF4444', color: '#EF4444', background: '#FEF2F2', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>🗑 Supprimer</button>
-                       </div>
+                    </div>
                   </div>
                   {expandedEnt === e.id && (
                     <div style={{ borderTop: '1px solid #E5E7EB', padding: '12px 16px', background: '#F9FAFB' }}>
