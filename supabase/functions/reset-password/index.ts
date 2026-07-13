@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { jsonResponse, readJsonBody } from '../_shared/http.ts';
+import { recordAuditEvent } from '../_shared/audit.ts';
 import { generateTempPassword, isProtectedSuperAdmin } from '../_shared/user_admin.ts';
 
 const corsHeaders = {
@@ -68,5 +69,17 @@ Deno.serve(async (req: Request) => {
   if (error || !data.user) return corsResponse({ success: false, error: error?.message || 'reset_failed' }, 500);
 
   const email = data.user.email ?? `${target.prenom}.${target.nom}`.toLowerCase();
+  await recordAuditEvent(supabase, {
+    acteur_profile_id: caller.id,
+    acteur_email: userData.user.email,
+    entreprise_id: target.entreprise_id,
+    action: 'reset_mot_de_passe_utilisateur',
+    type_cible: 'profile',
+    cible_id: userId,
+    description: 'Reset mot de passe utilisateur',
+    metadonnees: {},
+    adresse_ip: req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? null,
+    user_agent: req.headers.get('user-agent'),
+  });
   return corsResponse({ success: true, user_id: userId, email, temp_password }, 200);
 });

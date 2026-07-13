@@ -9,6 +9,7 @@ import { MODULES_REGISTRY } from '../modules/registry'
 import { SECTEURS_METIERS, SECTEURS_OPTIONS, getDepartementsBySecteur, getPostesBySecteur, getModulesRecommandes } from '../lib/secteurs'
 import { BrandMark, APP_URL } from '../branding/Brand'
 import { buildCreationSlug, buildEditionForm } from './superAdminUtils'
+import SuperAdminSupervision from './SuperAdminSupervision'
 
 const PLAN_COLORS = { starter: '#6B7280', business: '#3B82F6', premium: '#8B5CF6', enterprise: '#F59E0B' }
 const PLAN_MODULES = {
@@ -598,7 +599,7 @@ async function createEmploye(entrepriseId) {
         <StatCard titre="Sites total" valeur={stats.totalSites} couleur="#F59E0B" />
       </div>
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid #E5E7EB' }}>
-        {['entreprises','modules','plans'].map(o => (
+        {['entreprises','modules','plans','supervision'].map(o => (
           <button key={o} onClick={() => setOnglet(o)} style={{
             padding: '8px 18px', border: 'none', borderRadius: '6px 6px 0 0',
             background: onglet === o ? '#3B82F6' : 'transparent',
@@ -840,6 +841,10 @@ async function createEmploye(entrepriseId) {
             ))}
           </div>
         </div>
+      )}
+
+      {onglet === 'supervision' && (
+        <SuperAdminSupervision supabase={supabase} profile={profile} />
       )}
             {userDeleteConfirm && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001 }}>

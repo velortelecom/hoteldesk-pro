@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { jsonResponse, readJsonBody } from '../_shared/http.ts';
+import { recordAuditEvent } from '../_shared/audit.ts';
 import { ALLOWED_ROLES, buildFallbackEmail, canGrantRole, generateTempPassword, isAllowedRole } from '../_shared/user_admin.ts';
 
 const corsHeaders = {
@@ -59,6 +60,8 @@ Deno.serve(async (req: Request) => {
   if (!prenom || !nom || !entrepriseId) return corsResponse({ success: false, error: 'missing_required_fields' }, 400);
   if (!isAllowedRole(requestedRole)) return corsResponse({ success: false, error: 'invalid_role' }, 400);
   if (!userData.user.email) return corsResponse({ success: false, error: 'missing_caller_email' }, 401);
+  const userAgent = req.headers.get('user-agent');
+  const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? null;
 
   const caller = await getCallerProfile(supabase, userData.user.id);
   const isSuperAdmin = caller.is_super_admin === true;
@@ -115,6 +118,19 @@ Deno.serve(async (req: Request) => {
       const { error: deptError } = await supabase.from('employe_departements').insert(rows);
       if (deptError) throw deptError;
     }
+
+    await recordAuditEvent(supabase, {
+      acteur_profile_id: caller.id,
+      acteur_email: userData.user.email,
+      entreprise_id: entrepriseId,
+      action: 'creation_utilisateur',
+      type_cible: 'profile',
+      cible_id: createdUser.user.id,
+      description: 'Création utilisateur',
+      metadonnees: { role: requestedRole, actif, departement_count: departementIds.length },
+      adresse_ip: ipAddress,
+      user_agent: userAgent,
+    });
 
     return corsResponse({
       success: true,

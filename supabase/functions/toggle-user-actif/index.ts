@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { jsonResponse, readJsonBody } from '../_shared/http.ts';
+import { recordAuditEvent } from '../_shared/audit.ts';
 import { isProtectedSuperAdmin } from '../_shared/user_admin.ts';
 
 const corsHeaders = {
@@ -72,5 +73,19 @@ Deno.serve(async (req: Request) => {
     .single();
 
   if (error || !data) return corsResponse({ success: false, error: error?.message || 'update_failed' }, 500);
+
+  await recordAuditEvent(supabase, {
+    acteur_profile_id: caller.id,
+    acteur_email: userData.user.email,
+    entreprise_id: data.entreprise_id,
+    action: actif ? 'activation_utilisateur' : 'desactivation_utilisateur',
+    type_cible: 'profile',
+    cible_id: userId,
+    description: actif ? 'Activation utilisateur' : 'Désactivation utilisateur',
+    metadonnees: {},
+    adresse_ip: req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? null,
+    user_agent: req.headers.get('user-agent'),
+  });
+
   return corsResponse({ success: true, user_id: userId, actif: data.actif, entreprise_id: data.entreprise_id }, 200);
 });
