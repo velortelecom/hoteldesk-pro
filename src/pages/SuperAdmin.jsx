@@ -14,6 +14,7 @@ import SuperAdminSupervision from './SuperAdminSupervision'
 import SuperAdminUsersPanel from './SuperAdminUsersPanel'
 import SuperAdminAssistance from './SuperAdminAssistance'
 import SuperAdminEnterpriseStructure from './SuperAdminEnterpriseStructure'
+import SuperAdminPlatformHealth from './SuperAdminPlatformHealth'
 
 const PLAN_COLORS = { starter: '#6B7280', business: '#3B82F6', premium: '#8B5CF6', enterprise: '#F59E0B' }
 const PLAN_MODULES = {
@@ -620,7 +621,7 @@ async function createEmploye(entrepriseId) {
         <StatCard titre="Sites total" valeur={stats.totalSites} couleur="#F59E0B" />
       </div>
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid #E5E7EB' }}>
-        {['entreprises','utilisateurs','modules','plans','supervision','assistance'].map(o => (
+        {['entreprises','utilisateurs','modules','plans','supervision','plateforme','assistance'].map(o => (
           <button key={o} onClick={() => setOnglet(o)} style={{
             padding: '8px 18px', border: 'none', borderRadius: '6px 6px 0 0',
             background: onglet === o ? '#3B82F6' : 'transparent',
@@ -884,6 +885,10 @@ async function createEmploye(entrepriseId) {
 
       {onglet === 'supervision' && (
         <SuperAdminSupervision supabase={supabase} profile={profile} />
+      )}
+
+      {onglet === 'plateforme' && (
+        <SuperAdminPlatformHealth supabase={supabase} />
       )}
 
       {onglet === 'assistance' && (

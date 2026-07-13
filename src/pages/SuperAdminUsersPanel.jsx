@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { MODULES_REGISTRY } from '../modules/registry'
 import { buildDependencyErrorMessage, filterSuperAdminUsers } from './superAdminControlUtils'
 
 const cardStyle = { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 14 }
@@ -8,6 +9,7 @@ export default function SuperAdminUsersPanel({ supabase, profile, entreprises = 
   const [loading, setLoading] = useState(true)
   const [users, setUsers] = useState([])
   const [filters, setFilters] = useState({ search: '', role: '', status: '', entrepriseId: '' })
+  const [sortBy, setSortBy] = useState('name')
   const [msg, setMsg] = useState(null)
   const [editing, setEditing] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -20,25 +22,35 @@ export default function SuperAdminUsersPanel({ supabase, profile, entreprises = 
     setLoading(true)
     setMsg(null)
     try {
-      const [profilesRes, depRes, sitesRes, postesRes] = await Promise.all([
+      const [profilesRes, depRes, sitesRes, postesRes, moduleRes] = await Promise.all([
         supabase
           .from('profiles_with_email')
-          .select('id, prenom, nom, email, role, actif, entreprise_id, site_id, poste_id, is_super_admin')
+          .select('id, prenom, nom, email, role, actif, entreprise_id, site_id, poste_id, is_super_admin, auth_created_at, last_sign_in_at')
           .eq('is_super_admin', false)
           .order('nom'),
         supabase.from('employe_departements').select('profile_id, departement_id'),
         supabase.from('sites').select('id, nom, entreprise_id'),
         supabase.from('postes').select('id, nom, entreprise_id'),
+        supabase.from('entreprise_modules').select('entreprise_id, module_id, actif').eq('actif', true),
       ])
 
       if (profilesRes.error) throw profilesRes.error
       if (depRes.error) throw depRes.error
       if (sitesRes.error) throw sitesRes.error
       if (postesRes.error) throw postesRes.error
+      if (moduleRes.error) throw moduleRes.error
 
       const sitesMap = Object.fromEntries((sitesRes.data || []).map((site) => [site.id, site]))
       const postesMap = Object.fromEntries((postesRes.data || []).map((poste) => [poste.id, poste]))
       const entMap = Object.fromEntries((entreprises || []).map((ent) => [ent.id, ent]))
+      const moduleNameMap = Object.fromEntries((MODULES_REGISTRY || []).map((mod) => [mod.id, mod.nom]))
+
+      const moduleNamesByEntreprise = {}
+      ;(moduleRes.data || []).forEach((row) => {
+        if (!moduleNamesByEntreprise[row.entreprise_id]) moduleNamesByEntreprise[row.entreprise_id] = []
+        const moduleName = moduleNameMap[row.module_id] || row.module_id
+        moduleNamesByEntreprise[row.entreprise_id].push(moduleName)
+      })
 
       const depIds = Array.from(new Set((depRes.data || []).map((row) => row.departement_id).filter(Boolean)))
       let depMap = {}
@@ -60,6 +72,7 @@ export default function SuperAdminUsersPanel({ supabase, profile, entreprises = 
         site_nom: user.site_id ? sitesMap[user.site_id]?.nom || 'Site inconnu' : '—',
         poste_nom: user.poste_id ? postesMap[user.poste_id]?.nom || 'Poste inconnu' : '—',
         departement_nom: (depByProfile[user.id] || []).join(', ') || '—',
+        modules_accessibles: (moduleNamesByEntreprise[user.entreprise_id] || []).join(', ') || '—',
       }))
 
       setUsers(normalized)
@@ -70,7 +83,20 @@ export default function SuperAdminUsersPanel({ supabase, profile, entreprises = 
     }
   }
 
-  const visibleUsers = useMemo(() => filterSuperAdminUsers(users, filters, profile), [users, filters, profile])
+  const visibleUsers = useMemo(() => {
+    const filtered = filterSuperAdminUsers(users, filters, profile)
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'last_sign_in_at') {
+        const aValue = a.last_sign_in_at ? new Date(a.last_sign_in_at).getTime() : 0
+        const bValue = b.last_sign_in_at ? new Date(b.last_sign_in_at).getTime() : 0
+        return bValue - aValue
+      }
+      if (sortBy === 'status') {
+        return Number(a.actif === false) - Number(b.actif === false)
+      }
+      return `${a.prenom || ''} ${a.nom || ''}`.localeCompare(`${b.prenom || ''} ${b.nom || ''}`)
+    })
+  }, [users, filters, profile, sortBy])
 
   async function handleInvokeFunction(name, body, successText) {
     setSaving(true)
@@ -150,7 +176,7 @@ export default function SuperAdminUsersPanel({ supabase, profile, entreprises = 
       )}
 
       <section style={cardStyle}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 10 }}>
           <input
             value={filters.search}
             onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
@@ -174,6 +200,11 @@ export default function SuperAdminUsersPanel({ supabase, profile, entreprises = 
               <option key={ent.id} value={ent.id}>{ent.nom}</option>
             ))}
           </select>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={inputStyle}>
+            <option value='name'>Tri: nom</option>
+            <option value='last_sign_in_at'>Tri: dernière connexion</option>
+            <option value='status'>Tri: statut</option>
+          </select>
         </div>
       </section>
 
@@ -190,6 +221,7 @@ export default function SuperAdminUsersPanel({ supabase, profile, entreprises = 
                     <div style={{ fontWeight: 700 }}>{user.prenom} {user.nom}</div>
                     <div style={{ fontSize: 12, color: '#6B7280' }}>{user.email || 'Sans email'} · {user.entreprise_nom}</div>
                     <div style={{ fontSize: 12, color: '#6B7280' }}>Poste: {user.poste_nom} · Site: {user.site_nom} · Département: {user.departement_nom}</div>
+                    <div style={{ fontSize: 12, color: '#6B7280' }}>Dernière connexion: {user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString('fr-FR') : 'Jamais'} · Statut: {user.actif === false ? 'Désactivé' : 'Actif'} · Modules: {user.modules_accessibles}</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     <button onClick={() => setEditing({ ...user })} style={btnPlain}>Éditer</button>
