@@ -38,6 +38,7 @@ export function buildAuditActionLabel(action) {
     activation_module: 'Activation module',
     desactivation_module: 'Désactivation module',
     creation_utilisateur: 'Création utilisateur',
+    modification_utilisateur: 'Modification utilisateur',
     modification_role_utilisateur: 'Modification rôle',
     activation_utilisateur: 'Activation utilisateur',
     desactivation_utilisateur: 'Désactivation utilisateur',
@@ -111,7 +112,7 @@ export function filterAuditEvents(events, filters, viewer) {
   });
 }
 
-export function buildSupervisionSnapshot({ entreprises = [], profiles = [], modules = [], events = [] }) {
+export function buildSupervisionSnapshot({ entreprises = [], profiles = [], modules = [], sites = [], events = [] }) {
   const activeModulesByEntreprise = new Map();
   modules.forEach(row => {
     if (!activeModulesByEntreprise.has(row.entreprise_id)) activeModulesByEntreprise.set(row.entreprise_id, []);
@@ -119,13 +120,18 @@ export function buildSupervisionSnapshot({ entreprises = [], profiles = [], modu
   });
 
   const disabledUsers = profiles.filter(p => p.actif === false && !p.is_super_admin);
+  const totalUsers = profiles.filter(p => !p.is_super_admin).length;
+  const activeEntreprises = entreprises.filter(ent => ent.actif !== false);
+  const suspendedEntreprises = entreprises.filter(ent => ent.actif === false);
   const entrepriseSansAdmin = entreprises.filter(ent => profiles.some(p => p.entreprise_id === ent.id && p.role === 'admin' && !p.is_super_admin) === false);
+  const entrepriseSansSite = entreprises.filter(ent => sites.some(site => site.entreprise_id === ent.id) === false);
   const entrepriseSansModule = entreprises.filter(ent => {
     const rows = activeModulesByEntreprise.get(ent.id) || [];
     return rows.filter(r => r.actif === true).length === 0;
   });
   const configIssues = [
     ...entrepriseSansAdmin.map(ent => ({ entreprise_id: ent.id, nom: ent.nom, type: 'sans_admin' })),
+    ...entrepriseSansSite.map(ent => ({ entreprise_id: ent.id, nom: ent.nom, type: 'sans_site' })),
     ...entrepriseSansModule.map(ent => ({ entreprise_id: ent.id, nom: ent.nom, type: 'sans_module' })),
   ];
   const criticalIncidents = (events || []).filter(evt => [
@@ -137,9 +143,15 @@ export function buildSupervisionSnapshot({ entreprises = [], profiles = [], modu
   ].includes(evt.action));
 
   return {
+    totalEntreprises: entreprises.length,
+    activeEntreprises: activeEntreprises.length,
+    suspendedEntreprises: suspendedEntreprises.length,
+    totalUsers,
     entrepriseSansAdmin,
+    entrepriseSansSite,
     entrepriseSansModule,
     disabledUsers,
+    activeModules: modules.filter(m => m.actif === true).length,
     configIssues,
     criticalIncidents,
   };

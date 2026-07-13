@@ -29,7 +29,7 @@ export default function SuperAdminSupervision({ supabase, profile }) {
   const [events, setEvents] = useState([])
   const [hasMore, setHasMore] = useState(true)
   const [page, setPage] = useState(0)
-  const [referenceData, setReferenceData] = useState({ entreprises: [], profiles: [], modules: [] })
+  const [referenceData, setReferenceData] = useState({ entreprises: [], profiles: [], modules: [], sites: [] })
   const [filters, setFilters] = useState({
     entrepriseId: '',
     action: '',
@@ -43,16 +43,18 @@ export default function SuperAdminSupervision({ supabase, profile }) {
     let mounted = true
     async function loadReferenceData() {
       try {
-        const [ents, profiles, modules] = await Promise.all([
+        const [ents, profiles, modules, sites] = await Promise.all([
           supabase.from('entreprises').select('id, nom, slug, actif, plan, secteur').order('nom'),
           supabase.from('profiles').select('id, entreprise_id, prenom, nom, role, actif, is_super_admin').order('nom'),
           supabase.from('entreprise_modules').select('entreprise_id, module_id, actif'),
+          supabase.from('sites').select('id, entreprise_id, nom, actif'),
         ])
         if (!mounted) return
         setReferenceData({
           entreprises: ents.data || [],
           profiles: profiles.data || [],
           modules: modules.data || [],
+          sites: sites.data || [],
         })
       } catch (err) {
         if (mounted) setError(err.message)
@@ -95,6 +97,7 @@ export default function SuperAdminSupervision({ supabase, profile }) {
     entreprises: referenceData.entreprises,
     profiles: referenceData.profiles,
     modules: referenceData.modules,
+    sites: referenceData.sites,
     events,
   }), [referenceData, events])
 
@@ -129,10 +132,17 @@ export default function SuperAdminSupervision({ supabase, profile }) {
   return (
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
-        <Card title="Événements chargés" value={events.length} subtitle="Limite raisonnable de lecture" color="#1E40AF" />
-        <Card title="Entreprises sans admin" value={snapshot.entrepriseSansAdmin.length} color="#B45309" />
-        <Card title="Entreprises sans module" value={snapshot.entrepriseSansModule.length} color="#B91C1C" />
+        <Card title="Entreprises totales" value={snapshot.totalEntreprises} color="#1E40AF" />
+        <Card title="Entreprises actives/suspendues" value={snapshot.activeEntreprises + ' / ' + snapshot.suspendedEntreprises} color="#0F766E" />
+        <Card title="Utilisateurs totaux" value={snapshot.totalUsers} color="#6D28D9" />
         <Card title="Utilisateurs désactivés" value={snapshot.disabledUsers.length} color="#047857" />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
+        <Card title="Entreprises sans admin" value={snapshot.entrepriseSansAdmin.length} color="#B45309" />
+        <Card title="Entreprises sans site" value={snapshot.entrepriseSansSite.length} color="#B91C1C" />
+        <Card title="Modules actifs" value={snapshot.activeModules} color="#1D4ED8" />
+        <Card title="Erreurs de configuration" value={snapshot.configIssues.length} color="#B91C1C" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
@@ -201,8 +211,9 @@ export default function SuperAdminSupervision({ supabase, profile }) {
             <h3 style={{ marginTop: 0, fontSize: 15 }}>Statut des entreprises</h3>
             <div style={{ display: 'grid', gap: 8 }}>
               <Tag>Période limitée au périmètre RLS</Tag>
-              <Tag>{referenceData.entreprises.filter(ent => ent.actif !== false).length} actives</Tag>
-              <Tag>{referenceData.entreprises.filter(ent => ent.actif === false).length} inactives</Tag>
+              <Tag>{snapshot.activeEntreprises} actives</Tag>
+              <Tag>{snapshot.suspendedEntreprises} suspendues</Tag>
+              <Tag>{snapshot.totalUsers} utilisateurs</Tag>
             </div>
           </section>
 
@@ -213,7 +224,7 @@ export default function SuperAdminSupervision({ supabase, profile }) {
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {snapshot.configIssues.slice(0, 8).map(issue => (
-                  <Tag key={issue.entreprise_id + issue.type}>{issue.nom} · {issue.type === 'sans_admin' ? 'sans admin' : 'sans module'}</Tag>
+                  <Tag key={issue.entreprise_id + issue.type}>{issue.nom} · {issue.type === 'sans_admin' ? 'sans admin' : issue.type === 'sans_site' ? 'sans site' : 'sans module'}</Tag>
                 ))}
               </div>
             )}

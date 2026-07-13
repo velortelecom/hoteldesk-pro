@@ -9,7 +9,11 @@ import { MODULES_REGISTRY } from '../modules/registry'
 import { SECTEURS_METIERS, SECTEURS_OPTIONS, getDepartementsBySecteur, getPostesBySecteur, getModulesRecommandes } from '../lib/secteurs'
 import { BrandMark, APP_URL } from '../branding/Brand'
 import { buildCreationSlug, buildEditionForm } from './superAdminUtils'
+import { buildEntrepriseUpdatePayload } from './superAdminControlUtils'
 import SuperAdminSupervision from './SuperAdminSupervision'
+import SuperAdminUsersPanel from './SuperAdminUsersPanel'
+import SuperAdminAssistance from './SuperAdminAssistance'
+import SuperAdminEnterpriseStructure from './SuperAdminEnterpriseStructure'
 
 const PLAN_COLORS = { starter: '#6B7280', business: '#3B82F6', premium: '#8B5CF6', enterprise: '#F59E0B' }
 const PLAN_MODULES = {
@@ -83,6 +87,7 @@ export default function SuperAdmin() {
   const [entUsers, setEntUsers] = useState({})
   const [expandedUsersEnt, setExpandedUsersEnt] = useState(null)
   const [userDeleteConfirm, setUserDeleteConfirm] = useState(null)
+  const [lastActivityByEntreprise, setLastActivityByEntreprise] = useState({})
 
   useEffect(() => {
     if (!profile?.is_super_admin) return
@@ -91,12 +96,13 @@ export default function SuperAdmin() {
 
   async function fetchData() {
     setLoading(true)
-    const [{ data: ents }, { data: mods }, { data: details }, { count: totalUsers }, { count: totalSites }] = await Promise.all([
+    const [{ data: ents }, { data: mods }, { data: details }, { count: totalUsers }, { count: totalSites }, { data: audits }] = await Promise.all([
       supabase.from('entreprises').select('*').order('created_at', { ascending: false }),
       supabase.from('modules_catalogue').select('*').order('ordre'),
       supabase.from('super_admin_entreprises').select('*'),
       supabase.from('profiles').select('id', { count: 'exact', head: true }),
       supabase.from('sites').select('id', { count: 'exact', head: true }),
+      supabase.from('audit_events').select('entreprise_id, created_at').order('created_at', { ascending: false }).limit(2000),
     ])
     if (ents) {
       setEntreprises(ents)
@@ -117,6 +123,14 @@ export default function SuperAdmin() {
       const detailsMap = {}
       details.forEach(d => { detailsMap[d.entreprise_id] = d })
       setEntDetails(detailsMap)
+    }
+    if (audits) {
+      const map = {}
+      audits.forEach((evt) => {
+        if (!evt.entreprise_id) return
+        if (!map[evt.entreprise_id]) map[evt.entreprise_id] = evt.created_at
+      })
+      setLastActivityByEntreprise(map)
     }
     setLoading(false)
   }
@@ -243,10 +257,10 @@ export default function SuperAdmin() {
     setSaving(true); setMsg(null)
     try {
       const entData = {
-        nom: form.nom, slug: form.slug || buildCreationSlug(form.nom),
-        secteur: form.secteur, plan: form.plan, prix_mensuel: form.prix_mensuel,
-        max_utilisateurs: form.max_utilisateurs, actif: form.actif,
-        email_contact: form.email_contact, telephone: form.telephone, adresse: form.adresse,
+        ...buildEntrepriseUpdatePayload({
+          ...form,
+          slug: form.slug || buildCreationSlug(form.nom),
+        }),
       }
       let entId
       if (editEntreprise) {
@@ -348,11 +362,18 @@ export default function SuperAdmin() {
   }
 
   async function toggleActifEntreprise(ent) {
+    const nextState = !ent.actif
+    if (!window.confirm(nextState ? 'Confirmer la réactivation de cette entreprise ?' : 'Confirmer la suspension de cette entreprise ?')) {
+      return
+    }
     await supabase.from('entreprises').update({ actif: !ent.actif }).eq('id', ent.id)
     fetchData()
   }
 
   async function toggleModuleEntreprise(entId, modId, actuel) {
+    if (!window.confirm(actuel ? 'Désactiver ce module pour cette entreprise ?' : 'Activer ce module pour cette entreprise ?')) {
+      return
+    }
     await supabase.from('entreprise_modules').upsert(
       { entreprise_id: entId, module_id: modId, actif: !actuel, activated_at: new Date().toISOString() },
       { onConflict: 'entreprise_id,module_id' }
@@ -599,7 +620,7 @@ async function createEmploye(entrepriseId) {
         <StatCard titre="Sites total" valeur={stats.totalSites} couleur="#F59E0B" />
       </div>
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid #E5E7EB' }}>
-        {['entreprises','modules','plans','supervision'].map(o => (
+        {['entreprises','utilisateurs','modules','plans','supervision','assistance'].map(o => (
           <button key={o} onClick={() => setOnglet(o)} style={{
             padding: '8px 18px', border: 'none', borderRadius: '6px 6px 0 0',
             background: onglet === o ? '#3B82F6' : 'transparent',
@@ -652,6 +673,10 @@ async function createEmploye(entrepriseId) {
                       <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
                         {secteurInfo?.label || e.secteur} — {e.max_utilisateurs || '?'} users max
                         {e.email_contact && ' — ' + e.email_contact}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 3 }}>
+                        Créée le {e.created_at ? new Date(e.created_at).toLocaleDateString('fr-FR') : 'N/A'}
+                        {' · '}Dernière activité {lastActivityByEntreprise[e.id] ? new Date(lastActivityByEntreprise[e.id]).toLocaleString('fr-FR') : 'non disponible'}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -790,12 +815,22 @@ async function createEmploye(entrepriseId) {
                     )}
                   </div>
                 )}
+                {expandedEnt === e.id && (
+                  <div style={{ borderTop: '1px solid #E5E7EB', padding: '12px 16px', background: '#FFFFFF' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Sites, départements et postes</div>
+                    <SuperAdminEnterpriseStructure supabase={supabase} entrepriseId={e.id} />
+                  </div>
+                )}
                 </div>
               )
             })}
             {entreprises.length === 0 && <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF' }}>Aucune entreprise. Creez la premiere.</div>}
           </div>
         </div>
+      )}
+
+      {onglet === 'utilisateurs' && (
+        <SuperAdminUsersPanel supabase={supabase} profile={profile} entreprises={entreprises} />
       )}
 
       {onglet === 'modules' && (
@@ -845,6 +880,10 @@ async function createEmploye(entrepriseId) {
 
       {onglet === 'supervision' && (
         <SuperAdminSupervision supabase={supabase} profile={profile} />
+      )}
+
+      {onglet === 'assistance' && (
+        <SuperAdminAssistance entreprises={entreprises} />
       )}
             {userDeleteConfirm && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001 }}>
