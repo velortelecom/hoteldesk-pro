@@ -10,6 +10,12 @@ import { SECTEURS_METIERS, SECTEURS_OPTIONS, getDepartementsBySecteur, getPostes
 import { BrandMark, APP_URL } from '../branding/Brand'
 import { buildCreationSlug, buildEditionForm } from './superAdminUtils'
 import { buildEntrepriseUpdatePayload } from './superAdminControlUtils'
+import {
+  applyEnterpriseCreationToState,
+  buildEnterpriseCreationPayload,
+  buildEnterpriseCreationSuccessMessage,
+  mapEnterpriseCreationError,
+} from './superAdminEnterpriseCreation'
 import SuperAdminSupervision from './SuperAdminSupervision'
 import SuperAdminUsersPanel from './SuperAdminUsersPanel'
 import SuperAdminAssistance from './SuperAdminAssistance'
@@ -103,7 +109,7 @@ export default function SuperAdmin() {
       supabase.from('super_admin_entreprises').select('*'),
       supabase.rpc('super_admin_platform_health'),
     ])
-    const health = healthRes?.data || null
+    const health = Array.isArray(healthRes?.data) ? (healthRes.data[0] || null) : (healthRes?.data || null)
     let audits = []
 
     try {
@@ -277,88 +283,58 @@ export default function SuperAdmin() {
           slug: form.slug || buildCreationSlug(form.nom),
         }),
       }
-      let entId
+
       if (editEntreprise) {
         const { error } = await supabase.from('entreprises').update(entData).eq('id', editEntreprise.id)
         if (error) throw error
-        entId = editEntreprise.id
-      } else {
-        const { data, error } = await supabase.from('entreprises').insert(entData).select().single()
-        if (error) throw error
-        entId = data.id
-      }
 
-      // Creation automatique du site principal
-      if (!editEntreprise) {
-        const siteSlug = entData.nom.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-        await supabase.from('sites').insert({
-          entreprise_id: entId,
-          nom: entData.nom,
-          slug: siteSlug,
-          adresse: entData.adresse || '',
-          ville: entData.ville || '',
-          pays: entData.pays || 'France',
-          actif: true,
+        setMsg({
+          type: 'success',
+          text: buildEnterpriseCreationSuccessMessage({
+            isEdit: true,
+            departementsCount: 0,
+            postesCount: 0,
+            adminCredentials: null,
+          }),
         })
+        setShowForm(false)
+        await fetchData()
+        return
       }
 
-      // Modules
-      await supabase.from('entreprise_modules').update({ actif: false }).eq('entreprise_id', entId)
-      if (form.modules_selectionnes?.length > 0) {
-        await supabase.from('entreprise_modules').upsert(
-          form.modules_selectionnes.map(modId => ({ entreprise_id: entId, module_id: modId, actif: true, activated_at: new Date().toISOString() })),
-          { onConflict: 'entreprise_id,module_id' }
-        )
-      }
+      const payload = buildEnterpriseCreationPayload(form, entData)
+      const { data, error } = await supabase.functions.invoke('create-entreprise', { body: payload })
+      if (error) throw error
+      if (!data?.success) throw new Error(data?.error || 'enterprise_create_failed')
 
-      // Departements (creation seulement)
-      if (!editEntreprise && form.departements_selectionnes?.length > 0) {
-        const template = SECTEURS_METIERS[form.secteur]
-        const deptInserts = form.departements_selectionnes.map(code => {
-          const deptTemplate = template?.departements.find(d => d.code === code)
-          return {
-            entreprise_id: entId,
-            nom: deptTemplate?.nom || code.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-            code,
-            couleur: deptTemplate?.couleur || '#6B7280',
-            actif: true,
-          }
-        })
-        const { data: deptsCreated } = await supabase.from('departements').insert(deptInserts).select()
-
-        // Postes (creation seulement, apres avoir les departements)
-        if (form.postes_selectionnes?.length > 0 && deptsCreated) {
-          const deptMap = {}
-          deptsCreated.forEach(d => { deptMap[d.code] = d.id })
-          const postesACreer = form.postes_selectionnes.filter(p => p.selectionne)
-          if (postesACreer.length > 0) {
-            const posteInserts = postesACreer.map(p => ({
-              entreprise_id: entId,
-              nom: p.nom,
-              slug: p.slug,
-              departement_id: deptMap[p.dept] || null,
-              niveau: p.niveau || 3,
-              role_systeme: 'employe',
-              actif: true,
-            }))
-            await supabase.from('postes').insert(posteInserts)
-          }
+      const next = applyEnterpriseCreationToState(
+        { entreprises, stats },
+        {
+          success: true,
+          entreprise: data?.entreprise,
+          health: data?.health,
         }
-      }
+      )
+      setEntreprises(next.entreprises)
+      setStats(next.stats)
 
-            // Premier admin (creation via create-user, seul point d'entree autorise)
-            let adminCredentials = null
-            if (!editEntreprise && form.admin_email) {
-                      const adminResult = await creerCompteMembre(entId, { prenom: form.admin_prenom || 'Admin', nom: form.admin_nom || entData.nom, email: form.admin_email, telephone: form.admin_telephone || null, poste_id: null, poste_secondaire_id: null, departement_ids: [], actif: true }, 'admin')
-                      adminCredentials = { email: adminResult.email, password: adminResult.temp_password }
-            }
+      const adminCredentials = data?.admin?.temp_password
+        ? { email: data.admin.email, password: data.admin.temp_password }
+        : null
 
-            const baseMsg = editEntreprise ? 'Entreprise modifiee !' : 'Entreprise creee avec ' + (form.departements_selectionnes?.length || 0) + ' depts et ' + (form.postes_selectionnes?.filter(p => p.selectionne).length || 0) + ' postes !'
-            setMsg({ type: 'success', text: adminCredentials ? (baseMsg + ' Admin cree - Identifiant : ' + adminCredentials.email + ' / Mot de passe temporaire : ' + adminCredentials.password + ' (a transmettre une seule fois)') : baseMsg })
-            setShowForm(false)
-            fetchData()
+      setMsg({
+        type: 'success',
+        text: buildEnterpriseCreationSuccessMessage({
+          isEdit: false,
+          departementsCount: form.departements_selectionnes?.length || 0,
+          postesCount: form.postes_selectionnes?.filter(p => p.selectionne).length || 0,
+          adminCredentials,
+        }),
+      })
+      setShowForm(false)
+      await fetchData()
     } catch (e) {
-      setMsg({ type: 'error', text: 'Erreur : ' + e.message })
+      setMsg({ type: 'error', text: mapEnterpriseCreationError(e) })
     } finally {
       setSaving(false)
     }

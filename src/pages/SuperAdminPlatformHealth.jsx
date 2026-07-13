@@ -48,7 +48,8 @@ export default function SuperAdminPlatformHealth({ supabase, branchName = 'point
         if (!mounted) return
         if (healthRes.error) throw healthRes.error
 
-        setHealth(healthRes.data || null)
+        const healthData = Array.isArray(healthRes.data) ? (healthRes.data[0] || null) : (healthRes.data || null)
+        setHealth(healthData)
 
         try {
           const { data: auditData, error: auditError } = await supabase

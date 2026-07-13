@@ -52,7 +52,10 @@ export default function SuperAdminSupervision({ supabase, profile }) {
           supabase.rpc('super_admin_platform_health'),
         ])
         if (!mounted) return
-        if (!healthRes.error) setHealth(healthRes.data || null)
+        if (!healthRes.error) {
+          const healthData = Array.isArray(healthRes.data) ? (healthRes.data[0] || null) : (healthRes.data || null)
+          setHealth(healthData)
+        }
         setReferenceData({
           entreprises: ents.data || [],
           profiles: profiles.data || [],
