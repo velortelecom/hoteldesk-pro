@@ -97,19 +97,33 @@ export default function SuperAdmin() {
 
   async function fetchData() {
     setLoading(true)
-    const [{ data: ents }, { data: mods }, { data: details }, { count: totalUsers }, { count: totalSites }, { data: audits }] = await Promise.all([
+    const [{ data: ents }, { data: mods }, { data: details }, healthRes] = await Promise.all([
       supabase.from('entreprises').select('*').order('created_at', { ascending: false }),
       supabase.from('modules_catalogue').select('*').order('ordre'),
       supabase.from('super_admin_entreprises').select('*'),
-      supabase.from('profiles').select('id', { count: 'exact', head: true }),
-      supabase.from('sites').select('id', { count: 'exact', head: true }),
-      supabase.from('audit_events').select('entreprise_id, created_at').order('created_at', { ascending: false }).limit(2000),
+      supabase.rpc('super_admin_platform_health'),
     ])
+    const health = healthRes?.data || null
+    let audits = []
+
+    try {
+      const { data, error: auditError } = await supabase.from('audit_events').select('entreprise_id, created_at').order('created_at', { ascending: false }).limit(2000)
+      if (!auditError) audits = data || []
+    } catch {
+      audits = []
+    }
+
     if (ents) {
       setEntreprises(ents)
       const par_plan = {}
       ents.forEach(e => { par_plan[e.plan] = (par_plan[e.plan] || 0) + 1 })
-      setStats({ total: ents.length, actives: ents.filter(e => e.actif).length, totalUsers: totalUsers || 0, totalSites: totalSites || 0, par_plan })
+      setStats({
+        total: health?.total_entreprises ?? ents.length,
+        actives: health?.entreprises_actives ?? ents.filter(e => e.actif).length,
+        totalUsers: health?.total_users ?? 0,
+        totalSites: health?.total_sites ?? 0,
+        par_plan,
+      })
       // Auto-chargement utilisateurs de chaque entreprise
       ents.forEach(ent => {
         supabase.from('profiles_with_email').select('id, prenom, nom, role, email').eq('entreprise_id', ent.id).eq('is_super_admin', false).order('role').then(({ data }) => {

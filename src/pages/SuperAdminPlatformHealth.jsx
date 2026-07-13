@@ -38,13 +38,8 @@ export default function SuperAdminPlatformHealth({ supabase, branchName = 'point
       setLoading(true)
       setError(null)
       try {
-        const [healthRes, auditRes, branchRes, migrationsRes, functionsRes] = await Promise.all([
+        const [healthRes, branchRes, migrationsRes, functionsRes] = await Promise.all([
           supabase.rpc('super_admin_platform_health'),
-          supabase
-            .from('audit_events')
-            .select('id, action, type_cible, description, entreprise_id, acteur_email, created_at, adresse_ip')
-            .order('created_at', { ascending: false })
-            .limit(12),
           fetch('https://api.github.com/repos/velortelecom/hoteldesk-pro/commits?sha=' + encodeURIComponent(branchName) + '&per_page=1', { headers: { Accept: 'application/vnd.github+json' } }),
           fetch('https://api.github.com/repos/velortelecom/hoteldesk-pro/contents/supabase/migrations?ref=' + encodeURIComponent(branchName), { headers: { Accept: 'application/vnd.github+json' } }),
           fetch('https://api.github.com/repos/velortelecom/hoteldesk-pro/contents/supabase/functions?ref=' + encodeURIComponent(branchName), { headers: { Accept: 'application/vnd.github+json' } }),
@@ -52,10 +47,20 @@ export default function SuperAdminPlatformHealth({ supabase, branchName = 'point
 
         if (!mounted) return
         if (healthRes.error) throw healthRes.error
-        if (auditRes.error) throw auditRes.error
 
         setHealth(healthRes.data || null)
-        setRecentAudits(auditRes.data || [])
+
+        try {
+          const { data: auditData, error: auditError } = await supabase
+            .from('audit_events')
+            .select('id, action, type_cible, description, entreprise_id, acteur_email, created_at, adresse_ip')
+            .order('created_at', { ascending: false })
+            .limit(12)
+          if (!mounted) return
+          setRecentAudits(auditError ? [] : (auditData || []))
+        } catch {
+          setRecentAudits([])
+        }
 
         const branchJson = await branchRes.json()
         const commit = Array.isArray(branchJson) ? branchJson[0] : null

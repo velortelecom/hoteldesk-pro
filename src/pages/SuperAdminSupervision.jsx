@@ -27,6 +27,7 @@ export default function SuperAdminSupervision({ supabase, profile }) {
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState(null)
   const [events, setEvents] = useState([])
+  const [health, setHealth] = useState(null)
   const [hasMore, setHasMore] = useState(true)
   const [page, setPage] = useState(0)
   const [referenceData, setReferenceData] = useState({ entreprises: [], profiles: [], modules: [], sites: [] })
@@ -43,13 +44,15 @@ export default function SuperAdminSupervision({ supabase, profile }) {
     let mounted = true
     async function loadReferenceData() {
       try {
-        const [ents, profiles, modules, sites] = await Promise.all([
+        const [ents, profiles, modules, sites, healthRes] = await Promise.all([
           supabase.from('entreprises').select('id, nom, slug, actif, plan, secteur').order('nom'),
           supabase.from('profiles').select('id, entreprise_id, prenom, nom, role, actif, is_super_admin').order('nom'),
           supabase.from('entreprise_modules').select('entreprise_id, module_id, actif'),
           supabase.from('sites').select('id, entreprise_id, nom, actif'),
+          supabase.rpc('super_admin_platform_health'),
         ])
         if (!mounted) return
+        if (!healthRes.error) setHealth(healthRes.data || null)
         setReferenceData({
           entreprises: ents.data || [],
           profiles: profiles.data || [],
@@ -78,12 +81,14 @@ export default function SuperAdminSupervision({ supabase, profile }) {
           .select('id, acteur_profile_id, acteur_email, entreprise_id, action, type_cible, cible_id, description, metadonnees, adresse_ip, user_agent, created_at')
           .order('created_at', { ascending: false })
           .range(0, PAGE_SIZE - 1)
-        if (fetchError) throw fetchError
         if (!mounted) return
-        setEvents(data || [])
+        setEvents(fetchError ? [] : (data || []))
         setHasMore((data || []).length === PAGE_SIZE)
-      } catch (err) {
-        if (mounted) setError(err.message)
+      } catch {
+        if (mounted) {
+          setEvents([])
+          setHasMore(false)
+        }
       } finally {
         if (mounted) setLoading(false)
       }
@@ -132,17 +137,17 @@ export default function SuperAdminSupervision({ supabase, profile }) {
   return (
     <div style={{ display: 'grid', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
-        <Card title="Entreprises totales" value={snapshot.totalEntreprises} color="#1E40AF" />
-        <Card title="Entreprises actives/suspendues" value={snapshot.activeEntreprises + ' / ' + snapshot.suspendedEntreprises} color="#0F766E" />
-        <Card title="Utilisateurs totaux" value={snapshot.totalUsers} color="#6D28D9" />
-        <Card title="Utilisateurs désactivés" value={snapshot.disabledUsers.length} color="#047857" />
+        <Card title="Entreprises totales" value={health?.total_entreprises ?? snapshot.totalEntreprises} color="#1E40AF" />
+        <Card title="Entreprises actives/suspendues" value={(health?.entreprises_actives ?? snapshot.activeEntreprises) + ' / ' + (health?.entreprises_suspendues ?? snapshot.suspendedEntreprises)} color="#0F766E" />
+        <Card title="Utilisateurs totaux" value={health?.total_users ?? snapshot.totalUsers} color="#6D28D9" />
+        <Card title="Utilisateurs désactivés" value={health?.users_desactives ?? snapshot.disabledUsers.length} color="#047857" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
-        <Card title="Entreprises sans admin" value={snapshot.entrepriseSansAdmin.length} color="#B45309" />
-        <Card title="Entreprises sans site" value={snapshot.entrepriseSansSite.length} color="#B91C1C" />
-        <Card title="Modules actifs" value={snapshot.activeModules} color="#1D4ED8" />
-        <Card title="Erreurs de configuration" value={snapshot.configIssues.length} color="#B91C1C" />
+        <Card title="Entreprises sans admin" value={health?.entreprises_sans_admin ?? snapshot.entrepriseSansAdmin.length} color="#B45309" />
+        <Card title="Entreprises sans site" value={health?.entreprises_sans_site ?? snapshot.entrepriseSansSite.length} color="#B91C1C" />
+        <Card title="Modules actifs" value={health?.modules_actifs ?? snapshot.activeModules} color="#1D4ED8" />
+        <Card title="Erreurs de configuration" value={health?.alertes_configuration ?? snapshot.configIssues.length} color="#B91C1C" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
@@ -211,9 +216,9 @@ export default function SuperAdminSupervision({ supabase, profile }) {
             <h3 style={{ marginTop: 0, fontSize: 15 }}>Statut des entreprises</h3>
             <div style={{ display: 'grid', gap: 8 }}>
               <Tag>Période limitée au périmètre RLS</Tag>
-              <Tag>{snapshot.activeEntreprises} actives</Tag>
-              <Tag>{snapshot.suspendedEntreprises} suspendues</Tag>
-              <Tag>{snapshot.totalUsers} utilisateurs</Tag>
+              <Tag>{health?.entreprises_actives ?? snapshot.activeEntreprises} actives</Tag>
+              <Tag>{health?.entreprises_suspendues ?? snapshot.suspendedEntreprises} suspendues</Tag>
+              <Tag>{health?.total_users ?? snapshot.totalUsers} utilisateurs</Tag>
             </div>
           </section>
 
