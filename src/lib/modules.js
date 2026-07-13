@@ -31,6 +31,7 @@ export const SOCLE_MENUS = [
 // Mapping module_id -> route frontend
 export const MODULE_ROUTES = {
   organisation:   '/organisation',
+  pointage:       '/pointage',
   conges:         '/conges',
   gps:            '/gps',
   documents:      '/documents',

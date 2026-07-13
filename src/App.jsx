@@ -46,6 +46,15 @@ function MobileStyles() {
   return <style>{MOBILE_STYLE}</style>
 }
 
+function normalizePageHash(hash = window.location.hash) {
+  const cleaned = hash
+    .replace(/^#\/?/, '')
+    .replace(/^\//, '')
+    .trim()
+
+  return cleaned || 'dashboard'
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -57,10 +66,7 @@ export default function App() {
 function AppInner() {
   const { user, profile, loading: authLoading, signOut } = useAuth()
   const { modulesActifs, catalogue } = useModules()
-  const [page, setPage] = useState(() => {
-    const hash = window.location.hash.replace('#', '')
-    return hash || 'dashboard'
-  })
+  const [page, setPage] = useState(() => normalizePageHash())
   const [menuOpen, setMenuOpen] = useState(false)
   const [toasts, setToasts] = useState([])
   const [nomEntreprise, setNomEntreprise] = useState('Velor One')
@@ -93,7 +99,7 @@ function AppInner() {
   // Hash navigation sync
   useEffect(() => {
     const onHash = () => {
-      const h = window.location.hash.replace('#', '')
+      const h = normalizePageHash()
       if (h) setPage(h)
     }
     window.addEventListener('hashchange', onHash)
