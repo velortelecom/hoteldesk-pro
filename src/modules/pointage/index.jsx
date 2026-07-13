@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { MODULE_TABS } from './config.js'
 import { getPermissionsForRole } from './permissions.js'
-import { usePointageStats, usePointages, useSitesSummary } from './hooks.js'
+import { usePointageStats, usePointages, usePointageSettings, useSitesSummary } from './hooks.js'
 
 import DashboardPointage from './components/DashboardPointage.jsx'
 import PointageEmploye from './components/PointageEmploye.jsx'
@@ -18,9 +18,10 @@ export default function PointageModule({ profile, permissions: permissionsLoader
   const permissions = useMemo(() => getPermissionsForRole(role), [role])
   const canView = permissions.canView && (permissionsLoader?.voir ?? true)
 
-  const { stats } = usePointageStats()
-  const { pointages } = usePointages()
-  const { sites } = useSitesSummary()
+  const { stats } = usePointageStats(profile)
+  const { pointages } = usePointages(profile)
+  const { sites } = useSitesSummary(profile)
+  const { settings } = usePointageSettings(profile)
 
   if (!canView) {
     return (
@@ -93,10 +94,10 @@ export default function PointageModule({ profile, permissions: permissionsLoader
 
       <div style={{ flex: 1, overflow: 'auto', padding: '1.5rem 2rem' }}>
         {activeTab === 'dashboard' && <DashboardPointage stats={stats} sites={sites} />}
-        {activeTab === 'pointage' && <PointageEmploye permissions={permissions} profile={profile} />}
+        {activeTab === 'pointage' && <PointageEmploye permissions={permissions} profile={profile} sites={sites} />}
         {activeTab === 'historique' && <HistoriquePointages pointages={pointages} />}
         {activeTab === 'sites' && <GestionSitesPointage sites={sites} />}
-        {activeTab === 'parametres' && <ParametresPointage permissions={permissions} moduleId={moduleId} />}
+        {activeTab === 'parametres' && <ParametresPointage permissions={permissions} moduleId={moduleId} settings={settings} />}
 
         {activeTab !== 'dashboard' && activeTab !== 'pointage' && activeTab !== 'historique' && activeTab !== 'sites' && activeTab !== 'parametres' && (
           <CorrectionsPointage />
