@@ -8,6 +8,7 @@ import { PLANS } from '../lib/modules'
 import { MODULES_REGISTRY } from '../modules/registry'
 import { SECTEURS_METIERS, SECTEURS_OPTIONS, getDepartementsBySecteur, getPostesBySecteur, getModulesRecommandes } from '../lib/secteurs'
 import { BrandMark, APP_URL } from '../branding/Brand'
+import { buildCreationSlug, buildEditionForm } from './superAdminUtils'
 
 const PLAN_COLORS = { starter: '#6B7280', business: '#3B82F6', premium: '#8B5CF6', enterprise: '#F59E0B' }
 const PLAN_MODULES = {
@@ -50,12 +51,14 @@ export default function SuperAdmin() {
   const { profile } = useAuth()
   const [entreprises, setEntreprises] = useState([])
   const [modules, setModules] = useState([])
-  const [stats, setStats] = useState({ total: 0, actives: 0, par_plan: {} })
+  const [stats, setStats] = useState({ total: 0, actives: 0, totalUsers: 0, totalSites: 0, par_plan: {} })
+  const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [onglet, setOnglet] = useState('entreprises')
   const [showForm, setShowForm] = useState(false)
   const [editEntreprise, setEditEntreprise] = useState(null)
   const [form, setForm] = useState(null)
+  const [editLoading, setEditLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
   const [expandedEnt, setExpandedEnt] = useState(null)
@@ -87,16 +90,18 @@ export default function SuperAdmin() {
 
   async function fetchData() {
     setLoading(true)
-    const [{ data: ents }, { data: mods }, { data: details }] = await Promise.all([
+    const [{ data: ents }, { data: mods }, { data: details }, { count: totalUsers }, { count: totalSites }] = await Promise.all([
       supabase.from('entreprises').select('*').order('created_at', { ascending: false }),
       supabase.from('modules_catalogue').select('*').order('ordre'),
       supabase.from('super_admin_entreprises').select('*'),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }),
+      supabase.from('sites').select('id', { count: 'exact', head: true }),
     ])
     if (ents) {
       setEntreprises(ents)
       const par_plan = {}
       ents.forEach(e => { par_plan[e.plan] = (par_plan[e.plan] || 0) + 1 })
-      setStats({ total: ents.length, actives: ents.filter(e => e.actif).length, par_plan })
+      setStats({ total: ents.length, actives: ents.filter(e => e.actif).length, totalUsers: totalUsers || 0, totalSites: totalSites || 0, par_plan })
       // Auto-chargement utilisateurs de chaque entreprise
       ents.forEach(ent => {
         supabase.from('profiles_with_email').select('id, prenom, nom, role, email').eq('entreprise_id', ent.id).eq('is_super_admin', false).order('role').then(({ data }) => {
@@ -117,7 +122,9 @@ export default function SuperAdmin() {
 
   async function fetchEntModules(entId) {
     const { data } = await supabase.from('entreprise_modules').select('module_id,actif').eq('entreprise_id', entId)
-    setEntModules(prev => ({ ...prev, [entId]: data || [] }))
+    const rows = data || []
+    setEntModules(prev => ({ ...prev, [entId]: rows }))
+    return rows
   }
 
   async function fetchEntUsers(entId) {
@@ -186,20 +193,16 @@ export default function SuperAdmin() {
     setShowForm(true)
   }
 
-  function ouvrirEdition(ent) {
+  async function ouvrirEdition(ent) {
     setEditEntreprise(ent)
-    fetchEntModules(ent.id).then(() => {
-      const mods = (entModules[ent.id] || []).filter(m => m.actif).map(m => m.module_id)
-      setForm({
-        nom: ent.nom || '', slug: ent.slug || '', secteur: ent.secteur || 'hotel',
-        plan: ent.plan || 'starter', prix_mensuel: ent.prix_mensuel || 29,
-        max_utilisateurs: ent.max_utilisateurs || 10, actif: ent.actif !== false,
-        modules_selectionnes: mods, departements_selectionnes: [], postes_selectionnes: [],
-        email_contact: ent.email_contact || '', telephone: ent.telephone || '',
-        adresse: ent.adresse || '', admin_prenom: '', admin_nom: '', admin_email: '', admin_telephone: '',
-      })
+    setEditLoading(true)
+    try {
+      const modules = await fetchEntModules(ent.id)
+      setForm(buildEditionForm(ent, modules))
       setShowForm(true)
-    })
+    } finally {
+      setEditLoading(false)
+    }
   }
 
   function changerPlan(plan) {
@@ -239,7 +242,7 @@ export default function SuperAdmin() {
     setSaving(true); setMsg(null)
     try {
       const entData = {
-        nom: form.nom, slug: form.slug || form.nom.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+        nom: form.nom, slug: form.slug || buildCreationSlug(form.nom),
         secteur: form.secteur, plan: form.plan, prix_mensuel: form.prix_mensuel,
         max_utilisateurs: form.max_utilisateurs, actif: form.actif,
         email_contact: form.email_contact, telephone: form.telephone, adresse: form.adresse,
@@ -334,10 +337,7 @@ export default function SuperAdmin() {
   async function deleteEntreprise(ent) {
     setDeleteConfirm(null)
     try {
-      const { error } = await supabase.rpc('supprimer_entreprise_complete', { p_entreprise_id: ent.id }); if (false) {
-      await supabase.from('entreprise_modules').delete().eq('entreprise_id', ent.id)
-      await supabase.from('sites').delete().eq('entreprise_id', ent.id)
-      await supabase.from('entreprises').delete().eq('id', ent.id) }
+      const { error } = await supabase.rpc('supprimer_entreprise_complete', { p_entreprise_id: ent.id })
       if (error) throw error
       setMsg({ type: 'success', text: 'Entreprise "' + ent.nom + '" supprimee.' })
       await fetchData()
@@ -358,6 +358,31 @@ export default function SuperAdmin() {
     )
     fetchEntModules(entId)
   }
+
+  const searchLower = searchQuery.trim().toLowerCase()
+  const entreprisesAffichees = entreprises.filter(ent => {
+    if (!searchLower) return true
+    const userBucket = entUsers[ent.id] || { admins: [], employes: [] }
+    const haystacks = [
+      ent.nom,
+      ent.slug,
+      ent.secteur,
+      ent.email_contact,
+      ...(userBucket.admins || []).map(u => `${u.prenom} ${u.nom} ${u.email || ''}`),
+      ...(userBucket.employes || []).map(u => `${u.prenom} ${u.nom} ${u.email || ''}`),
+    ]
+    return haystacks.filter(Boolean).some(value => value.toLowerCase().includes(searchLower))
+  })
+
+  const configAlerts = entreprisesAffichees.flatMap(ent => {
+    const detail = entDetails[ent.id]
+    if (!detail) return []
+    const alerts = []
+    if ((detail.nb_sites || 0) === 0) alerts.push({ id: ent.id + ':sites', label: 'Aucun site configuré' })
+    if ((detail.nb_admins || 0) === 0) alerts.push({ id: ent.id + ':admins', label: 'Aucun admin entreprise' })
+    if ((detail.nb_personnel || 0) === 0) alerts.push({ id: ent.id + ':personnel', label: 'Aucun personnel' })
+    return alerts.map(alert => ({ entreprise: ent, ...alert }))
+  })
 
   if (!profile?.is_super_admin) return (
     <div style={{ padding: 40, textAlign: 'center', color: '#EF4444' }}><h2>Acces refuse</h2></div>
@@ -569,8 +594,8 @@ async function createEmploye(entrepriseId) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
         <StatCard titre="Entreprises totales" valeur={stats.total} couleur="#3B82F6" />
         <StatCard titre="Entreprises actives" valeur={stats.actives} couleur="#10B981" />
-        <StatCard titre="Plans Business+" valeur={(stats.par_plan.business||0)+(stats.par_plan.premium||0)+(stats.par_plan.enterprise||0)} couleur="#8B5CF6" />
-        <StatCard titre="Modules catalogue" valeur={modules.length} couleur="#F59E0B" />
+        <StatCard titre="Utilisateurs totaux" valeur={stats.totalUsers} couleur="#8B5CF6" />
+        <StatCard titre="Sites total" valeur={stats.totalSites} couleur="#F59E0B" />
       </div>
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid #E5E7EB' }}>
         {['entreprises','modules','plans'].map(o => (
@@ -590,8 +615,28 @@ async function createEmploye(entrepriseId) {
               + Nouvelle entreprise
             </button>
           </div>
+          <div style={{ marginBottom: 14 }}>
+            <input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Rechercher une entreprise ou un utilisateur..."
+              style={{ width: '100%', maxWidth: 520, border: '1px solid #D1D5DB', borderRadius: 8, padding: '10px 12px', fontSize: 13 }}
+            />
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {entreprises.map(e => {
+            {configAlerts.length > 0 && (
+              <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: 14, marginBottom: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E', marginBottom: 8 }}>Alertes de configuration</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {configAlerts.slice(0, 8).map(alert => (
+                    <span key={alert.id} style={{ background: '#FEF3C7', color: '#92400E', borderRadius: 999, padding: '4px 10px', fontSize: 12, fontWeight: 600 }}>
+                      {alert.entreprise.nom} · {alert.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {entreprisesAffichees.map(e => {
               const secteurInfo = SECTEURS_METIERS[e.secteur]
               return (
                 <div key={e.id} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }}>
@@ -658,7 +703,7 @@ async function createEmploye(entrepriseId) {
                         )}
                         {expandedEnt === e.id ? 'Fermer' : 'Modules'}
                       </button>
-                      <button onClick={() => ouvrirEdition(e)} style={{ padding: '6px 12px', border: '1px solid #3B82F6', color: '#3B82F6', background: '#EFF6FF', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Modifier</button>
+                      <button onClick={() => ouvrirEdition(e)} disabled={editLoading} style={{ padding: '6px 12px', border: '1px solid #3B82F6', color: '#3B82F6', background: '#EFF6FF', borderRadius: 6, cursor: editLoading ? 'not-allowed' : 'pointer', fontSize: 12 }}>Modifier</button>
                       <button onClick={() => toggleActifEntreprise(e)} style={{ padding: '6px 12px', border: '1px solid ' + (e.actif ? '#EF4444' : '#10B981'), color: e.actif ? '#EF4444' : '#10B981', background: '#fff', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
                         {e.actif ? 'Desactiver' : 'Reactiver'}
                       </button>
