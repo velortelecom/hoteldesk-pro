@@ -193,7 +193,7 @@ export default function SuperAdmin() {
       fetchEntUsers(entId)
       fetchData()
     } catch (err) {
-      setMsg({ type: 'error', text: 'Erreur suppression : ' + err.message })
+      setMsg({ type: 'error', text: mapSuperAdminError(err, buildDependencyErrorMessage(err)) })
     }
   }
 
@@ -348,7 +348,7 @@ export default function SuperAdmin() {
       setMsg({ type: 'success', text: 'Entreprise "' + ent.nom + '" supprimee.' })
       await fetchData()
     } catch (err) {
-      setMsg({ type: 'error', text: 'Erreur: ' + err.message })
+      setMsg({ type: 'error', text: mapSuperAdminError(err, buildDependencyErrorMessage(err)) })
     }
   }
 
