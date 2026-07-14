@@ -3,13 +3,44 @@ import { jsonResponse, readJsonBody } from '../_shared/http.ts';
 import { recordAuditEvent } from '../_shared/audit.ts';
 import { ALLOWED_ROLES, buildFallbackEmail, canGrantRole, generateTempPassword, isAllowedRole } from '../_shared/user_admin.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': Deno.env.get('ALLOWED_ORIGIN') ?? '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+function isAllowedOrigin(origin: string, allowlist: string[]) {
+  if (!origin) return false;
 
-function corsResponse(body: unknown, status = 200) {
+  for (const entry of allowlist) {
+    const item = entry.trim();
+    if (!item) continue;
+    if (item === '*') return true;
+    if (item === origin) return true;
+    if (item.startsWith('*.')) {
+      const suffix = item.slice(1);
+      if (origin.endsWith(suffix)) return true;
+    }
+  }
+
+  const lower = origin.toLowerCase();
+  if (lower.startsWith('https://') && lower.endsWith('.vercel.app')) return true;
+  if (lower.startsWith('https://localhost') || lower.startsWith('http://localhost')) return true;
+  return false;
+}
+
+function buildCorsHeaders(req: Request) {
+  const configured = Deno.env.get('ALLOWED_ORIGIN') ?? '*';
+  const allowlist = configured.split(',').map((v) => v.trim()).filter(Boolean);
+  const origin = req.headers.get('origin') ?? '';
+  const allowedOrigin = isAllowedOrigin(origin, allowlist)
+    ? origin
+    : (allowlist[0] || '*');
+
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin',
+  };
+}
+
+function corsResponse(req: Request, body: unknown, status = 200) {
+  const corsHeaders = buildCorsHeaders(req);
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -28,22 +59,22 @@ async function getCallerProfile(supabase: ReturnType<typeof createClient>, userI
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
-  if (req.method !== 'POST') return corsResponse({ success: false, error: 'method_not_allowed' }, 405);
+  if (req.method === 'OPTIONS') return new Response(null, { headers: buildCorsHeaders(req) });
+  if (req.method !== 'POST') return corsResponse(req, { success: false, error: 'method_not_allowed' }, 405);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!supabaseUrl || !serviceRoleKey) return corsResponse({ success: false, error: 'server_misconfigured' }, 500);
+  if (!supabaseUrl || !serviceRoleKey) return corsResponse(req, { success: false, error: 'server_misconfigured' }, 500);
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
-  if (!jwt) return corsResponse({ success: false, error: 'missing_token' }, 401);
+  if (!jwt) return corsResponse(req, { success: false, error: 'missing_token' }, 401);
 
   const { data: userData, error: userError } = await supabase.auth.getUser(jwt);
-  if (userError || !userData?.user) return corsResponse({ success: false, error: 'invalid_token' }, 401);
+  if (userError || !userData?.user) return corsResponse(req, { success: false, error: 'invalid_token' }, 401);
 
   const payload = await readJsonBody(req);
-  if (!payload) return corsResponse({ success: false, error: 'invalid_json' }, 400);
+  if (!payload) return corsResponse(req, { success: false, error: 'invalid_json' }, 400);
 
   const prenom = String(payload.prenom ?? '').trim();
   const nom = String(payload.nom ?? '').trim();
@@ -57,9 +88,9 @@ Deno.serve(async (req: Request) => {
   const actif = payload.actif !== false;
   const langue = String(payload.langue ?? 'fr').trim() || 'fr';
 
-  if (!prenom || !nom || !entrepriseId) return corsResponse({ success: false, error: 'missing_required_fields' }, 400);
-  if (!isAllowedRole(requestedRole)) return corsResponse({ success: false, error: 'invalid_role' }, 400);
-  if (!userData.user.email) return corsResponse({ success: false, error: 'missing_caller_email' }, 401);
+  if (!prenom || !nom || !entrepriseId) return corsResponse(req, { success: false, error: 'missing_required_fields' }, 400);
+  if (!isAllowedRole(requestedRole)) return corsResponse(req, { success: false, error: 'invalid_role' }, 400);
+  if (!userData.user.email) return corsResponse(req, { success: false, error: 'missing_caller_email' }, 401);
   const userAgent = req.headers.get('user-agent');
   const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? null;
 
@@ -72,7 +103,7 @@ Deno.serve(async (req: Request) => {
     targetEntrepriseId: entrepriseId,
     requestedRole: requestedRole as typeof ALLOWED_ROLES[number],
   });
-  if (!allowed) return corsResponse({ success: false, error: 'forbidden' }, 403);
+  if (!allowed) return corsResponse(req, { success: false, error: 'forbidden' }, 403);
 
   let email = emailInput || buildFallbackEmail(prenom, nom, entrepriseId);
   const generatedPassword = generateTempPassword(16);
@@ -89,7 +120,7 @@ Deno.serve(async (req: Request) => {
     email_confirm: true,
     user_metadata: { prenom, nom, role: requestedRole, entreprise_id: entrepriseId },
   });
-  if (createUserError || !createdUser.user) return corsResponse({ success: false, error: createUserError?.message || 'auth_create_failed' }, 400);
+  if (createUserError || !createdUser.user) return corsResponse(req, { success: false, error: createUserError?.message || 'auth_create_failed' }, 400);
 
   try {
     const profilePayload: Record<string, unknown> = {
@@ -137,7 +168,7 @@ Deno.serve(async (req: Request) => {
       user_agent: userAgent,
     });
 
-    return corsResponse({
+    return corsResponse(req, {
       success: true,
       user_id: createdUser.user.id,
       email,
@@ -146,6 +177,6 @@ Deno.serve(async (req: Request) => {
     }, 200);
   } catch (error) {
     await supabase.auth.admin.deleteUser(createdUser.user.id);
-    return corsResponse({ success: false, error: error instanceof Error ? error.message : 'profile_create_failed' }, 500);
+    return corsResponse(req, { success: false, error: error instanceof Error ? error.message : 'profile_create_failed' }, 500);
   }
 });

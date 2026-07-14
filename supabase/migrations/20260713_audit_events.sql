@@ -37,20 +37,6 @@ FOR SELECT USING (
   AND entreprise_id = public.get_my_entreprise_id()
 );
 
-CREATE OR REPLACE FUNCTION public.record_audit_event(
-  acteur_profile_id uuid,
-  acteur_email text,
-  entreprise_id uuid,
-  action text,
-  type_cible text,
-  cible_id uuid,
-  description text,
-  metadonnees jsonb,
-  adresse_ip inet,
-  user_agent text
-)
-RETURNS uuid
-
 CREATE OR REPLACE FUNCTION public.sanitize_audit_metadata(input jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -96,6 +82,20 @@ BEGIN
   RETURN result;
 END;
 $$;
+
+CREATE OR REPLACE FUNCTION public.record_audit_event(
+  acteur_profile_id uuid,
+  acteur_email text,
+  entreprise_id uuid,
+  action text,
+  type_cible text,
+  cible_id uuid,
+  description text,
+  metadonnees jsonb,
+  adresse_ip inet,
+  user_agent text
+)
+RETURNS uuid
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public

@@ -9,7 +9,7 @@ import { MODULES_REGISTRY } from '../modules/registry'
 import { SECTEURS_METIERS, SECTEURS_OPTIONS, getDepartementsBySecteur, getPostesBySecteur, getModulesRecommandes } from '../lib/secteurs'
 import { BrandMark, APP_URL } from '../branding/Brand'
 import { buildCreationSlug, buildEditionForm } from './superAdminUtils'
-import { buildEntrepriseUpdatePayload } from './superAdminControlUtils'
+import { buildEntrepriseUpdatePayload, mapSuperAdminError } from './superAdminControlUtils'
 import {
   applyEnterpriseCreationToState,
   buildEnterpriseCreationPayload,
@@ -574,7 +574,7 @@ async function createAdmin(entrepriseId) {
       setAdminForm({ prenom: '', nom: '', email: '', telephone: '', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true })
       await fetchData()
     } catch (err) {
-      setAdminMsg({ type: 'error', text: err.message || 'Erreur lors de la creation' })
+      setAdminMsg({ type: 'error', text: mapSuperAdminError(err, 'Impossible de créer l administrateur.') })
     } finally {
       setAdminSaving(false)
     }
@@ -589,7 +589,7 @@ async function createEmploye(entrepriseId) {
       setEmployeForm({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true })
       await fetchData()
     } catch (err) {
-      setEmployeMsg({ type: 'error', text: err.message || 'Erreur creation employe' })
+      setEmployeMsg({ type: 'error', text: mapSuperAdminError(err, 'Impossible de créer l utilisateur.') })
     } finally {
       setEmployeSaving(false)
     }

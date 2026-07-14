@@ -92,6 +92,31 @@ export function buildDependencyErrorMessage(error) {
   return error?.message || 'Opération impossible.'
 }
 
+export function mapSuperAdminError(error, fallback = 'Opération impossible.') {
+  const raw = String(error?.message || error || '').toLowerCase()
+
+  if (raw.includes('failed to send a request to the edge function') || raw.includes('functionsfetcherror') || raw.includes('network')) {
+    return 'Service temporairement indisponible. Réessayez dans quelques instants.'
+  }
+  if (raw.includes('duplicate key') || raw.includes('unique constraint') || raw.includes('slug')) {
+    return 'Un enregistrement avec ces informations existe déjà.'
+  }
+  if (raw.includes('could not find') && raw.includes('schema cache')) {
+    return 'Le schéma de données est en cours de synchronisation. Réessayez dans quelques instants.'
+  }
+  if (raw.includes('forbidden') || raw.includes('authentication_required') || raw.includes('invalid_token')) {
+    return 'Action non autorisée pour ce compte.'
+  }
+  if (raw.includes('admin_create_failed')) {
+    return 'Impossible de créer l administrateur.'
+  }
+  if (raw.includes('profile_create_failed') || raw.includes('caller_profile_missing')) {
+    return 'Impossible de finaliser la création de l utilisateur.'
+  }
+
+  return fallback
+}
+
 export function buildAssistanceSessionDraft({ entrepriseId, reason, durationMinutes = 30 }) {
   if (!entrepriseId || !reason?.trim()) {
     throw new Error('missing_assistance_fields')

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { buildDependencyErrorMessage } from './superAdminControlUtils'
+import { buildDependencyErrorMessage, mapSuperAdminError } from './superAdminControlUtils'
 
 const sectionStyle = { background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 10, padding: 12 }
 const inputStyle = { border: '1px solid #D1D5DB', borderRadius: 8, padding: '6px 10px', fontSize: 12 }
@@ -35,7 +35,7 @@ export default function SuperAdminEnterpriseStructure({ supabase, entrepriseId }
       setDepartements(depRes.data || [])
       setPostes(posteRes.data || [])
     } catch (error) {
-      setMsg({ type: 'error', text: error.message || 'Chargement structure impossible.' })
+      setMsg({ type: 'error', text: mapSuperAdminError(error, 'Chargement structure impossible.') })
     } finally {
       setLoading(false)
     }
@@ -47,7 +47,6 @@ export default function SuperAdminEnterpriseStructure({ supabase, entrepriseId }
       const { error } = await supabase.from('sites').insert({
         entreprise_id: entrepriseId,
         nom: forms.site.nom.trim(),
-        slug: forms.site.nom.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
         actif: true,
       })
       if (error) throw error
@@ -55,7 +54,7 @@ export default function SuperAdminEnterpriseStructure({ supabase, entrepriseId }
       setMsg({ type: 'success', text: 'Site créé.' })
       await fetchAll()
     } catch (error) {
-      setMsg({ type: 'error', text: error.message || 'Création site impossible.' })
+      setMsg({ type: 'error', text: mapSuperAdminError(error, 'Création site impossible.') })
     }
   }
 
@@ -73,7 +72,7 @@ export default function SuperAdminEnterpriseStructure({ supabase, entrepriseId }
       setMsg({ type: 'success', text: 'Département créé.' })
       await fetchAll()
     } catch (error) {
-      setMsg({ type: 'error', text: error.message || 'Création département impossible.' })
+      setMsg({ type: 'error', text: mapSuperAdminError(error, 'Création département impossible.') })
     }
   }
 
@@ -92,7 +91,7 @@ export default function SuperAdminEnterpriseStructure({ supabase, entrepriseId }
       setMsg({ type: 'success', text: 'Poste créé.' })
       await fetchAll()
     } catch (error) {
-      setMsg({ type: 'error', text: error.message || 'Création poste impossible.' })
+      setMsg({ type: 'error', text: mapSuperAdminError(error, 'Création poste impossible.') })
     }
   }
 
@@ -103,7 +102,7 @@ export default function SuperAdminEnterpriseStructure({ supabase, entrepriseId }
       setMsg({ type: 'success', text: 'Statut mis à jour.' })
       await fetchAll()
     } catch (error) {
-      setMsg({ type: 'error', text: error.message || 'Mise à jour impossible.' })
+      setMsg({ type: 'error', text: mapSuperAdminError(error, 'Mise à jour impossible.') })
     }
   }
 
