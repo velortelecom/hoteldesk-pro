@@ -54,6 +54,7 @@ const DEFAUT_PARAMETRES = {
     gps_obligatoire: true,
     autoriser_hors_zone_avec_validation: false,
     duree_max_entre_pointages_minutes: null as number | null,
+      tolerance_retard_minutes: 15,
     methodes_actives: { gps: true } as Record<string, boolean>,
 };
 
@@ -65,6 +66,14 @@ type ContexteValidation = {
     parametres: typeof DEFAUT_PARAMETRES;
     latitude: number | null;
     longitude: number | null;
+      action: Action;
+      plannedShift: {
+            id: string;
+            heure_debut: string;
+            heure_fin: string;
+            tolerance_retard_minutes: number;
+      } | null;
+      onApprovedLeave: boolean;
 };
 
 type ResultatValidation = {
@@ -74,6 +83,7 @@ type ResultatValidation = {
     vitesse_estimee_kmh: number | null;
     position_suspecte: boolean;
     metadonnees: Record<string, unknown> | null;
+      hard_error?: string | null;
 };
 
 interface ValidateurMethode {
@@ -83,7 +93,7 @@ interface ValidateurMethode {
 // Seule methode active en V1. nfc / rfid / bluetooth_beacon / wifi_entreprise
 // sont des emplacements reserves pour plus tard (voir REGISTRE_METHODES).
 async function validerGps(ctx: ContexteValidation): Promise<ResultatValidation> {
-    const { supabase, entrepriseId, profileId, site, parametres, latitude, longitude } = ctx;
+      const { supabase, profileId, site, parametres, latitude, longitude, action, plannedShift, onApprovedLeave } = ctx;
 
   const gpsObligatoireEffectif = site?.pointage_gps_obligatoire ?? parametres.gps_obligatoire;
 
@@ -116,16 +126,16 @@ async function validerGps(ctx: ContexteValidation): Promise<ResultatValidation> 
 
   if (!site || site.latitude === null || site.longitude === null) {
         if (gpsObligatoireEffectif) {
-                return { statut: "refuse", motif_refus: "site_non_configure", distance_metres: null, vitesse_estimee_kmh: vitesseEstimeeKmh, position_suspecte: positionSuspecte, metadonnees: null };
+            return { statut: "refuse", motif_refus: "site_non_configure", distance_metres: null, vitesse_estimee_kmh: vitesseEstimeeKmh, position_suspecte: positionSuspecte, metadonnees: null };
         }
-        return { statut: "accepte", motif_refus: null, distance_metres: null, vitesse_estimee_kmh: vitesseEstimeeKmh, position_suspecte: positionSuspecte, metadonnees: null };
+      return { statut: "accepte", motif_refus: null, distance_metres: null, vitesse_estimee_kmh: vitesseEstimeeKmh, position_suspecte: positionSuspecte, metadonnees: null };
   }
 
   if (latitude == null || longitude == null) {
         if (gpsObligatoireEffectif) {
-                return { statut: "refuse", motif_refus: "gps_manquant", distance_metres: null, vitesse_estimee_kmh: vitesseEstimeeKmh, position_suspecte: positionSuspecte, metadonnees: null };
+              return { statut: "refuse", motif_refus: "gps_manquant", distance_metres: null, vitesse_estimee_kmh: vitesseEstimeeKmh, position_suspecte: positionSuspecte, metadonnees: null };
         }
-        return { statut: "accepte", motif_refus: null, distance_metres: null, vitesse_estimee_kmh: vitesseEstimeeKmh, position_suspecte: positionSuspecte, metadonnees: null };
+              return { statut: "accepte", motif_refus: null, distance_metres: null, vitesse_estimee_kmh: vitesseEstimeeKmh, position_suspecte: positionSuspecte, metadonnees: null };
   }
 
   const distanceMetres = Math.round(haversineMetres(latitude, longitude, site.latitude, site.longitude) * 100) / 100;
@@ -138,7 +148,40 @@ async function validerGps(ctx: ContexteValidation): Promise<ResultatValidation> 
         return { statut: "refuse", motif_refus: "hors_zone", distance_metres: distanceMetres, vitesse_estimee_kmh: vitesseEstimeeKmh, position_suspecte: positionSuspecte, metadonnees: null };
   }
 
-  return { statut: "accepte", motif_refus: null, distance_metres: distanceMetres, vitesse_estimee_kmh: vitesseEstimeeKmh, position_suspecte: positionSuspecte, metadonnees: null };
+  let statut: Statut = "accepte";
+  const metadonnees: Record<string, unknown> = {};
+
+  if (onApprovedLeave) {
+        return {
+              statut: "refuse",
+              motif_refus: "pause_incoherente",
+              distance_metres: distanceMetres,
+              vitesse_estimee_kmh: vitesseEstimeeKmh,
+              position_suspecte: positionSuspecte,
+              metadonnees: { leave_conflict: true },
+              hard_error: "employee_on_approved_leave",
+        };
+  }
+
+  if (plannedShift) {
+        metadonnees.shift_id = plannedShift.id;
+        metadonnees.shift_start = plannedShift.heure_debut;
+        metadonnees.shift_end = plannedShift.heure_fin;
+        if (action === "arrivee") {
+              const now = new Date();
+              const [plannedHour, plannedMinute] = plannedShift.heure_debut.split(":").map(Number);
+              const startDate = new Date(now);
+              startDate.setHours(plannedHour, plannedMinute, 0, 0);
+              const deltaMinutes = Math.round((now.getTime() - startDate.getTime()) / 60000);
+              metadonnees.delta_minutes = deltaMinutes;
+              if (deltaMinutes > plannedShift.tolerance_retard_minutes) {
+                    statut = "en_attente_correction";
+                    metadonnees.shift_anomaly = "retard";
+              }
+        }
+  }
+
+  return { statut, motif_refus: null, distance_metres: distanceMetres, vitesse_estimee_kmh: vitesseEstimeeKmh, position_suspecte: positionSuspecte, metadonnees };
 }
 
 const REGISTRE_METHODES: Record<string, ValidateurMethode> = {
@@ -186,12 +229,12 @@ Deno.serve(async (req: Request) => {
     const entrepriseId = profile.entreprise_id as string;
     const siteId = profile.site_id as string | null;
 
-             // Module commercial "Pointage" -- toujours "gps", jamais la methode technique
+                  // Module commercial réellement activé : pointage
              const { data: moduleRow } = await supabase
       .from("entreprise_modules")
       .select("actif")
       .eq("entreprise_id", entrepriseId)
-      .eq("module_id", "gps")
+            .eq("module_id", "pointage")
       .maybeSingle();
     if (!moduleRow || moduleRow.actif !== true) {
           return jsonResponse({ success: false, error: "module_inactive" }, 403);
@@ -212,6 +255,30 @@ Deno.serve(async (req: Request) => {
                    ...(parametresRow ?? {}),
                    methodes_actives: (parametresRow?.methodes_actives as Record<string, boolean>) ?? { gps: true },
              };
+
+                                     const today = new Date().toISOString().slice(0, 10);
+                                     const [{ data: leaveRow }, { data: plannedShift }] = await Promise.all([
+                  supabase
+                        .from("conges")
+                        .select("id")
+                        .eq("entreprise_id", entrepriseId)
+                        .eq("employe_id", authUserId)
+                        .eq("statut", "approuve")
+                        .lte("date_debut", today)
+                        .gte("date_fin", today)
+                        .limit(1)
+                        .maybeSingle(),
+                  supabase
+                        .from("shifts")
+                        .select("id, heure_debut, heure_fin")
+                        .eq("entreprise_id", entrepriseId)
+                        .eq("employe_id", authUserId)
+                        .eq("date_shift", today)
+                        .neq("statut", "annule")
+                        .order("heure_debut", { ascending: true })
+                        .limit(1)
+                        .maybeSingle(),
+            ]);
 
              let body: Record<string, unknown>;
     try {
@@ -265,7 +332,21 @@ Deno.serve(async (req: Request) => {
                    parametres,
                    latitude,
                    longitude,
+                   action: action as Action,
+                   plannedShift: plannedShift
+                     ? {
+                         id: plannedShift.id,
+                         heure_debut: plannedShift.heure_debut,
+                         heure_fin: plannedShift.heure_fin,
+                         tolerance_retard_minutes: Number(parametres.tolerance_retard_minutes ?? 15),
+                       }
+                     : null,
+                   onApprovedLeave: Boolean(leaveRow?.id),
              });
+
+             if (resultat.hard_error) {
+                   return jsonResponse({ success: false, error: resultat.hard_error }, 409);
+             }
 
              let statutFinal = resultat.statut;
     let motifFinal = resultat.motif_refus;
