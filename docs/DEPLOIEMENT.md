@@ -46,7 +46,7 @@ Secrets requis pour le job backend:
 
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
-- `SUPABASE_DB_URL`
+- `SUPABASE_DB_URL` (chaîne de connexion Postgres percent-encodée, compatible `supabase db query --db-url`)
 
 Pour vérifier l'isolation d'une entreprise admin existante :
 
