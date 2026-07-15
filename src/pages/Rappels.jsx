@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
-import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { format, isPast, isToday, isTomorrow, parseISO, differenceInMinutes } from 'date-fns'
+import { createReminder, deleteReminder, fetchManualReminders, fetchReminderAssignees, fetchReminderNotificationTasks, fetchReminderTasks, updateReminderTaskStatus } from '../services/rappels'
+import { format, isPast, isToday, isTomorrow, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
 // Horaires des 3 rappels quotidiens (heures locales)
@@ -70,11 +70,13 @@ export default function Rappels() {
   const [saving, setSaving] = useState(false)
   const [now, setNow] = useState(new Date())
   const [notifStatus, setNotifStatus] = useState('')
+  const [error, setError] = useState('')
   const intervalRef = useRef(null)
 
   const userRole = profile?.role || 'employe'
 
   useEffect(() => {
+    if (!profile?.entreprise_id) return undefined
     fetchAll()
     requestNotifPermission()
 
@@ -88,33 +90,22 @@ export default function Rappels() {
     setTimeout(() => verifierEtEnvoyerRappels(), 2000)
 
     return () => clearInterval(intervalRef.current)
-  }, [])
+  }, [profile?.entreprise_id, profile?.id, userRole])
 
   async function fetchAll() {
-    // Rappels manuels
-    const { data: rData } = await supabase.from('rappels')
-      .select('*, assignee:profiles!rappels_assigne_a_fkey(nom,prenom), createur:profiles!rappels_cree_par_fkey(nom,prenom)')
-      .or('cree_par.eq.' + profile.id + ',assigne_a.eq.' + profile.id)
-      .order('date_rappel', { ascending: true })
-    setRappels(rData || [])
-
-    // Taches non effectuees (planifiee uniquement, pas en_cours ni terminee)
-    let q = supabase.from('taches')
-      .select('*, assignee:profiles!taches_assigne_a_fkey(nom,prenom)')
-      .eq('statut', 'planifiee')
-      .is('tache_parente_id', null) // seulement les taches parentes
-      .order('date_echeance', { ascending: true })
-
-    // Filtrage par role
-    if (userRole === 'employe') {
-      q = q.eq('assigne_a', profile.id)
-    } else if (userRole === 'responsable') {
-      q = q.or('assigne_a.eq.' + profile.id + ',cree_par.eq.' + profile.id)
+    try {
+      setError('')
+      const [manualReminders, openTasks, assignees] = await Promise.all([
+        fetchManualReminders(profile),
+        fetchReminderTasks(profile, userRole),
+        fetchReminderAssignees(profile),
+      ])
+      setRappels(manualReminders)
+      setTachesNonFaites(openTasks)
+      setEmployes(assignees)
+    } catch (caughtError) {
+      setError(caughtError?.message || 'Chargement des rappels impossible.')
     }
-    // admin voit tout
-
-    const { data: tData } = await q
-    setTachesNonFaites(tData || [])
   }
 
   async function requestNotifPermission() {
@@ -136,15 +127,7 @@ export default function Rappels() {
     if (!creneauActif) return
 
     // Recuperer les taches non faites
-    let q = supabase.from('taches')
-      .select('*')
-      .eq('statut', 'planifiee')
-      .is('tache_parente_id', null)
-
-    if (userRole === 'employe') q = q.eq('assigne_a', profile.id)
-    else if (userRole === 'responsable') q = q.or('assigne_a.eq.' + profile.id + ',cree_par.eq.' + profile.id)
-
-    const { data: taches } = await q
+    const taches = await fetchReminderNotificationTasks(profile, userRole)
     if (!taches?.length) return
 
     let nbEnvoyes = 0
@@ -185,39 +168,46 @@ export default function Rappels() {
     }
     setSaving(true)
     try {
-      const { error } = await supabase
-        .from('rappels')
-        .insert({
-          ...form,
-          date_rappel: toLocalISO(form.date_rappel),
-          cree_par: profile.id,
-          assigne_a: form.assigne_a || null,
-          entreprise_id: profile.entreprise_id,
-        })
-      if (error) throw error
+      setError('')
+      await createReminder(profile, form, toLocalISO(form.date_rappel))
       await fetchAll()
       setShowModal(false)
       setForm(empty)
     } catch (err) {
-      alert('Erreur lors de la création du rappel : ' + (err.message || 'Erreur inconnue'))
+      setError(err?.message || 'Erreur lors de la création du rappel.')
     } finally {
       setSaving(false)
     }
   }
 
   async function deleteRappel(id) {
-    await supabase.from('rappels').delete().eq('id', id)
-    fetchAll()
+    try {
+      setError('')
+      await deleteReminder(id)
+      fetchAll()
+    } catch (caughtError) {
+      setError(caughtError?.message || 'Suppression du rappel impossible.')
+    }
   }
 
   async function marquerTacheEnCours(id) {
-    await supabase.from('taches').update({ statut: 'en_cours' }).eq('id', id)
-    fetchAll()
+    try {
+      setError('')
+      await updateReminderTaskStatus(id, { statut: 'en_cours' })
+      fetchAll()
+    } catch (caughtError) {
+      setError(caughtError?.message || 'Mise a jour de la tache impossible.')
+    }
   }
 
   async function marquerTacheTerminee(id) {
-    await supabase.from('taches').update({ statut: 'terminee', date_terminee: new Date().toISOString() }).eq('id', id)
-    fetchAll()
+    try {
+      setError('')
+      await updateReminderTaskStatus(id, { statut: 'terminee', date_terminee: new Date().toISOString() })
+      fetchAll()
+    } catch (caughtError) {
+      setError(caughtError?.message || 'Cloture de la tache impossible.')
+    }
   }
 
   // Calcul des indicateurs pour les taches
@@ -319,6 +309,7 @@ export default function Rappels() {
 
   return (
     <div>
+      {error && <div style={{ marginBottom: 16, padding: '12px 14px', background: '#FEF2F2', color: '#991B1B', borderRadius: 10, border: '1px solid #FECACA', fontSize: 13 }}>{error}</div>}
       {/* Header avec horloge et statut */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         <div>

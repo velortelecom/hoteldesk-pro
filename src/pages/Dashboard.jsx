@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { fetchDashboardRecentTasks, fetchDashboardTaskStats, fetchDashboardTeam } from '../services/dashboard'
 
 const COULEURS_STATUT = {
   planifiee: { bg: '#FFF6FF', color: '#1E40AF', label: 'Planifiees' },
@@ -27,23 +27,29 @@ export default function Dashboard() {
   const [equipe, setEquipe]     = useState([])
   const [recentes, setRecentes] = useState([])
   const [loading, setLoading]   = useState(true)
+  const [error, setError] = useState('')
 
   const today = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' })
   const prenom = profile?.prenom || profile?.nom || 'Utilisateur'
 
   useEffect(() => {
-    fetchAll()
-  }, [])
+    if (profile?.entreprise_id) fetchAll()
+  }, [profile?.entreprise_id])
 
   async function fetchAll() {
     setLoading(true)
-    await Promise.all([fetchStats(), fetchEquipe(), fetchRecentes()])
-    setLoading(false)
+    setError('')
+    try {
+      await Promise.all([fetchStats(), fetchEquipe(), fetchRecentes()])
+    } catch (caughtError) {
+      setError(caughtError?.message || 'Chargement du tableau de bord impossible.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function fetchStats() {
-    const { data, error } = await supabase.from('taches').select('statut, priorite, categorie')
-    if (error || !data) return
+    const data = await fetchDashboardTaskStats(profile)
     const s = { total: data.length, planifiee:0, en_cours:0, terminee:0, annulee:0 }
     data.forEach(t => { if (s[t.statut] !== undefined) s[t.statut]++ })
     setStats(s)
@@ -59,17 +65,11 @@ export default function Dashboard() {
 
   async function fetchEquipe() {
     if (!isAdmin) return
-    const { data } = await supabase.from('profiles').select('id, nom, prenom, role, departement').order('nom')
-    setEquipe(data || [])
+    setEquipe(await fetchDashboardTeam(profile))
   }
 
   async function fetchRecentes() {
-    const { data } = await supabase
-      .from('taches')
-      .select('id, titre, statut, priorite, categorie, created_at')
-      .order('created_at', { ascending: false })
-      .limit(5)
-    setRecentes(data || [])
+    setRecentes(await fetchDashboardRecentTasks(profile))
   }
 
   if (loading) return (
@@ -82,6 +82,7 @@ export default function Dashboard() {
 
   return (
     <div style={{ padding:16, maxWidth:800, margin:'0 auto' }}>
+      {error && <div style={{ marginBottom: 16, padding: '12px 14px', background: '#FEF2F2', color: '#991B1B', borderRadius: 10, border: '1px solid #FECACA', fontSize: 13 }}>{error}</div>}
 
       <div style={{ marginBottom:20 }}>
         <h2 style={{ fontSize:20, fontWeight:700, color:'#1e293b', margin:0 }}>

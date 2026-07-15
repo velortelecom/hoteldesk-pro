@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { format, isToday, isTomorrow, isYesterday, parseISO } from 'date-fns'
+import { deleteTask, fetchTaskMembers, fetchTasks, saveTask, updateTaskStatus } from '../services/tasks'
+import { format, isToday, isTomorrow, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
 function toLocalISO(str) {
@@ -126,6 +126,7 @@ export default function Taches() {
   const [showForm, setShowForm] = useState(false)
   const [editTache, setEditTache] = useState(null)
   const [expandedParents, setExpandedParents] = useState({})
+  const [error, setError] = useState('')
   const [filtreStatut, setFiltreStatut] = useState('tous')
   const [filtreCat, setFiltreCat] = useState('toutes')
   const [filtrePrio, setFiltrePrio] = useState('toutes')
@@ -135,24 +136,36 @@ export default function Taches() {
     assigne_a: '', recurrence_type: '', recurrence_fin: '', chambre: '',
   })
 
-  useEffect(() => { fetchTaches(); fetchMembres() }, [profile])
+  useEffect(() => {
+    if (!profile?.entreprise_id) return
+    fetchTaches()
+    fetchMembres()
+  }, [profile?.entreprise_id, profile?.id, profile?.role, profile?.departement])
 
   async function fetchMembres() {
-    const { data } = await supabase.from('profiles').select('id, prenom, nom, role, departement')
-    if (data) setMembres(data)
+    try {
+      setError('')
+      setMembres(await fetchTaskMembers(profile))
+    } catch (caughtError) {
+      setError(caughtError?.message || 'Chargement des membres impossible.')
+    }
   }
 
   async function fetchTaches() {
     setLoading(true)
-    let query = supabase.from('taches').select('*').order('date_echeance', { ascending: true })
-    if (profile?.role === 'employe') {
-      const allowedCats = DEPT_CATS[profile.departement] || []
-      if (allowedCats.length) query = query.in('categorie', allowedCats)
-      else query = query.eq('assigne_a', profile.id)
+    try {
+      setError('')
+      let data = await fetchTasks(profile)
+      if (profile?.role === 'employe') {
+        const allowedCats = DEPT_CATS[profile.departement] || []
+        data = allowedCats.length ? data.filter((item) => allowedCats.includes(item.categorie)) : data.filter((item) => item.assigne_a === profile.id)
+      }
+      setTaches(data)
+    } catch (caughtError) {
+      setError(caughtError?.message || 'Chargement des taches impossible.')
+    } finally {
+      setLoading(false)
     }
-    const { data } = await query
-    if (data) setTaches(data)
-    setLoading(false)
   }
 
   const parents = taches.filter(t => !t.tache_parente_id)
@@ -195,16 +208,23 @@ export default function Taches() {
       ? 'Supprimer cette tache recurrente et toutes ses occurrences ?'
       : 'Supprimer cette tache ?'
     if (!window.confirm(msg)) return
-    if (isParent) {
-      await supabase.from('taches').delete().eq('tache_parente_id', id)
+    try {
+      setError('')
+      await deleteTask(id, isParent)
+      fetchTaches()
+    } catch (caughtError) {
+      setError(caughtError?.message || 'Suppression impossible.')
     }
-    await supabase.from('taches').delete().eq('id', id)
-    fetchTaches()
   }
 
   async function handleStatutChange(id, statut) {
-    await supabase.from('taches').update({ statut }).eq('id', id)
-    fetchTaches()
+    try {
+      setError('')
+      await updateTaskStatus(id, statut)
+      fetchTaches()
+    } catch (caughtError) {
+      setError(caughtError?.message || 'Mise a jour du statut impossible.')
+    }
   }
 
   async function handleSubmit(e) {
@@ -223,13 +243,14 @@ export default function Taches() {
       recurrence_fin: form.recurrence_fin || null,
       chambre: form.chambre || null,
     }
-    if (editTache) {
-      await supabase.from('taches').update(payload).eq('id', editTache.id)
-    } else {
-      await supabase.from('taches').insert({ ...payload, cree_par: profile.id, entreprise_id: profile.entreprise_id })
+    try {
+      setError('')
+      await saveTask(profile, payload, editTache)
+      setShowForm(false)
+      fetchTaches()
+    } catch (caughtError) {
+      setError(caughtError?.message || 'Enregistrement de la tache impossible.')
     }
-    setShowForm(false)
-    fetchTaches()
   }
 
   const canManage = profile?.role === 'admin' || profile?.role === 'responsable'
@@ -238,6 +259,7 @@ export default function Taches() {
 
   return (
     <div style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
+      {error && <div style={{ marginBottom: 16, padding: '12px 14px', background: '#FEF2F2', color: '#991B1B', borderRadius: 10, border: '1px solid #FECACA', fontSize: 13 }}>{error}</div>}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1F2937' }}>Taches</h1>
         {canManage && (

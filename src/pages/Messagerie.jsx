@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { fetchConversationMessages, fetchMessageContacts, markConversationRead, sendConversationMessage } from '../services/messages'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -10,42 +11,52 @@ export default function Messagerie() {
   const [selected, setSelected] = useState(null)
   const [messages, setMessages] = useState([])
   const [texte, setTexte] = useState('')
+  const [error, setError] = useState('')
   const bottomRef = useRef(null)
 
   useEffect(() => {
-    supabase.from('profiles').select('*').neq('id', profile.id).eq('entreprise_id', profile.entreprise_id).then(({ data }) => setContacts(data || []))
+    if (!profile?.entreprise_id) return
+    fetchMessageContacts(profile)
+      .then(setContacts)
+      .catch((caughtError) => setError(caughtError?.message || 'Chargement des contacts impossible.'))
   }, [profile])
 
   useEffect(() => {
-    if (!selected) return
+    if (!selected || !profile?.id) return
     fetchMessages()
     const sub = supabase.channel('messages-' + selected.id)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
         const m = payload.new
-        if ((m.expediteur_id === profile.id && m.destinataire_id === selected.id) ||
-            (m.expediteur_id === selected.id && m.destinataire_id === profile.id)) {
+        if (m.entreprise_id === profile.entreprise_id && ((m.expediteur_id === profile.id && m.destinataire_id === selected.id) ||
+            (m.expediteur_id === selected.id && m.destinataire_id === profile.id))) {
           setMessages(prev => [...prev, m])
         }
       })
       .subscribe()
     return () => sub.unsubscribe()
-  }, [selected])
+  }, [selected, profile?.id, profile?.entreprise_id])
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
   async function fetchMessages() {
-    const { data } = await supabase.from('messages')
-      .select('*')
-      .or(`and(expediteur_id.eq.${profile.id},destinataire_id.eq.${selected.id}),and(expediteur_id.eq.${selected.id},destinataire_id.eq.${profile.id})`)
-      .order('created_at', { ascending: true })
-    setMessages(data || [])
-    await supabase.from('messages').update({ lu: true }).eq('expediteur_id', selected.id).eq('destinataire_id', profile.id).eq('lu', false)
+    try {
+      setError('')
+      setMessages(await fetchConversationMessages(profile, selected.id))
+      await markConversationRead(profile, selected.id)
+    } catch (caughtError) {
+      setError(caughtError?.message || 'Chargement de la conversation impossible.')
+    }
   }
 
   async function send() {
     if (!texte.trim() || !selected) return
-    await supabase.from('messages').insert({ expediteur_id: profile.id, destinataire_id: selected.id, contenu: texte.trim(), entreprise_id: profile.entreprise_id })
-    setTexte('')
+    try {
+      setError('')
+      await sendConversationMessage(profile, selected.id, texte)
+      setTexte('')
+    } catch (caughtError) {
+      setError(caughtError?.message || 'Envoi du message impossible.')
+    }
   }
 
   const av = (p) => {
@@ -56,6 +67,7 @@ export default function Messagerie() {
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: selected ? '200px 1fr' : '1fr', gap: 12, height: 'calc(100vh - 100px)', minHeight: 400 }}>
+      {error && <div style={{ gridColumn: '1 / -1', marginBottom: 4, padding: '12px 14px', background: '#FEF2F2', color: '#991B1B', borderRadius: 10, border: '1px solid #FECACA', fontSize: 13 }}>{error}</div>}
       <div style={{ background: '#fff', border: '0.5px solid #e0dfd8', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '12px 14px', fontSize: 13, fontWeight: 500, borderBottom: '0.5px solid #e0dfd8', color: '#444' }}>Équipe</div>
         <div style={{ overflowY: 'auto', flex: 1 }}>

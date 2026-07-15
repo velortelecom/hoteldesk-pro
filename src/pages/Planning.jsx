@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
-import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
+import { createQuickPlanningTask, fetchPlanningEmployees, fetchPlanningTasks } from '../services/planning'
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   addDays, addMonths, subMonths, isToday, isSameMonth, isSameDay,
@@ -47,6 +47,7 @@ export default function Planning() {
   const [selectedDay, setSelectedDay] = useState(new Date())
   const [vue, setVue] = useState('mois') // 'mois' | 'jour'
   const [filtreEmp, setFiltreEmp] = useState('tous')
+  const [error, setError] = useState('')
   const timelineRef = useRef(null)
 
   const userRole = profile?.role || 'employe'
@@ -55,23 +56,31 @@ export default function Planning() {
 
   // Load employes
   useEffect(() => {
-    const q = supabase.from('profiles').select('id,nom,prenom,couleur,avatar_initiales,departement').eq('actif', true)
-    if (userRole === 'responsable') q.eq('departement', userDept)
-    else if (userRole === 'employe') q.eq('id', profile?.id)
-    q.then(({ data }) => setEmployes(data || []))
-  }, [])
+    if (profile?.entreprise_id) loadEmployes()
+  }, [profile?.entreprise_id, profile?.id, userRole, userDept])
 
   // Load tasks for current month
   useEffect(() => {
-    const from = startOfMonth(currentMonth).toISOString()
-    const to = endOfMonth(currentMonth).toISOString()
-    supabase.from('taches')
-      .select('*, assignee:profiles!taches_assigne_a_fkey(id,nom,prenom,couleur,avatar_initiales)')
-      .gte('date_echeance', from)
-      .lte('date_echeance', to)
-      .neq('statut', 'annulee')
-      .then(({ data }) => setTaches(data || []))
-  }, [currentMonth])
+    if (profile?.entreprise_id) loadTaches()
+  }, [profile?.entreprise_id, currentMonth])
+
+  async function loadEmployes() {
+    try {
+      setError('')
+      setEmployes(await fetchPlanningEmployees(profile, userRole, userDept))
+    } catch (caughtError) {
+      setError(caughtError?.message || 'Chargement du planning impossible.')
+    }
+  }
+
+  async function loadTaches() {
+    try {
+      setError('')
+      setTaches(await fetchPlanningTasks(profile, currentMonth))
+    } catch (caughtError) {
+      setError(caughtError?.message || 'Chargement du planning impossible.')
+    }
+  }
 
   // Scroll timeline to current hour on day view
   useEffect(() => {
@@ -302,26 +311,22 @@ export default function Planning() {
     e.preventDefault()
     if (!quickForm.titre.trim()) return
     setQuickSaving(true)
-    const dateStr = format(quickCreateDate, 'yyyy-MM-dd') + 'T09:00:00'
-    const { error } = await supabase.from('taches').insert({
-      titre: quickForm.titre.trim(),
-      categorie: quickForm.categorie,
-      priorite: quickForm.priorite,
-      statut: 'a_faire',
-      date_echeance: dateStr,
-      entreprise_id: profile?.entreprise_id,
-      assigne_a: profile?.id,
-    })
-    setQuickSaving(false)
-    if (!error) {
+    try {
+      setError('')
+      await createQuickPlanningTask(profile, quickForm, format(quickCreateDate, 'yyyy-MM-dd'))
       setQuickCreateDate(null)
       setQuickForm({ titre: '', categorie: 'menage', priorite: 'normale' })
-      fetchTaches()
+      await loadTaches()
+    } catch (caughtError) {
+      setError(caughtError?.message || 'Création rapide impossible.')
+    } finally {
+      setQuickSaving(false)
     }
   }
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      {error && <div style={{ marginBottom: 16, padding: '12px 14px', background: '#FEF2F2', color: '#991B1B', borderRadius: 10, border: '1px solid #FECACA', fontSize: 13 }}>{error}</div>}
       {/* Header with clock */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
         <div>
