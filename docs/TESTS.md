@@ -6,6 +6,7 @@
 npm test -- --watchAll=false --runInBand
 npm run build
 node scripts/verify-create-user-chef-role.mjs
+node scripts/e2e-enterprise-creation-isolation.mjs
 ```
 
 ## Résultat courant
@@ -13,6 +14,7 @@ node scripts/verify-create-user-chef-role.mjs
 - tests historiques : OK
 - nouveaux tests de fondation : routeur, permissions, helpers entreprise
 - verification QA edge function : create-user avec role chef_equipe
+- smoke E2E: create-entreprise (x2) + verification isolation multi-entreprise
 
 ## Fichiers de test clés
 
