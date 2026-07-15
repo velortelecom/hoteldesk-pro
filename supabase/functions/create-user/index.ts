@@ -84,6 +84,7 @@ Deno.serve(async (req: Request) => {
   const telephone = payload.telephone ? String(payload.telephone).trim() : null;
   const posteId = payload.poste_id ? String(payload.poste_id).trim() : null;
   const posteSecondaireId = payload.poste_secondaire_id ? String(payload.poste_secondaire_id).trim() : null;
+  const siteId = payload.site_id ? String(payload.site_id).trim() : null;
   const departementIds = Array.isArray(payload.departement_ids) ? payload.departement_ids.filter((id: unknown) => typeof id === 'string').map((id: string) => id.trim()).filter(Boolean) : [];
   const actif = payload.actif !== false;
   const langue = String(payload.langue ?? 'fr').trim() || 'fr';
@@ -138,6 +139,7 @@ Deno.serve(async (req: Request) => {
       telephone,
       poste_id: posteId,
       poste_secondaire_id: posteSecondaireId,
+      site_id: siteId,
       actif,
       langue,
     };
