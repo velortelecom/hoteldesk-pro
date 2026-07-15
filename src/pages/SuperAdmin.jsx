@@ -141,6 +141,7 @@ export default function SuperAdmin() {
           ])
         setEntPostes(prev => ({ ...prev, [entId]: postes || [] }))
         setEntDeps(prev => ({ ...prev, [entId]: deps || [] }))
+    setEntSites(prev => ({ ...prev, [entId]: sites || [] }))
   }
 
   async function deleteUser(userId, entId) {
