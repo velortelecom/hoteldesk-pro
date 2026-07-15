@@ -17,7 +17,8 @@
     "qa:provision": "node scripts/provision-qa-data.mjs",
     "qa:isolation": "node scripts/verify-enterprise-isolation.mjs",
     "qa:verify-chef-role": "node scripts/verify-create-user-chef-role.mjs",
-    "qa:e2e-smoke": "node scripts/e2e-enterprise-creation-isolation.mjs"
+    "qa:e2e-smoke": "node scripts/e2e-enterprise-creation-isolation.mjs",
+    "qa:full": "npm run qa:verify-chef-role && npm run qa:e2e-smoke"
   },
   "browserslist": {
     "production": [">0.2%", "not dead", "not op_mini all"],
