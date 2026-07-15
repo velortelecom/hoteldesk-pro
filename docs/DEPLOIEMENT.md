@@ -21,6 +21,8 @@ Préparer les variables d'environnement (selon le script) :
 - `E2E_SUPERADMIN_EMAIL`
 - `E2E_SUPERADMIN_PASSWORD`
 
+Les scripts QA executent un pre-check automatique des variables requises et echouent explicitement si une variable est absente.
+
 Commandes :
 
 ```bash

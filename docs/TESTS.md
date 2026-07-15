@@ -24,6 +24,7 @@ npm run validate:mission:ci
 - healthcheck runtime edge functions: create-entreprise/create-user/create-pointage
 - healthcheck invariants DB: contrainte roles profiles, module pointage, RPC atomique entreprise
 - healthcheck backend agrégé: qa:functions-health + qa:db-health
+- pre-check environnement: les scripts QA signalent explicitement les variables manquantes
 
 ## Fichiers de test clés
 
