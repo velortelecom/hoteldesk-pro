@@ -28,6 +28,7 @@ npm run qa:provision
 npm run qa:verify-chef-role
 npm run qa:e2e-smoke
 npm run qa:full
+npm run validate:mission
 ```
 
 Pour vérifier l'isolation d'une entreprise admin existante :

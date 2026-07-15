@@ -8,6 +8,7 @@ npm run build
 node scripts/verify-create-user-chef-role.mjs
 node scripts/e2e-enterprise-creation-isolation.mjs
 npm run qa:full
+npm run validate:mission
 ```
 
 ## Résultat courant

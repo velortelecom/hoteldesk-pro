@@ -14,11 +14,13 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
+    "validate:app": "npm run test -- --watch=false && npm run build",
     "qa:provision": "node scripts/provision-qa-data.mjs",
     "qa:isolation": "node scripts/verify-enterprise-isolation.mjs",
     "qa:verify-chef-role": "node scripts/verify-create-user-chef-role.mjs",
     "qa:e2e-smoke": "node scripts/e2e-enterprise-creation-isolation.mjs",
-    "qa:full": "npm run qa:verify-chef-role && npm run qa:e2e-smoke"
+    "qa:full": "npm run qa:verify-chef-role && npm run qa:e2e-smoke",
+    "validate:mission": "npm run validate:app && npm run qa:full"
   },
   "browserslist": {
     "production": [">0.2%", "not dead", "not op_mini all"],
