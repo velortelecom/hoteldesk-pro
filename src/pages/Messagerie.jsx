@@ -41,7 +41,8 @@ export default function Messagerie() {
   async function fetchMessages() {
     try {
       setError('')
-      setMessages(await fetchConversationMessages(profile, selected.id))
+      const result = await fetchConversationMessages(profile, selected.id)
+      setMessages(result.messages)
       await markConversationRead(profile, selected.id)
     } catch (caughtError) {
       setError(caughtError?.message || 'Chargement de la conversation impossible.')
