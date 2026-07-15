@@ -108,19 +108,25 @@ Deno.serve(async (req: Request) => {
   let email = emailInput || buildFallbackEmail(prenom, nom, entrepriseId);
   const generatedPassword = generateTempPassword(16);
 
-  const { data: existingUser } = await supabase.auth.admin.getUserByEmail(email);
-  if (existingUser?.user) {
-    const localPart = email.split('@')[0];
-    email = `${localPart}.${crypto.randomUUID().slice(0, 8)}@velor.local`;
-  }
-
-  const { data: createdUser, error: createUserError } = await supabase.auth.admin.createUser({
-    email,
-    password: generatedPassword,
-    email_confirm: true,
-    user_metadata: { prenom, nom, role: requestedRole, entreprise_id: entrepriseId },
+  let { data: createdUser, error: createUserError } = await supabase.auth.admin.createUser({
+        email,
+        password: generatedPassword,
+        email_confirm: true,
+        user_metadata: { prenom, nom, role: requestedRole, entreprise_id: entrepriseId },
   });
-  if (createUserError || !createdUser.user) return corsResponse(req, { success: false, error: createUserError?.message || 'auth_create_failed' }, 400);
+
+    if (createUserError && /already|exists|registered/i.test(createUserError.message || '')) {
+          const localPart = email.split('@')[0];
+          email = `${localPart}.${crypto.randomUUID().slice(0, 8)}@velor.local`;
+          ({ data: createdUser, error: createUserError } = await supabase.auth.admin.createUser({
+                  email,
+                  password: generatedPassword,
+                  email_confirm: true,
+                  user_metadata: { prenom, nom, role: requestedRole, entreprise_id: entrepriseId },
+          }));
+    }
+
+    if (createUserError || !createdUser.user) return corsResponse(req, { success: false, error: createUserError?.message || 'auth_create_failed' }, 400);
 
   try {
     const profilePayload: Record<string, unknown> = {
