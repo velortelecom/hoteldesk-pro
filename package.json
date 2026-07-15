@@ -21,8 +21,9 @@
     "qa:e2e-smoke": "node scripts/e2e-enterprise-creation-isolation.mjs",
     "qa:functions-health": "node scripts/verify-edge-functions-runtime.mjs",
     "qa:db-health": "supabase db query --linked --file \"scripts/sql/qa_runtime_health.sql\"",
+    "qa:backend-health": "npm run qa:functions-health && npm run qa:db-health",
     "qa:full": "npm run qa:verify-chef-role && npm run qa:e2e-smoke",
-    "validate:mission": "npm run validate:app && npm run qa:functions-health && npm run qa:db-health && npm run qa:full",
+    "validate:mission": "npm run validate:app && npm run qa:backend-health && npm run qa:full",
     "validate:mission:ci": "npm run validate:app && npm run qa:functions-health"
   },
   "browserslist": {
