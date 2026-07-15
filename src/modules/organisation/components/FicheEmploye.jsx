@@ -8,7 +8,7 @@ import { useEmployeDetail, useDepartements, usePostes } from '../hooks.js';
 import { ROLE_COLORS, NIVEAUX_POSTE } from '../config.js';
 import { updateEmploye, setEmployeDepartements, desactiverEmploye, reactiversEmploye, changerRoleEmploye, supprimerEmploye, reinitialiserMotDePasseEmploye } from '../services.js';
 
-const ROLE_LABELS = { admin: 'Admin', responsable: 'Responsable', employe: 'Employé', super_admin: 'Super Admin' };
+const ROLE_LABELS = { admin: 'Admin', responsable: 'Responsable', chef_equipe: 'Chef d équipe', employe: 'Employé', super_admin: 'Super Admin' };
 const LANGUE_LABELS = { fr: 'Français', en: 'English', es: 'Español', ar: 'Arabe' };
 
 export default function FicheEmploye({ employeId, entrepriseId, permissions, profile, onBack }) {

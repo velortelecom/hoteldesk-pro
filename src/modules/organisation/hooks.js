@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   getDepartements, getPostes, getEmployes, getEmployeById,
   createDepartement, updateDepartement, toggleDepartementActif,
+  getEquipes, createEquipe, updateEquipe, toggleEquipeActif,
   createPoste, updatePoste, togglePosteActif,
   updateEmploye, desactiverEmploye, reactiversEmploye,
   creerEmploye, supprimerEmploye, changerRoleEmploye, reinitialiserMotDePasseEmploye,
@@ -97,6 +98,46 @@ export function usePostes(entrepriseId, departementId = null) {
   };
 
   return { postes, loading, error, reload: load, create, update, toggle };
+}
+
+export function useEquipes(entrepriseId, departementId = null) {
+  const [equipes, setEquipes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(async () => {
+    if (!entrepriseId) return;
+    setLoading(true);
+    try {
+      const data = await getEquipes(entrepriseId, departementId);
+      setEquipes(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [entrepriseId, departementId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const create = async (payload) => {
+    const equipe = await createEquipe(entrepriseId, payload);
+    setEquipes(prev => [...prev, equipe].sort((a, b) => a.nom.localeCompare(b.nom)));
+    return equipe;
+  };
+
+  const update = async (id, payload) => {
+    const equipe = await updateEquipe(id, payload);
+    setEquipes(prev => prev.map(item => item.id === id ? equipe : item));
+    return equipe;
+  };
+
+  const toggle = async (id, actif) => {
+    await toggleEquipeActif(id, actif);
+    setEquipes(prev => prev.map(item => item.id === id ? { ...item, actif } : item));
+  };
+
+  return { equipes, loading, error, reload: load, create, update, toggle };
 }
 
 // ============================================================

@@ -48,6 +48,48 @@ export async function toggleDepartementActif(id, actif) {
   return updateDepartement(id, { actif });
 }
 
+export async function getEquipes(entrepriseId, departementId = null) {
+  let query = supabase
+    .from('equipes')
+    .select('*')
+    .eq('entreprise_id', entrepriseId)
+    .eq('actif', true)
+    .order('nom', { ascending: true });
+
+  if (departementId) {
+    query = query.eq('departement_id', departementId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createEquipe(entrepriseId, payload) {
+  const { data, error } = await supabase
+    .from('equipes')
+    .insert({ ...payload, entreprise_id: entrepriseId })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateEquipe(id, payload) {
+  const { data, error } = await supabase
+    .from('equipes')
+    .update(payload)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function toggleEquipeActif(id, actif) {
+  return updateEquipe(id, { actif });
+}
+
 // ============================================================
 // POSTES
 // ============================================================
@@ -112,6 +154,11 @@ export async function getEmployes(entrepriseId, options = {}) {
         id,
         est_principal,
         departement:departement_id(id, nom, couleur, icone)
+      ),
+      employe_equipes(
+        id,
+        est_principal,
+        equipe:equipe_id(id, nom, code, couleur, departement_id)
       )
     `)
     .eq('entreprise_id', entrepriseId)
@@ -139,6 +186,11 @@ export async function getEmployeById(id) {
         date_debut,
         date_fin,
         departement:departement_id(id, nom, couleur, icone)
+      ),
+      employe_equipes(
+        id,
+        est_principal,
+        equipe:equipe_id(id, nom, code, couleur, departement_id)
       )
     `)
     .eq('id', id)
@@ -268,15 +320,17 @@ export async function setEmployeDepartements(profileId, entrepriseId, departemen
 // ============================================================
 
 export async function getStatsOrganisation(entrepriseId) {
-  const [employes, departements, postes] = await Promise.all([
+  const [employes, departements, postes, equipes] = await Promise.all([
     supabase.from('profiles').select('id', { count: 'exact' }).eq('entreprise_id', entrepriseId).eq('actif', true),
     supabase.from('departements').select('id', { count: 'exact' }).eq('entreprise_id', entrepriseId).eq('actif', true),
     supabase.from('postes').select('id', { count: 'exact' }).eq('entreprise_id', entrepriseId).eq('actif', true),
+    supabase.from('equipes').select('id', { count: 'exact' }).eq('entreprise_id', entrepriseId).eq('actif', true),
   ]);
 
   return {
     totalEmployes: employes.count || 0,
     totalDepartements: departements.count || 0,
     totalPostes: postes.count || 0,
+    totalEquipes: equipes.count || 0,
   };
 }

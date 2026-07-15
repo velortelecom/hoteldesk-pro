@@ -9,6 +9,7 @@ import { ROLE_COLORS } from '../config.js';
 const ROLE_LABELS = {
   admin: 'Admin',
   responsable: 'Responsable',
+  chef_equipe: 'Chef d équipe',
   employe: 'Employe',
   super_admin: 'Super Admin',
 };
@@ -172,6 +173,7 @@ export default function ListeEmployes({ entrepriseId, permissions, profile, onVi
           <option value="">Tous les roles</option>
           <option value="admin">Admin</option>
           <option value="responsable">Responsable</option>
+          <option value="chef_equipe">Chef d équipe</option>
           <option value="employe">Employe</option>
         </select>
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', cursor: 'pointer' }}>

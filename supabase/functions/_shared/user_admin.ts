@@ -1,5 +1,5 @@
 export const PROTECTED_SUPER_ADMIN_ID = '3c6e5a19-dbb9-4d6e-8492-dbb642d8e9a4';
-export const ALLOWED_ROLES = ['admin', 'responsable', 'employe'] as const;
+export const ALLOWED_ROLES = ['admin', 'responsable', 'chef_equipe', 'employe'] as const;
 export type AllowedRole = typeof ALLOWED_ROLES[number];
 
 export function isAllowedRole(role: string): role is AllowedRole {

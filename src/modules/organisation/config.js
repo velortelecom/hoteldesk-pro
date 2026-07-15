@@ -10,6 +10,7 @@ export const MODULE_VERSION = '1.0.0';
 export const ROLE_COLORS = {
   admin: '#ef4444',
   responsable: '#f59e0b',
+  chef_equipe: '#0f766e',
   employe: '#6366f1',
   super_admin: '#8b5cf6',
 };
@@ -56,6 +57,7 @@ export const POSTES_TEMPLATE_HOTEL = [
 export const MODULE_TABS = [
   { id: 'employes', label: 'Employes', icon: '👥' },
   { id: 'departements', label: 'Departements', icon: '🏢' },
+  { id: 'equipes', label: 'Equipes', icon: '🧩' },
   { id: 'postes', label: 'Postes', icon: '💼' },
   { id: 'organigramme', label: 'Organigramme', icon: '🌳' },
 ];

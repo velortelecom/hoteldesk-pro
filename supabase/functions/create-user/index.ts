@@ -58,6 +58,12 @@ async function getCallerProfile(supabase: ReturnType<typeof createClient>, userI
   return data;
 }
 
+function toCreateUserErrorCode(error: unknown) {
+  const raw = String((error as { message?: string; code?: string })?.message || (error as { code?: string })?.code || error || '').toLowerCase();
+  if (raw.includes('email_exists') || raw.includes('already been registered')) return 'email_exists';
+  return 'auth_create_failed';
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: buildCorsHeaders(req) });
   if (req.method !== 'POST') return corsResponse(req, { success: false, error: 'method_not_allowed' }, 405);
@@ -108,19 +114,35 @@ Deno.serve(async (req: Request) => {
   let email = emailInput || buildFallbackEmail(prenom, nom, entrepriseId);
   const generatedPassword = generateTempPassword(16);
 
-  const { data: existingUser } = await supabase.auth.admin.getUserByEmail(email);
-  if (existingUser?.user) {
-    const localPart = email.split('@')[0];
-    email = `${localPart}.${crypto.randomUUID().slice(0, 8)}@velor.local`;
-  }
-
   const { data: createdUser, error: createUserError } = await supabase.auth.admin.createUser({
     email,
     password: generatedPassword,
     email_confirm: true,
     user_metadata: { prenom, nom, role: requestedRole, entreprise_id: entrepriseId },
   });
-  if (createUserError || !createdUser.user) return corsResponse(req, { success: false, error: createUserError?.message || 'auth_create_failed' }, 400);
+  if (createUserError || !createdUser.user) {
+    const code = toCreateUserErrorCode(createUserError || 'auth_create_failed');
+    if (code === 'email_exists' && emailInput) {
+      return corsResponse(req, { success: false, error: 'email_exists' }, 409);
+    }
+
+    if (code === 'email_exists' && !emailInput) {
+      const localPart = email.split('@')[0];
+      email = `${localPart}.${crypto.randomUUID().slice(0, 8)}@velor.local`;
+      const retry = await supabase.auth.admin.createUser({
+        email,
+        password: generatedPassword,
+        email_confirm: true,
+        user_metadata: { prenom, nom, role: requestedRole, entreprise_id: entrepriseId },
+      });
+      if (retry.error || !retry.data.user) {
+        return corsResponse(req, { success: false, error: retry.error?.message || 'auth_create_failed' }, 400);
+      }
+      createdUser.user = retry.data.user;
+    } else {
+      return corsResponse(req, { success: false, error: createUserError?.message || 'auth_create_failed' }, 400);
+    }
+  }
 
   try {
     const profilePayload: Record<string, unknown> = {

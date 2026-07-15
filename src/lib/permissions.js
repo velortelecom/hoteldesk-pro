@@ -10,7 +10,7 @@ export function isSuperAdmin(profile) {
 }
 
 export function isAdminLike(profile) {
-  return isSuperAdmin(profile) || ['admin', 'responsable'].includes(profile?.role)
+  return isSuperAdmin(profile) || ['admin', 'responsable', 'chef_equipe'].includes(profile?.role)
 }
 
 export function hasPermission(permissionSet = DEFAULT_PERMISSIONS, permission) {

@@ -15,6 +15,7 @@ export const DEFAULT_PERMISSIONS = {
 
 export const ROLE_PERMISSIONS = {
   employe:     { voir: true,  creer: true,  modifier: false, supprimer: false, exporter: false, valider: false, administrer: false },
+  chef_equipe: { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: false, valider: false, administrer: false },
   responsable: { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: true,  valider: true,  administrer: false },
   admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true,  valider: true,  administrer: true  },
   super_admin: { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true,  valider: true,  administrer: true  },
@@ -38,6 +39,7 @@ export const MODULES_REGISTRY = [
     composant: lazy(() => import('./organisation/index.jsx')),
     permissionsParRole: {
       employe: { voir: true, creer: false, modifier: false, supprimer: false, exporter: false, valider: false, administrer: false },
+      chef_equipe: { voir: true, creer: true, modifier: true, supprimer: false, exporter: false, valider: false, administrer: false },
       responsable: { voir: true, creer: true, modifier: true, supprimer: false, exporter: true, valider: true, administrer: false },
       admin: { voir: true, creer: true, modifier: true, supprimer: true, exporter: true, valider: true, administrer: true },
     },
@@ -57,6 +59,7 @@ export const MODULES_REGISTRY = [
     composant: lazy(() => import('./pointage/index.jsx')),
     permissionsParRole: {
       employe: { voir: true, creer: true, modifier: false, supprimer: false, exporter: false, valider: false, administrer: false },
+      chef_equipe: { voir: true, creer: true, modifier: true, supprimer: false, exporter: false, valider: false, administrer: false },
       responsable: { voir: true, creer: true, modifier: true, supprimer: false, exporter: true, valider: true, administrer: false },
       admin: { voir: true, creer: true, modifier: true, supprimer: true, exporter: true, valider: true, administrer: true },
     },
@@ -77,6 +80,7 @@ export const MODULES_REGISTRY = [
     composant: lazy(() => import('./conges/index.jsx')),
     permissionsParRole: {
       employe:     { voir: true,  creer: true,  modifier: false, supprimer: false, exporter: false, valider: false },
+      chef_equipe: { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: false, valider: false },
       responsable: { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: true,  valider: true  },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true,  valider: true  },
     },

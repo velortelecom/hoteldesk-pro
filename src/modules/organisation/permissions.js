@@ -23,6 +23,12 @@ export const PERMISSIONS_BY_ROLE = {
     PERMS.VIEW_NOTES,
   ],
 
+  chef_equipe: [
+    PERMS.VIEW_EMPLOYES,
+    PERMS.CREATE_EMPLOYE,
+    PERMS.EDIT_EMPLOYE,
+  ],
+
   responsable: [
     PERMS.VIEW_EMPLOYES,
     PERMS.CREATE_EMPLOYE,

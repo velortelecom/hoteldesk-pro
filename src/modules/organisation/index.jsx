@@ -14,6 +14,7 @@ import { useDepartements, usePostes, useEmployes, useStatsOrganisation } from '.
 import ListeEmployes from './components/ListeEmployes.jsx';
 import FicheEmploye from './components/FicheEmploye.jsx';
 import GestionDepartements from './components/GestionDepartements.jsx';
+import GestionEquipes from './components/GestionEquipes.jsx';
 import GestionPostes from './components/GestionPostes.jsx';
 import Organigramme from './components/Organigramme.jsx';
 
@@ -76,6 +77,7 @@ export default function OrganisationModule({ profile, permissions: permissionsLo
           <p style={{ margin: '0.25rem 0 0', color: '#6b7280', fontSize: '0.875rem' }}>
             {stats.totalEmployes} employé{stats.totalEmployes !== 1 ? 's' : ''} •{' '}
             {stats.totalDepartements} département{stats.totalDepartements !== 1 ? 's' : ''} •{' '}
+            {stats.totalEquipes || 0} équipe{(stats.totalEquipes || 0) !== 1 ? 's' : ''} •{' '}
             {stats.totalPostes} poste{stats.totalPostes !== 1 ? 's' : ''}
           </p>
         </div>
@@ -135,6 +137,13 @@ export default function OrganisationModule({ profile, permissions: permissionsLo
 
         {activeTab === 'departements' && (
           <GestionDepartements
+            entrepriseId={entrepriseId}
+            permissions={permissions}
+          />
+        )}
+
+        {activeTab === 'equipes' && (
+          <GestionEquipes
             entrepriseId={entrepriseId}
             permissions={permissions}
           />
