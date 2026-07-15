@@ -112,9 +112,11 @@ export async function getTodaySummary(profile) {
   if (!profile?.entreprise_id) return EMPTY_STATS
 
   const { start, end } = getDayRange()
+  const today = start.slice(0, 10)
 
-  const [{ data: employees = [] }, { data: pointagesRaw = [] }] = await Promise.all([
-    supabase.from('profiles').select('id').eq('entreprise_id', profile.entreprise_id).eq('actif', true),
+  const [{ data: plannedShifts = [] }, { data: leaves = [] }, { data: pointagesRaw = [] }] = await Promise.all([
+    supabase.from('shifts').select('employe_id').eq('entreprise_id', profile.entreprise_id).eq('date_shift', today).neq('statut', 'annule'),
+    supabase.from('conges').select('employe_id').eq('entreprise_id', profile.entreprise_id).eq('statut', 'approuve').lte('date_debut', today).gte('date_fin', today),
     supabase
       .from('pointages')
       .select('profile_id, action, statut, horodatage_evenement')
@@ -122,6 +124,12 @@ export async function getTodaySummary(profile) {
       .gte('horodatage_evenement', start)
       .lte('horodatage_evenement', end),
   ])
+
+  const onLeaveProfiles = new Set((leaves || []).map((leave) => leave.employe_id).filter(Boolean))
+  const expectedProfiles = new Set((plannedShifts || []).map((shift) => shift.employe_id).filter(Boolean))
+  for (const leaveId of onLeaveProfiles) {
+    expectedProfiles.delete(leaveId)
+  }
 
   const presentProfiles = new Set()
   const retards = new Set()
@@ -139,9 +147,9 @@ export async function getTodaySummary(profile) {
   const totalMinutes = Math.max(0, presentProfiles.size) * 8 * 60
 
   return {
-    totalEmployes: employees.length,
+    totalEmployes: expectedProfiles.size,
     present: presentProfiles.size,
-    absents: Math.max(0, employees.length - presentProfiles.size),
+    absents: Math.max(0, expectedProfiles.size - presentProfiles.size),
     retards: retards.size,
     tempsTotal: formatMinutes(totalMinutes),
   }
