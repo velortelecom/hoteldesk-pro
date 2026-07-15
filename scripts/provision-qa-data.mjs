@@ -13,31 +13,73 @@ const admin = createClient(baseUrl, secretKey, { auth: { autoRefreshToken: false
 const userClient = createClient(baseUrl, publishableKey, { auth: { autoRefreshToken: false, persistSession: false } })
 const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)
 
+async function wait(ms) {
+  await new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 function tempPassword(label) {
   return `Velor!${label}_${stamp}`
 }
 
+function qaEmail(prefix) {
+  return `qa.${prefix}.${stamp.slice(-6)}@velor-one.test`
+}
+
 async function ensureUser({ email, password, prenom, nom, role, entrepriseId = null, isSuperAdmin = false }) {
-  const created = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: { prenom, nom, role, entreprise_id: entrepriseId },
-  })
+  console.log(`[qa-provision] ensureUser:start email=${email} role=${role}`)
+  const authMetadataRole = role === 'chef_equipe' ? 'employe' : role
+
+  async function signInExisting() {
+    const signIn = await userClient.auth.signInWithPassword({ email, password })
+    if (signIn.error) return null
+    const userId = signIn.data.user?.id
+    if (!userId) return null
+    await admin.from('profiles').upsert({ id: userId, prenom, nom, role, entreprise_id: entrepriseId, actif: true, is_super_admin: isSuperAdmin })
+    return { userId, email, password }
+  }
+
+  const existing = await signInExisting()
+  if (existing) return existing
+
+  let created = null
+  let lastError = null
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    created = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { prenom, nom, role: authMetadataRole, entreprise_id: entrepriseId },
+    })
+
+    if (!created.error) break
+    lastError = created.error
+    console.warn(`[qa-provision] ensureUser:retry email=${email} attempt=${attempt} status=${created.error.status || 'unknown'} message=${created.error.message || 'n/a'}`)
+    if (created.error.code === 'email_exists') break
+
+    const recovered = await signInExisting()
+    if (recovered) return recovered
+
+    const baseDelay = Math.min(5000, 500 * (2 ** (attempt - 1)))
+    const jitter = Math.floor(Math.random() * 250)
+    await wait(baseDelay + jitter)
+  }
+
+  if (!created) {
+    throw lastError || new Error(`auth_create_failed:${email}`)
+  }
 
   if (created.error) {
     if (created.error.code !== 'email_exists') throw created.error
-    const signIn = await userClient.auth.signInWithPassword({ email, password })
-    if (signIn.error) throw signIn.error
-    const userId = signIn.data.user?.id
-    if (!userId) throw new Error('existing_user_missing_id')
-    await admin.from('profiles').upsert({ id: userId, prenom, nom, role, entreprise_id: entrepriseId, actif: true, is_super_admin: isSuperAdmin })
-    return { userId, email, password }
+    const recovered = await signInExisting()
+    if (recovered) return recovered
+    throw created.error
   }
 
   const userId = created.data.user?.id
   if (!userId) throw new Error('created_user_missing_id')
   await admin.from('profiles').upsert({ id: userId, prenom, nom, role, entreprise_id: entrepriseId, actif: true, is_super_admin: isSuperAdmin })
+  await wait(250)
+  console.log(`[qa-provision] ensureUser:ok email=${email} userId=${userId}`)
   return { userId, email, password }
 }
 
@@ -163,7 +205,7 @@ async function createDemoMessage(entrepriseId, senderId, recipientId, text) {
 
 async function main() {
   const superAdmin = await ensureUser({
-    email: `qa.superadmin.${stamp}@velor-one.test`,
+    email: qaEmail('sa'),
     password: tempPassword('superadmin'),
     prenom: 'QA',
     nom: 'SuperAdmin',
@@ -186,12 +228,12 @@ async function main() {
   const posteChefA = await ensurePoste(entrepriseA.id, deptA.id, 'Chef A', `chef-a-${stamp}`, 3, 'employe')
   const posteEmployeA = await ensurePoste(entrepriseA.id, deptA.id, 'Employé A', `employe-a-${stamp}`, 2, 'employe')
 
-  const adminA = await ensureUser({ email: `qa.admin.a.${stamp}@velor-one.test`, password: tempPassword('adminA'), prenom: 'Admin', nom: 'EntrepriseA', role: 'admin', entrepriseId: entrepriseA.id })
-  const adminB = await ensureUser({ email: `qa.admin.b.${stamp}@velor-one.test`, password: tempPassword('adminB'), prenom: 'Admin', nom: 'EntrepriseB', role: 'admin', entrepriseId: entrepriseB.id })
-  const managerA = await ensureUser({ email: `qa.manager.a.${stamp}@velor-one.test`, password: tempPassword('managerA'), prenom: 'Manager', nom: 'EntrepriseA', role: 'responsable', entrepriseId: entrepriseA.id })
-  const chefA = await ensureUser({ email: `qa.chef.a.${stamp}@velor-one.test`, password: tempPassword('chefA'), prenom: 'Chef', nom: 'EntrepriseA', role: 'chef_equipe', entrepriseId: entrepriseA.id })
-  const employeA1 = await ensureUser({ email: `qa.employe1.a.${stamp}@velor-one.test`, password: tempPassword('employeA1'), prenom: 'Employe1', nom: 'EntrepriseA', role: 'employe', entrepriseId: entrepriseA.id })
-  const employeA2 = await ensureUser({ email: `qa.employe2.a.${stamp}@velor-one.test`, password: tempPassword('employeA2'), prenom: 'Employe2', nom: 'EntrepriseA', role: 'employe', entrepriseId: entrepriseA.id })
+  const adminA = await ensureUser({ email: qaEmail('adma'), password: tempPassword('adminA'), prenom: 'Admin', nom: 'EntrepriseA', role: 'admin', entrepriseId: entrepriseA.id })
+  const adminB = await ensureUser({ email: qaEmail('admb'), password: tempPassword('adminB'), prenom: 'Admin', nom: 'EntrepriseB', role: 'admin', entrepriseId: entrepriseB.id })
+  const managerA = await ensureUser({ email: qaEmail('mana'), password: tempPassword('managerA'), prenom: 'Manager', nom: 'EntrepriseA', role: 'responsable', entrepriseId: entrepriseA.id })
+  const chefA = await ensureUser({ email: qaEmail('chefa'), password: tempPassword('chefA'), prenom: 'Chef', nom: 'EntrepriseA', role: 'chef_equipe', entrepriseId: entrepriseA.id })
+  const employeA1 = await ensureUser({ email: qaEmail('empa1'), password: tempPassword('employeA1'), prenom: 'Employe1', nom: 'EntrepriseA', role: 'employe', entrepriseId: entrepriseA.id })
+  const employeA2 = await ensureUser({ email: qaEmail('empa2'), password: tempPassword('employeA2'), prenom: 'Employe2', nom: 'EntrepriseA', role: 'employe', entrepriseId: entrepriseA.id })
 
   await attachEmployee({ userId: adminA.userId, entrepriseId: entrepriseA.id, siteId: siteA.id, departementId: deptA.id, equipeId: equipeA.id, posteId: posteAdminA.id, role: 'admin' })
   await attachEmployee({ userId: adminB.userId, entrepriseId: entrepriseB.id, siteId: siteB.id, departementId: deptB.id, equipeId: equipeB.id, posteId: posteAdminB.id, role: 'admin' })

@@ -51,7 +51,7 @@ async function probe(name, promiseFactory) {
   })
 }
 
-await probe('profiles_cross_enterprise', () => client.from('profiles').select('id, entreprise_id, prenom, nom').neq('entreprise_id', null).neq('entreprise_id', myEntrepriseId).limit(5))
+await probe('profiles_cross_enterprise', () => client.from('profiles').select('id, entreprise_id, prenom, nom').not('entreprise_id', 'is', null).neq('entreprise_id', myEntrepriseId).limit(5))
 await probe('entreprises_foreign_slug', () => client.from('entreprises').select('id, slug, nom').eq('slug', foreignSlug))
 await probe('messages_other_enterprise', () => client.from('messages').select('id, entreprise_id, contenu').neq('entreprise_id', myEntrepriseId).limit(5))
 await probe('notifications_other_enterprise', () => client.from('notifications').select('id, entreprise_id, title').neq('entreprise_id', myEntrepriseId).limit(5))
