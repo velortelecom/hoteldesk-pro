@@ -5,6 +5,8 @@
 ```bash
 npm test -- --watchAll=false --runInBand
 npm run build
+npm run qa:functions-health
+npm run qa:db-health
 node scripts/verify-create-user-chef-role.mjs
 node scripts/e2e-enterprise-creation-isolation.mjs
 npm run qa:full
@@ -17,6 +19,8 @@ npm run validate:mission
 - nouveaux tests de fondation : routeur, permissions, helpers entreprise
 - verification QA edge function : create-user avec role chef_equipe
 - smoke E2E: create-entreprise (x2) + verification isolation multi-entreprise
+- healthcheck runtime edge functions: create-entreprise/create-user/create-pointage
+- healthcheck invariants DB: contrainte roles profiles, module pointage, RPC atomique entreprise
 
 ## Fichiers de test clés
 

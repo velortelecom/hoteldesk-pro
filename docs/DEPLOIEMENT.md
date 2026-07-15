@@ -25,6 +25,8 @@ Commandes :
 
 ```bash
 npm run qa:provision
+npm run qa:functions-health
+npm run qa:db-health
 npm run qa:verify-chef-role
 npm run qa:e2e-smoke
 npm run qa:full
