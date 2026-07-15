@@ -31,7 +31,22 @@ npm run qa:verify-chef-role
 npm run qa:e2e-smoke
 npm run qa:full
 npm run validate:mission
+npm run validate:mission:ci
 ```
+
+### CI (non-mutant)
+
+Le workflow GitHub Actions `Mission Validation` execute:
+
+- `validate:app` (tests + build)
+- `validate:mission:ci` (tests + build + health edge functions)
+- `qa_runtime_health.sql` via `supabase db query --db-url`
+
+Secrets requis pour le job backend:
+
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_DB_URL`
 
 Pour vérifier l'isolation d'une entreprise admin existante :
 

@@ -22,7 +22,8 @@
     "qa:functions-health": "node scripts/verify-edge-functions-runtime.mjs",
     "qa:db-health": "supabase db query --linked --file \"scripts/sql/qa_runtime_health.sql\"",
     "qa:full": "npm run qa:verify-chef-role && npm run qa:e2e-smoke",
-    "validate:mission": "npm run validate:app && npm run qa:functions-health && npm run qa:db-health && npm run qa:full"
+    "validate:mission": "npm run validate:app && npm run qa:functions-health && npm run qa:db-health && npm run qa:full",
+    "validate:mission:ci": "npm run validate:app && npm run qa:functions-health"
   },
   "browserslist": {
     "production": [">0.2%", "not dead", "not op_mini all"],
