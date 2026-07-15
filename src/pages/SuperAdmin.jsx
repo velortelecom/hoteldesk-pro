@@ -64,17 +64,18 @@ export default function SuperAdmin() {
   const [adminSuccessInfo, setAdminSuccessInfo] = useState(null)
   const [showAdminModal, setShowAdminModal] = useState(false)
   const [adminModalEnt, setAdminModalEnt] = useState(null)
-  const [adminForm, setAdminForm] = useState({ prenom: '', nom: '', email: '', telephone: '', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true })
+  const [adminForm, setAdminForm] = useState({ prenom: '', nom: '', email: '', telephone: '', poste_id: '', poste_secondaire_id: '', departement_ids: [], site_id: '', actif: true })
   const [adminSaving, setAdminSaving] = useState(false)
   const [adminMsg, setAdminMsg] = useState(null)
   const [showEmployeModal, setShowEmployeModal] = useState(false)
   const [employeModalEnt, setEmployeModalEnt] = useState(null)
-  const [employeForm, setEmployeForm] = useState({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true })
+  const [employeForm, setEmployeForm] = useState({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], site_id: '', actif: true })
   const [employeSaving, setEmployeSaving] = useState(false)
   const [employeMsg, setEmployeMsg] = useState(null)
   const [employeSuccessInfo, setEmployeSuccessInfo] = useState(null)
   const [entPostes, setEntPostes] = useState({})
   const [entDeps, setEntDeps] = useState({})
+  const [entSites, setEntSites] = useState({})
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [entUsers, setEntUsers] = useState({})
   const [expandedUsersEnt, setExpandedUsersEnt] = useState(null)
@@ -133,12 +134,13 @@ export default function SuperAdmin() {
   }
 
   async function fetchPostesEtDeps(entId) {
-    const [{ data: postes }, { data: deps }] = await Promise.all([
-      supabase.from('postes').select('id, nom, departement_id, actif').eq('entreprise_id', entId).eq('actif', true).order('nom'),
-      supabase.from('departements').select('id, nom, code, actif').eq('entreprise_id', entId).eq('actif', true).order('nom'),
-    ])
-    setEntPostes(prev => ({ ...prev, [entId]: postes || [] }))
-    setEntDeps(prev => ({ ...prev, [entId]: deps || [] }))
+    const [{ data: postes }, { data: deps }, { data: sites }] = await Promise.all([
+            supabase.from('postes').select('id, nom, departement_id, actif').eq('entreprise_id', entId).eq('actif', true).order('nom'),
+            supabase.from('departements').select('id, nom, code, actif').eq('entreprise_id', entId).eq('actif', true).order('nom'),
+            supabase.from('sites').select('id, nom, actif').eq('entreprise_id', entId).eq('actif', true).order('nom'),
+          ])
+        setEntPostes(prev => ({ ...prev, [entId]: postes || [] }))
+        setEntDeps(prev => ({ ...prev, [entId]: deps || [] }))
   }
 
   async function deleteUser(userId, entId) {
@@ -518,6 +520,7 @@ async function creerCompteMembre(entrepriseId, formData, role) {
       telephone: formData.telephone || null,
       poste_id: formData.poste_id || null,
       poste_secondaire_id: formData.poste_secondaire_id || null,
+      site_id: formData.site_id || null,
       departement_ids: (formData.departement_ids && formData.departement_ids.length > 0) ? formData.departement_ids : undefined,
       actif: formData.actif !== false,
     }
@@ -838,6 +841,11 @@ async function createEmploye(entrepriseId) {
               <input readOnly onFocus={e => e.target.removeAttribute('readonly')} autoComplete="off" placeholder="Nom *" value={adminForm.nom} onChange={ev => setAdminForm(f => ({ ...f, nom: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
               <input readOnly onFocus={e => e.target.removeAttribute('readonly')} autoComplete="off" placeholder="Email (optionnel)" type="email" value={adminForm.email} onChange={ev => setAdminForm(f => ({ ...f, email: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
               <input readOnly onFocus={e => e.target.removeAttribute('readonly')} autoComplete="off" placeholder="Telephone (optionnel)" value={adminForm.telephone} onChange={ev => setAdminForm(f => ({ ...f, telephone: ev.target.value }))} style={{ padding: '10px 12px', border: '1px solid #D1D5DB', borderRadius: 8, fontSize: 14 }} />
+<Field label="Site">
+<select value={adminForm.site_id} onChange={ev => setAdminForm(f => ({ ...f, site_id: ev.target.value }))} style={inputStyle}>
+<option value="">Aucun</option>
+  {(entSites[adminModalEnt.id] || []).map(s => <option key={s.id} value={s.id}>{s.nom}</option>)}
+  </select></Field>
               <Field label="Poste principal">
                 <select value={adminForm.poste_id} onChange={ev => setAdminForm(f => ({ ...f, poste_id: ev.target.value }))} style={inputStyle}>
                   <option value="">Aucun</option>
@@ -904,6 +912,11 @@ async function createEmploye(entrepriseId) {
                   <option value="admin">Admin</option>
                 </select>
               </Field>
+<Field label="Site">
+<select value={employeForm.site_id} onChange={e => setEmployeForm(f => ({ ...f, site_id: e.target.value }))} style={inputStyle}>
+<option value="">Aucun</option>
+  {(entSites[employeModalEnt.id] || []).map(s => <option key={s.id} value={s.id}>{s.nom}</option>)}
+  </select></Field>
               <Field label="Poste principal">
                 <select value={employeForm.poste_id} onChange={e => setEmployeForm(f => ({ ...f, poste_id: e.target.value }))} style={inputStyle}>
                   <option value="">Aucun</option>
