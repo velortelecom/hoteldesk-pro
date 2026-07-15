@@ -5,12 +5,14 @@
 ```bash
 npm test -- --watchAll=false --runInBand
 npm run build
+node scripts/verify-create-user-chef-role.mjs
 ```
 
 ## Résultat courant
 
 - tests historiques : OK
 - nouveaux tests de fondation : routeur, permissions, helpers entreprise
+- verification QA edge function : create-user avec role chef_equipe
 
 ## Fichiers de test clés
 

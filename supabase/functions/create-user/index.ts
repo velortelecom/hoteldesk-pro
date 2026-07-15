@@ -85,6 +85,7 @@ Deno.serve(async (req: Request) => {
   const prenom = String(payload.prenom ?? '').trim();
   const nom = String(payload.nom ?? '').trim();
   const requestedRole = String(payload.role ?? 'employe').trim();
+  const authMetadataRole = requestedRole === 'chef_equipe' ? 'employe' : requestedRole;
   const entrepriseId = String(payload.entreprise_id ?? '').trim();
   const emailInput = String(payload.email ?? '').trim();
   const telephone = payload.telephone ? String(payload.telephone).trim() : null;
@@ -118,7 +119,7 @@ Deno.serve(async (req: Request) => {
     email,
     password: generatedPassword,
     email_confirm: true,
-    user_metadata: { prenom, nom, role: requestedRole, entreprise_id: entrepriseId },
+    user_metadata: { prenom, nom, role: authMetadataRole, entreprise_id: entrepriseId },
   });
   if (createUserError || !createdUser.user) {
     const code = toCreateUserErrorCode(createUserError || 'auth_create_failed');
@@ -133,14 +134,14 @@ Deno.serve(async (req: Request) => {
         email,
         password: generatedPassword,
         email_confirm: true,
-        user_metadata: { prenom, nom, role: requestedRole, entreprise_id: entrepriseId },
+        user_metadata: { prenom, nom, role: authMetadataRole, entreprise_id: entrepriseId },
       });
       if (retry.error || !retry.data.user) {
-        return corsResponse(req, { success: false, error: retry.error?.message || 'auth_create_failed' }, 400);
+        return corsResponse(req, { success: false, error: toCreateUserErrorCode(retry.error || 'auth_create_failed') }, 400);
       }
       createdUser.user = retry.data.user;
     } else {
-      return corsResponse(req, { success: false, error: createUserError?.message || 'auth_create_failed' }, 400);
+      return corsResponse(req, { success: false, error: toCreateUserErrorCode(createUserError || 'auth_create_failed') }, 400);
     }
   }
 
