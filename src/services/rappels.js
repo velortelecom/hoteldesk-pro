@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { requireEnterpriseId, requireProfileId } from './enterprise'
+import { createBusinessEvent, createNotification } from './notifications'
 
 function buildRoleScopedTaskQuery(profile, userRole) {
   const enterpriseId = requireEnterpriseId(profile)
@@ -60,15 +61,36 @@ export async function fetchReminderAssignees(profile) {
 export async function createReminder(profile, form, dateRappel) {
   const enterpriseId = requireEnterpriseId(profile)
   const profileId = requireProfileId(profile)
-  const { error } = await supabase.from('rappels').insert({
+  const { data, error } = await supabase.from('rappels').insert({
     ...form,
     date_rappel: dateRappel,
     cree_par: profileId,
     assigne_a: form.assigne_a || null,
     entreprise_id: enterpriseId,
-  })
+  }).select('id, assigne_a, titre').single()
 
   if (error) throw error
+
+  await createBusinessEvent(profile, {
+    eventType: 'reminder_created',
+    title: 'Rappel créé',
+    description: form.titre,
+    resourceType: 'rappel',
+    resourceId: data?.id || null,
+    payload: { assigne_a: data?.assigne_a || null },
+  })
+
+  if (data?.assigne_a && data.assigne_a !== profileId) {
+    await createNotification(profile, {
+      recipientId: data.assigne_a,
+      type: 'reminder_assigned',
+      title: 'Nouveau rappel',
+      content: form.titre,
+      link: '/rappels',
+      resourceType: 'rappel',
+      resourceId: data.id,
+    })
+  }
 }
 
 export async function deleteReminder(id) {

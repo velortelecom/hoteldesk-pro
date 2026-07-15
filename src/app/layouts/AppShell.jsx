@@ -8,6 +8,7 @@ import { getPageIdFromPath, getPagePath, buildRouteEntries } from '../router/rou
 import { canAccessSuperAdmin, getPermissionsForModule, isAdminLike } from '../../lib/permissions'
 import { ErrorBoundary } from '../../components/shared/ErrorBoundary'
 import { supabase } from '../../lib/supabase'
+import { fetchRecentNotifications, fetchUnreadNotificationCount, markNotificationRead } from '../../services/notifications'
 import Login from '../../pages/Login'
 import Planning from '../../pages/Planning'
 import Taches from '../../pages/Taches'
@@ -54,6 +55,9 @@ export default function AppShell() {
   const [toasts, setToasts] = useState([])
   const [nomEntreprise, setNomEntreprise] = useState('Velor One')
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [notifications, setNotifications] = useState([])
+  const [unreadCount, setUnreadCount] = useState(0)
 
   const loadedModules = useMemo(() => buildLoadedModules(modulesActifs, profile), [modulesActifs, profile])
   const currentPageId = getPageIdFromPath(location.pathname, loadedModules) || 'dashboard'
@@ -62,7 +66,13 @@ export default function AppShell() {
 
   useEffect(() => {
     setShowUserMenu(false)
+    setShowNotifications(false)
   }, [location.pathname])
+
+  useEffect(() => {
+    if (!profile?.id) return
+    loadNotifications()
+  }, [profile?.id])
 
   useEffect(() => {
     if (profile?.entreprise_id) {
@@ -88,6 +98,29 @@ export default function AppShell() {
   function goToPage(pageId) {
     navigate(getPagePath(pageId, loadedModules))
     setShowUserMenu(false)
+    setShowNotifications(false)
+  }
+
+  async function loadNotifications() {
+    try {
+      const [items, count] = await Promise.all([
+        fetchRecentNotifications(profile),
+        fetchUnreadNotificationCount(profile),
+      ])
+      setNotifications(items)
+      setUnreadCount(count)
+    } catch (error) {
+      console.error('notifications:', error)
+    }
+  }
+
+  async function handleOpenNotification(notification) {
+    if (!notification.read_at) {
+      await markNotificationRead(notification.id)
+      await loadNotifications()
+    }
+    setShowNotifications(false)
+    if (notification.link) navigate(notification.link)
   }
 
   if (authLoading) {
@@ -124,6 +157,27 @@ export default function AppShell() {
               🛡 Super Admin
             </button>
           )}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowNotifications((open) => !open)} style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 999, width: 36, height: 36, cursor: 'pointer', fontSize: 16, position: 'relative' }}>
+              🔔
+              {unreadCount > 0 && <span style={{ position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, padding: '0 4px', borderRadius: 999, background: '#DC2626', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{unreadCount}</span>}
+            </button>
+            {showNotifications && (
+              <div style={{ position: 'absolute', right: 0, top: 44, background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, minWidth: 320, maxWidth: 360, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 220, overflow: 'hidden' }}>
+                <div style={{ padding: '10px 14px', borderBottom: '1px solid #F3F4F6', fontWeight: 600, fontSize: 13 }}>Notifications</div>
+                <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+                  {notifications.length === 0 && <div style={{ padding: '14px', fontSize: 12, color: '#6B7280' }}>Aucune notification.</div>}
+                  {notifications.map((notification) => (
+                    <button key={notification.id} onClick={() => handleOpenNotification(notification)} style={{ width: '100%', textAlign: 'left', padding: '12px 14px', border: 'none', borderBottom: '1px solid #F3F4F6', background: notification.read_at ? '#fff' : '#EFF6FF', cursor: 'pointer' }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#111' }}>{notification.title}</div>
+                      {notification.content && <div style={{ fontSize: 12, color: '#4B5563', marginTop: 2 }}>{notification.content}</div>}
+                      <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>{new Date(notification.created_at).toLocaleString('fr-FR')}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           <button onClick={signOut} title="Se deconnecter" style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: '#DC2626', fontWeight: 500 }}>
             ⏻ Se deconnecter
           </button>

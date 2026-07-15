@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { requireEnterpriseId, requireProfileId } from './enterprise'
+import { createBusinessEvent, createNotification } from './notifications'
 
 export async function fetchMessageContacts(profile) {
   const enterpriseId = requireEnterpriseId(profile)
@@ -46,12 +47,33 @@ export async function markConversationRead(profile, selectedId) {
 export async function sendConversationMessage(profile, selectedId, texte) {
   const enterpriseId = requireEnterpriseId(profile)
   const profileId = requireProfileId(profile)
-  const { error } = await supabase.from('messages').insert({
+  const { data, error } = await supabase.from('messages').insert({
     expediteur_id: profileId,
     destinataire_id: selectedId,
     contenu: texte.trim(),
     entreprise_id: enterpriseId,
-  })
+  }).select('id').single()
 
   if (error) throw error
+
+  await Promise.all([
+    createBusinessEvent(profile, {
+      eventType: 'message_sent',
+      title: 'Message envoyé',
+      description: texte.trim(),
+      resourceType: 'message',
+      resourceId: data?.id || null,
+      payload: { recipient_id: selectedId },
+    }),
+    createNotification(profile, {
+      recipientId: selectedId,
+      type: 'message_received',
+      title: 'Nouveau message',
+      content: texte.trim(),
+      link: '/messages',
+      resourceType: 'message',
+      resourceId: data?.id || null,
+      payload: { expediteur_id: profileId },
+    }),
+  ])
 }

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { requireEnterpriseId, requireProfileId } from './enterprise'
+import { createBusinessEvent, createNotification } from './notifications'
 
 export async function fetchTaskMembers(profile) {
   const enterpriseId = requireEnterpriseId(profile)
@@ -39,8 +40,10 @@ export async function deleteTask(id, isParent) {
 }
 
 export async function updateTaskStatus(id, statut) {
-  const { error } = await supabase.from('taches').update({ statut }).eq('id', id)
+  const { data, error } = await supabase.from('taches').update({ statut }).eq('id', id).select('id, titre, assigne_a').single()
   if (error) throw error
+
+  return data
 }
 
 export async function saveTask(profile, payload, editTache) {
@@ -48,11 +51,40 @@ export async function saveTask(profile, payload, editTache) {
   const profileId = requireProfileId(profile)
 
   if (editTache?.id) {
-    const { error } = await supabase.from('taches').update(payload).eq('id', editTache.id)
+    const { data, error } = await supabase.from('taches').update(payload).eq('id', editTache.id).select('id, titre, assigne_a').single()
     if (error) throw error
+    await createBusinessEvent(profile, {
+      eventType: 'task_updated',
+      title: 'Tâche modifiée',
+      description: payload.titre,
+      resourceType: 'tache',
+      resourceId: data?.id || editTache.id,
+      payload: { assigne_a: data?.assigne_a || null },
+    })
     return
   }
 
-  const { error } = await supabase.from('taches').insert({ ...payload, cree_par: profileId, entreprise_id: enterpriseId })
+  const { data, error } = await supabase.from('taches').insert({ ...payload, cree_par: profileId, entreprise_id: enterpriseId }).select('id, titre, assigne_a').single()
   if (error) throw error
+
+  await createBusinessEvent(profile, {
+    eventType: 'task_created',
+    title: 'Tâche créée',
+    description: payload.titre,
+    resourceType: 'tache',
+    resourceId: data?.id || null,
+    payload: { assigne_a: data?.assigne_a || null },
+  })
+
+  if (data?.assigne_a && data.assigne_a !== profileId) {
+    await createNotification(profile, {
+      recipientId: data.assigne_a,
+      type: 'task_assigned',
+      title: 'Nouvelle tâche',
+      content: payload.titre,
+      link: '/taches',
+      resourceType: 'tache',
+      resourceId: data.id,
+    })
+  }
 }
