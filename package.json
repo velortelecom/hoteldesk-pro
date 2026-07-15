@@ -13,7 +13,11 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test"
+    "test": "react-scripts test",
+    "qa:provision": "node scripts/provision-qa-data.mjs",
+    "qa:isolation": "node scripts/verify-enterprise-isolation.mjs",
+    "qa:verify-chef-role": "node scripts/verify-create-user-chef-role.mjs",
+    "qa:e2e-smoke": "node scripts/e2e-enterprise-creation-isolation.mjs"
   },
   "browserslist": {
     "production": [">0.2%", "not dead", "not op_mini all"],

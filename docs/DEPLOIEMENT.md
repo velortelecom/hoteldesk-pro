@@ -8,6 +8,33 @@ npm test -- --watchAll=false --runInBand
 npm run build
 ```
 
+## Vérifications QA / E2E
+
+Préparer les variables d'environnement (selon le script) :
+
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SECRET_KEY` (provisioning uniquement)
+- `QA_ADMIN_EMAIL`
+- `QA_ADMIN_PASSWORD`
+- `QA_FOREIGN_ENTREPRISE_SLUG` (isolation ciblée)
+- `E2E_SUPERADMIN_EMAIL`
+- `E2E_SUPERADMIN_PASSWORD`
+
+Commandes :
+
+```bash
+npm run qa:provision
+npm run qa:verify-chef-role
+npm run qa:e2e-smoke
+```
+
+Pour vérifier l'isolation d'une entreprise admin existante :
+
+```bash
+npm run qa:isolation
+```
+
 ## Supabase
 
 - projet lié : `vcpnrisxbnvyupsbieie`
