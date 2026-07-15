@@ -35,6 +35,7 @@ function toErrorCode(error: unknown) {
   if (raw.includes('forbidden')) return 'forbidden';
   if (raw.includes('authentication_required') || raw.includes('invalid_token')) return 'authentication_required';
   if (raw.includes('admin_create_failed')) return 'admin_create_failed';
+  if (raw.includes('email_exists') || raw.includes('already been registered')) return 'admin_email_already_exists';
   if (raw.includes('admin_profile_create_failed')) return 'admin_profile_create_failed';
   if (raw.includes('admin_email_already_exists')) return 'admin_email_already_exists';
 
@@ -130,11 +131,6 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (adminEmail) {
-      const { data: existingByEmail } = await supabase.auth.admin.getUserByEmail(adminEmail);
-      if (existingByEmail?.user) {
-        return corsResponse({ success: false, error: 'admin_email_already_exists' }, 409);
-      }
-
       adminPassword = generateTempPassword(16);
       const { data: createdUser, error: createUserError } = await supabase.auth.admin.createUser({
         email: adminEmail,
@@ -148,7 +144,9 @@ Deno.serve(async (req: Request) => {
       });
 
       if (createUserError || !createdUser.user?.id) {
-        return corsResponse({ success: false, error: 'admin_create_failed' }, 400);
+        const code = toErrorCode(createUserError || 'admin_create_failed');
+        const status = code === 'admin_email_already_exists' ? 409 : 400;
+        return corsResponse({ success: false, error: code }, status);
       }
 
       adminUserId = createdUser.user.id;
