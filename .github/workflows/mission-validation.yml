@@ -27,8 +27,13 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: 24.16.0
+
+      - name: Setup npm
+        run: npm i -g npm@11.13.0
+
+      - name: Print runtime versions
+        run: node -v && npm -v
 
       - name: Install dependencies
         run: npm ci
@@ -53,17 +58,30 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: 24.16.0
+
+      - name: Setup npm
+        run: npm i -g npm@11.13.0
+
+      - name: Print runtime versions
+        run: node -v && npm -v
 
       - name: Setup Supabase CLI
+        if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_PUBLISHABLE_KEY != '' && env.SUPABASE_DB_URL != '' }}
         uses: supabase/setup-cli@v1
 
       - name: Install dependencies
+        if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_PUBLISHABLE_KEY != '' && env.SUPABASE_DB_URL != '' }}
         run: npm ci
 
       - name: Validate non-mutating mission checks
+        if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_PUBLISHABLE_KEY != '' && env.SUPABASE_DB_URL != '' }}
         run: npm run validate:mission:ci
 
       - name: Validate DB invariants
+        if: ${{ env.SUPABASE_URL != '' && env.SUPABASE_PUBLISHABLE_KEY != '' && env.SUPABASE_DB_URL != '' }}
         run: supabase db query --db-url "$SUPABASE_DB_URL" --file "scripts/sql/qa_runtime_health.sql"
+
+      - name: Backend checks skipped (missing secrets)
+        if: ${{ env.SUPABASE_URL == '' || env.SUPABASE_PUBLISHABLE_KEY == '' || env.SUPABASE_DB_URL == '' }}
+        run: echo "Skipping backend checks because required secrets are missing."
