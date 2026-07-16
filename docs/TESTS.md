@@ -25,6 +25,7 @@ npm run validate:mission:ci
 - healthcheck invariants DB: contrainte roles profiles, module pointage, RPC atomique entreprise
 - healthcheck backend agrégé: qa:functions-health + qa:db-health
 - pre-check environnement: les scripts QA signalent explicitement les variables manquantes
+- hygiene secrets: les sorties QA masquent les mots de passe temporaires par defaut
 
 ## Fichiers de test clés
 

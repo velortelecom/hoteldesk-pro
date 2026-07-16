@@ -55,6 +55,15 @@ async function createEnterprise(client, label, token) {
   }
 }
 
+function sanitizeEnterpriseResult(ent) {
+  return {
+    id: ent.id,
+    slug: ent.slug,
+    adminEmail: ent.adminEmail,
+    adminPassword: ent.adminPassword ? '[redacted]' : null,
+  }
+}
+
 async function validateIsolation(adminEmail, adminPassword, foreignSlug) {
   const adminClient = createClient(baseUrl, publishableKey, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -120,8 +129,8 @@ async function main() {
     JSON.stringify(
       {
         ok: true,
-        entreprise_a: entA,
-        entreprise_b: entB,
+        entreprise_a: sanitizeEnterpriseResult(entA),
+        entreprise_b: sanitizeEnterpriseResult(entB),
         checks,
       },
       null,

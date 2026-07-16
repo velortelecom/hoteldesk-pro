@@ -121,6 +121,8 @@ Deno.serve(async (req: Request) => {
     email_confirm: true,
     user_metadata: { prenom, nom, role: authMetadataRole, entreprise_id: entrepriseId },
   });
+  let createdAuthUser = createdUser?.user ?? null;
+
   if (createUserError || !createdUser.user) {
     const code = toCreateUserErrorCode(createUserError || 'auth_create_failed');
     if (code === 'email_exists' && emailInput) {
@@ -139,15 +141,19 @@ Deno.serve(async (req: Request) => {
       if (retry.error || !retry.data.user) {
         return corsResponse(req, { success: false, error: toCreateUserErrorCode(retry.error || 'auth_create_failed') }, 400);
       }
-      createdUser.user = retry.data.user;
+      createdAuthUser = retry.data.user;
     } else {
       return corsResponse(req, { success: false, error: toCreateUserErrorCode(createUserError || 'auth_create_failed') }, 400);
     }
   }
 
+  if (!createdAuthUser?.id) {
+    return corsResponse(req, { success: false, error: 'auth_create_failed' }, 400);
+  }
+
   try {
     const profilePayload: Record<string, unknown> = {
-      id: createdUser.user.id,
+      id: createdAuthUser.id,
       prenom,
       nom,
       role: requestedRole,
@@ -169,7 +175,7 @@ Deno.serve(async (req: Request) => {
 
     if (departementIds.length > 0) {
       const rows = departementIds.map((departementId) => ({
-        profile_id: createdUser.user.id,
+        profile_id: createdAuthUser.id,
         entreprise_id: entrepriseId,
         departement_id: departementId,
         est_principal: false,
@@ -184,7 +190,7 @@ Deno.serve(async (req: Request) => {
       entreprise_id: entrepriseId,
       action: 'creation_utilisateur',
       type_cible: 'profile',
-      cible_id: createdUser.user.id,
+      cible_id: createdAuthUser.id,
       description: 'Création utilisateur',
       metadonnees: { role: requestedRole, actif, departement_count: departementIds.length },
       adresse_ip: ipAddress,
@@ -193,13 +199,13 @@ Deno.serve(async (req: Request) => {
 
     return corsResponse(req, {
       success: true,
-      user_id: createdUser.user.id,
+      user_id: createdAuthUser.id,
       email,
       temp_password: generatedPassword,
       role: requestedRole,
     }, 200);
   } catch (error) {
-    await supabase.auth.admin.deleteUser(createdUser.user.id);
+    await supabase.auth.admin.deleteUser(createdAuthUser.id);
     return corsResponse(req, { success: false, error: error instanceof Error ? error.message : 'profile_create_failed' }, 500);
   }
 });

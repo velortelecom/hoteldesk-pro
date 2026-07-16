@@ -22,7 +22,9 @@ function Metric({ title, value, subtitle, accent = '#1D4ED8' }) {
   )
 }
 
-export default function SuperAdminPlatformHealth({ supabase, branchName = 'pointage-migration-draft' }) {
+const DEFAULT_BRANCH_NAME = process.env.REACT_APP_GITHUB_BRANCH || 'main'
+
+export default function SuperAdminPlatformHealth({ supabase, branchName = DEFAULT_BRANCH_NAME }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [health, setHealth] = useState(null)
@@ -142,7 +144,7 @@ export default function SuperAdminPlatformHealth({ supabase, branchName = 'point
 
         <aside style={{ display: 'grid', gap: 16 }}>
           <section style={cardStyle}>
-            <h3 style={{ marginTop: 0, fontSize: 15 }}>Erreurs critiques récentes</h3>
+            <h3 style={{ marginTop: 0, fontSize: 15 }}>Événements récents</h3>
             <div style={{ display: 'grid', gap: 8 }}>
               {recentAudits.slice(0, 8).map((evt) => (
                 <div key={evt.id} style={{ border: '1px solid #E5E7EB', borderRadius: 10, padding: 10, background: '#FAFAFB' }}>

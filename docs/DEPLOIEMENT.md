@@ -22,6 +22,8 @@ Préparer les variables d'environnement (selon le script) :
 - `E2E_SUPERADMIN_PASSWORD`
 
 Les scripts QA executent un pre-check automatique des variables requises et echouent explicitement si une variable est absente.
+Par defaut, les mots de passe generes dans les sorties QA sont masques (`[redacted]`).
+Pour afficher ces mots de passe (usage local uniquement), definir `QA_SHOW_PASSWORDS=true` avant `npm run qa:provision`.
 
 Commandes :
 

@@ -12,6 +12,7 @@ if (!baseUrl || !secretKey || !publishableKey) {
 const admin = createClient(baseUrl, secretKey, { auth: { autoRefreshToken: false, persistSession: false } })
 const userClient = createClient(baseUrl, publishableKey, { auth: { autoRefreshToken: false, persistSession: false } })
 const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)
+const showPasswords = String(process.env.QA_SHOW_PASSWORDS || '').toLowerCase() === 'true'
 
 async function wait(ms) {
   await new Promise((resolve) => setTimeout(resolve, ms))
@@ -265,17 +266,25 @@ async function main() {
   await createDemoLeave(entrepriseA.id, employeA2.userId, managerA.userId, isoDate(dayAfter), isoDate(dayAfter))
   await createDemoMessage(entrepriseA.id, managerA.userId, chefA.userId, 'Brief équipe pour demain')
 
+  function sanitizeCredential(credential) {
+    if (showPasswords) return credential
+    return {
+      ...credential,
+      password: credential.password ? '[redacted]' : null,
+    }
+  }
+
   console.log(JSON.stringify({
-    super_admin: superAdmin,
+    super_admin: sanitizeCredential(superAdmin),
     entreprise_a: entrepriseA,
     entreprise_b: entrepriseB,
     accounts: {
-      admin_a: adminA,
-      admin_b: adminB,
-      manager_a: managerA,
-      chef_a: chefA,
-      employe_a_1: employeA1,
-      employe_a_2: employeA2,
+      admin_a: sanitizeCredential(adminA),
+      admin_b: sanitizeCredential(adminB),
+      manager_a: sanitizeCredential(managerA),
+      chef_a: sanitizeCredential(chefA),
+      employe_a_1: sanitizeCredential(employeA1),
+      employe_a_2: sanitizeCredential(employeA2),
     },
   }, null, 2))
 }

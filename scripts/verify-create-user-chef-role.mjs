@@ -49,13 +49,19 @@ async function main() {
   }
 
   const { data, error } = await client.functions.invoke('create-user', { body: payload })
+  const safeData = data
+    ? {
+        ...data,
+        temp_password: data.temp_password ? '[redacted]' : null,
+      }
+    : null
 
   console.log(
     JSON.stringify(
       {
         ok: !error && data?.success === true,
         error,
-        data,
+        data: safeData,
       },
       null,
       2
