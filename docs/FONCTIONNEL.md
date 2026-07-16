@@ -15,11 +15,17 @@
 
 ### Super Admin
 
+- dashboard global
+- entreprises
 - supervision
-- structure entreprise
-- utilisateurs
-- assistance
+- utilisateurs globaux
+- catalogue modules
+- offres & limites
+- support tickets
+- audit & supervision
 - santé plateforme
+- paramètres globaux
+- assistance
 
 ## Rôles métier actifs
 

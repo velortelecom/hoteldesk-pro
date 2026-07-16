@@ -20,6 +20,8 @@ npm run validate:mission:ci
 ## Résultat courant
 
 - tests historiques : OK
+- suites unitaires actuelles : 13/13 vertes
+- total tests actuels : 43 verts
 - nouveaux tests de fondation : routeur, permissions, helpers entreprise
 - verification QA edge function : create-user avec role chef_equipe
 - verification droits frontend chef_equipe : classification manager + régressions de portée
@@ -41,3 +43,7 @@ npm run validate:mission:ci
 - `src/pages/superAdminAudit.test.js`
 - `src/pages/rappels.fk.test.js`
 - `src/modules/pointage/services.test.js`
+- `src/services/superadmin/offersService.test.js`
+- `src/services/superadmin/supportService.test.js`
+- `src/services/superadmin/settingsService.test.js`
+- `src/services/superadmin/assistanceService.test.js`

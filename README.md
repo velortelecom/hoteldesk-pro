@@ -47,5 +47,6 @@ Copier `.env.example` en `.env` et renseigner :
 
 ## Notes
 
-Le socle utilisateur a été migré vers une navigation maintenue et une couche de services d’entreprise. Les écrans Super Admin conservent encore une logique plus dense mais s’appuient déjà sur des sous-composants dédiés.
+Le socle utilisateur est migré vers une navigation maintenue et une couche de services d’entreprise.
+La console Super Admin V2 est désormais structurée par sections dédiées (dashboard, entreprises, utilisateurs, modules, offres/limites, support, audit, plateforme, paramètres, assistance) avec services et composants `src/services/superadmin/*` et `src/components/superadmin/*`.
 
