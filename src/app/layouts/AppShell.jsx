@@ -9,6 +9,7 @@ import { canAccessSuperAdmin, getPermissionsForModule, isAdminLike } from '../..
 import { ErrorBoundary } from '../../components/shared/ErrorBoundary'
 import { supabase } from '../../lib/supabase'
 import { fetchRecentNotifications, fetchUnreadNotificationCount, markNotificationRead } from '../../services/notifications'
+import { closeAssistanceSession, fetchAssistanceState } from '../../services/superadmin/assistanceService'
 import Login from '../../pages/Login'
 import Planning from '../../pages/Planning'
 import Taches from '../../pages/Taches'
@@ -58,6 +59,7 @@ export default function AppShell() {
   const [showNotifications, setShowNotifications] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
+  const [globalAssistanceSession, setGlobalAssistanceSession] = useState(null)
 
   const loadedModules = useMemo(() => buildLoadedModules(modulesActifs, profile), [modulesActifs, profile])
   const currentPageId = getPageIdFromPath(location.pathname, loadedModules) || 'dashboard'
@@ -81,6 +83,36 @@ export default function AppShell() {
         .then(({ data }) => { if (data?.nom) setNomEntreprise(data.nom) })
     }
   }, [profile?.entreprise_id])
+
+  useEffect(() => {
+    let mounted = true
+    let intervalId = null
+
+    async function loadGlobalAssistance() {
+      if (!profile?.id || !profile?.is_super_admin) {
+        if (mounted) setGlobalAssistanceSession(null)
+        return
+      }
+
+      try {
+        const state = await fetchAssistanceState(supabase, profile.id)
+        if (!mounted) return
+        setGlobalAssistanceSession(state.activeSession || null)
+      } catch {
+        if (mounted) setGlobalAssistanceSession(null)
+      }
+    }
+
+    loadGlobalAssistance()
+    if (profile?.id && profile?.is_super_admin) {
+      intervalId = window.setInterval(loadGlobalAssistance, 30000)
+    }
+
+    return () => {
+      mounted = false
+      if (intervalId) window.clearInterval(intervalId)
+    }
+  }, [profile?.id, profile?.is_super_admin, location.pathname])
 
   useEffect(() => {
     if (profile?.id && (profile.prenom === 'Nouveau' || !profile.prenom)) {
@@ -124,6 +156,17 @@ export default function AppShell() {
     if (notification.link) navigate(notification.link)
   }
 
+  async function handleExitGlobalAssistance() {
+    if (!globalAssistanceSession?.id || !profile?.id) return
+    try {
+      await closeAssistanceSession(supabase, { sessionId: globalAssistanceSession.id, actorProfileId: profile.id })
+      const state = await fetchAssistanceState(supabase, profile.id)
+      setGlobalAssistanceSession(state.activeSession || null)
+    } catch {
+      // no-op: fallback remains available from Assistance page
+    }
+  }
+
   if (authLoading) {
     return <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: 16 }}><BrandMark size={64} radius={16} /><div style={{ fontSize: 14, color: '#aaa' }}>Chargement...</div></div>
   }
@@ -141,6 +184,10 @@ export default function AppShell() {
 
   const prenomDisplay = profile?.prenom && profile.prenom !== 'Nouveau' ? profile.prenom : (user?.email?.split('@')[0] || 'Admin')
   const initiales = profile?.avatar_initiales || (prenomDisplay[0] + (profile?.nom?.[0] || '')).toUpperCase()
+  const assistanceRemainingMs = globalAssistanceSession?.expires_at
+    ? new Date(globalAssistanceSession.expires_at).getTime() - Date.now()
+    : null
+  const assistanceRemainingMin = assistanceRemainingMs !== null ? Math.max(0, Math.ceil(assistanceRemainingMs / 60000)) : null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#F5F6FA', fontFamily: "'Inter', sans-serif" }}>
@@ -211,6 +258,17 @@ export default function AppShell() {
           </div>
         </div>
       </header>
+
+      {globalAssistanceSession && (
+        <div style={{ background: '#FFF7ED', borderBottom: '1px solid #FDBA74', color: '#9A3412', padding: '8px 24px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <span>
+            Assistance active · entreprise {globalAssistanceSession.entreprise_id || 'n/a'} · {globalAssistanceSession.readonly_mode ? 'lecture seule' : 'modification'} · motif: {globalAssistanceSession.reason || 'n/a'} · temps restant: {assistanceRemainingMin !== null ? `${assistanceRemainingMin} min` : 'n/a'}
+          </span>
+          <button onClick={handleExitGlobalAssistance} style={{ border: '1px solid #F59E0B', background: '#fff', color: '#B45309', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+            Quitter le mode assistance
+          </button>
+        </div>
+      )}
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <nav className="desktop-nav" style={{ width: isSuperAdminRoute ? 0 : 220, background: '#fff', borderRight: isSuperAdminRoute ? 'none' : '1px solid #E5E7EB', display: isSuperAdminRoute ? 'none' : 'flex', flexDirection: 'column', paddingTop: 16, flexShrink: 0, overflowY: 'auto' }}>

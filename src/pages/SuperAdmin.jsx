@@ -2,7 +2,7 @@
 // Back-office Super Admin Velor One V4
 // Creation entreprise avec secteurs metiers + departements + postes automatiques
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, supabaseConfigError } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { PLANS } from '../lib/modules'
 import { MODULES_REGISTRY } from '../modules/registry'
@@ -103,11 +103,12 @@ export default function SuperAdmin() {
 
   async function fetchData() {
     setLoading(true)
-    const [{ data: ents }, { data: mods }, { data: details }, healthRes] = await Promise.all([
+    const [{ data: ents }, { data: mods }, { data: details }, healthRes, usersRes] = await Promise.all([
       supabase.from('entreprises').select('*').order('created_at', { ascending: false }),
       supabase.from('modules_catalogue').select('*').order('ordre'),
       supabase.from('super_admin_entreprises').select('*'),
       supabase.rpc('super_admin_platform_health'),
+      supabase.from('profiles_with_email').select('id, prenom, nom, role, email, entreprise_id').eq('is_super_admin', false).order('role'),
     ])
     const health = Array.isArray(healthRes?.data) ? (healthRes.data[0] || null) : (healthRes?.data || null)
     let audits = []
@@ -130,14 +131,17 @@ export default function SuperAdmin() {
         totalSites: health?.total_sites ?? 0,
         par_plan,
       })
-      // Auto-chargement utilisateurs de chaque entreprise
-      ents.forEach(ent => {
-        supabase.from('profiles_with_email').select('id, prenom, nom, role, email').eq('entreprise_id', ent.id).eq('is_super_admin', false).order('role').then(({ data }) => {
-          const admins = (data || []).filter(u => u.role === 'admin')
-          const employes = (data || []).filter(u => u.role !== 'admin')
-          setEntUsers(prev => ({ ...prev, [ent.id]: { admins, employes } }))
-        })
+    }
+
+    if (!usersRes?.error && usersRes?.data) {
+      const grouped = {}
+      ;(usersRes.data || []).forEach((user) => {
+        if (!user.entreprise_id) return
+        if (!grouped[user.entreprise_id]) grouped[user.entreprise_id] = { admins: [], employes: [] }
+        if (user.role === 'admin') grouped[user.entreprise_id].admins.push(user)
+        else grouped[user.entreprise_id].employes.push(user)
       })
+      setEntUsers(grouped)
     }
     if (mods) setModules(mods)
     if (details) {
@@ -275,6 +279,10 @@ export default function SuperAdmin() {
 
   async function sauvegarder() {
     if (!form.nom.trim()) { setMsg({ type: 'error', text: 'Le nom est obligatoire' }); return }
+    if (supabaseConfigError) {
+      setMsg({ type: 'error', text: mapEnterpriseCreationError(new Error(supabaseConfigError)) })
+      return
+    }
     setSaving(true); setMsg(null)
     try {
       const entData = {
@@ -651,6 +659,12 @@ async function createEmploye(entrepriseId) {
             )}
             {entreprisesAffichees.map(e => {
               const secteurInfo = SECTEURS_METIERS[e.secteur]
+              const planDefaultUsers = Number(PLANS[e.plan]?.max_utilisateurs || 0)
+              const effectiveUsers = Number(e.max_utilisateurs || 0)
+              const hasCustomUsersLimit = planDefaultUsers > 0 && effectiveUsers > 0 && effectiveUsers !== planDefaultUsers
+              const usersLabel = hasCustomUsersLimit
+                ? `${effectiveUsers} utilisateurs - limite personnalisee`
+                : `${effectiveUsers || planDefaultUsers || '?'} utilisateurs inclus`
               return (
                 <div key={e.id} style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 10 }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '14px 16px' }}>
@@ -663,7 +677,7 @@ async function createEmploye(entrepriseId) {
                           <span style={{ color: e.actif ? '#10B981' : '#EF4444', fontSize: 12, fontWeight: 600 }}>{e.actif ? 'Actif' : 'Inactif'}</span>
                         </div>
                         <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
-                          {secteurInfo?.label || e.secteur} — {e.max_utilisateurs || '?'} users max
+                          {secteurInfo?.label || e.secteur} — {usersLabel}
                           {e.email_contact && ' — ' + e.email_contact}
                         </div>
                         <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 3 }}>

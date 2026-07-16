@@ -103,7 +103,7 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, pro
     setActionSaving(true);
     try {
       const result = await reinitialiserMotDePasseEmploye(employeId);
-      setCreds({ prenom: employe.prenom, nom: employe.nom, email: result.email, temp_password: result.temp_password });
+      setCreds({ prenom: employe.prenom, nom: employe.nom, email: result.email });
     } catch (err) {
       alert('Erreur : ' + err.message);
     } finally {
@@ -296,18 +296,17 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, pro
 
       </div>
 
-      {creds && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
           <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', width: '100%', maxWidth: '420px' }}>
-            <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.125rem', fontWeight: 700, color: '#111827' }}>Mot de passe réinitialisé !</h3>
-            <p style={{ fontSize: '0.8125rem', color: '#6b7280', marginBottom: '1rem' }}>Notez ces identifiants maintenant : ils ne seront plus jamais affichés.</p>
+            <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.125rem', fontWeight: 700, color: '#111827' }}>Utilisateur créé !</h3>
+            <p style={{ fontSize: '0.8125rem', color: '#6b7280', marginBottom: '1rem' }}>Un email a été envoyé avec le lien d'activation et instructions de sécurité.</p>
             <div style={{ background: '#f9fafb', borderRadius: '8px', padding: '1rem', fontSize: '0.875rem', display: 'grid', gap: '0.5rem' }}>
               <div><strong>Nom :</strong> {creds.prenom} {creds.nom}</div>
               <div><strong>Email :</strong> {creds.email}</div>
-              <div><strong>Mot de passe temporaire :</strong> <code style={{ background: '#eef2ff', padding: '0.125rem 0.375rem', borderRadius: '4px' }}>{creds.temp_password}</code></div>
+              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem' }}>Pas de mot de passe affiché ici pour des raisons de sécurité. L'utilisateur doit suivre le lien d'activation dans l'email reçu.</div>
             </div>
             <button onClick={() => setCreds(null)} style={{ marginTop: '1.25rem', width: '100%', padding: '0.625rem', border: 'none', background: '#6366f1', color: 'white', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
-              J'ai noté les identifiants
+              Compris
             </button>
           </div>
         </div>

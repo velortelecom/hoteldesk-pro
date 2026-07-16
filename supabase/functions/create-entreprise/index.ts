@@ -5,7 +5,7 @@ import { generateTempPassword } from '../_shared/user_admin.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': Deno.env.get('ALLOWED_ORIGIN') ?? '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
+  'Access-Control-Allow-Headers': 'authorization, apikey, x-client-info, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
@@ -224,7 +224,6 @@ Deno.serve(async (req: Request) => {
       admin: adminUserId
         ? {
             email: adminEmail,
-            temp_password: adminPassword,
             user_id: adminUserId,
           }
         : null,

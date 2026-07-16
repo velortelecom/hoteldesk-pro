@@ -69,7 +69,7 @@ export default function ListeEmployes({ entrepriseId, permissions, profile, onVi
   const handleCreer = async (payload) => {
     const result = await creer(payload);
     setShowCreate(false);
-    setCreds({ action: 'created', prenom: payload.prenom, nom: payload.nom, role: payload.role, email: result.email, temp_password: result.temp_password });
+    setCreds({ action: 'created', prenom: payload.prenom, nom: payload.nom, role: payload.role, email: result.email });
     return result;
   };
 
@@ -77,7 +77,7 @@ export default function ListeEmployes({ entrepriseId, permissions, profile, onVi
     if (!window.confirm(`Reinitialiser le mot de passe de ${employe.prenom} ${employe.nom} ?`)) return;
     try {
       const result = await reinitialiserMotDePasse(employe.id);
-      setCreds({ action: 'reset', prenom: employe.prenom, nom: employe.nom, email: result.email, temp_password: result.temp_password });
+      setCreds({ action: 'reset', prenom: employe.prenom, nom: employe.nom, email: result.email });
     } catch (err) {
       alert('Erreur : ' + err.message);
     }
@@ -426,7 +426,7 @@ function ModalCreation({ departements, postes, isSuperAdmin, onClose, onCreer })
       <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', width: '100%', maxWidth: '520px', maxHeight: '90vh', overflow: 'auto' }}>
         <h3 style={{ margin: '0 0 1rem', fontSize: '1.125rem', fontWeight: 700, color: '#111827' }}>Nouvel employe</h3>
         <p style={{ fontSize: '0.8125rem', color: '#6b7280', marginTop: '-0.5rem', marginBottom: '1rem' }}>
-          Aucun mot de passe a saisir : un mot de passe temporaire sera genere automatiquement et affiche une seule fois.
+          Aucun mot de passe a saisir : un email d'activation avec lien securise sera envoye automatiquement.
         </p>
         {erreur && <div style={{ background: '#fef2f2', color: '#dc2626', padding: '0.625rem 0.875rem', borderRadius: '8px', fontSize: '0.8125rem', marginBottom: '1rem' }}>{erreur}</div>}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
@@ -500,22 +500,25 @@ function Champ({ label, children }) {
 const inputStyle = { width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.875rem', boxSizing: 'border-box' };
 
 function ModalCredentials({ creds, onClose }) {
-  const titre = creds.action === 'reset' ? 'Mot de passe reinitialise' : 'Compte cree';
+  const titre = creds.action === 'reset' ? 'Mot de passe reinitialisé' : 'Compte créé';
+  const message = creds.action === 'reset'
+    ? 'Un lien de réinitialisation a été envoyé par email.'
+    : 'Un email d\'activation avec lien de création de mot de passe a été envoyé.';
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
       <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', width: '100%', maxWidth: '420px' }}>
         <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.125rem', fontWeight: 700, color: '#111827' }}>{titre} !</h3>
         <p style={{ fontSize: '0.8125rem', color: '#6b7280', marginBottom: '1rem' }}>
-          Notez ces identifiants maintenant : ils ne seront plus jamais affiches.
+          {message}
         </p>
         <div style={{ background: '#f9fafb', borderRadius: '8px', padding: '1rem', fontSize: '0.875rem', display: 'grid', gap: '0.5rem' }}>
           {creds.prenom && <div><strong>Nom :</strong> {creds.prenom} {creds.nom}</div>}
           <div><strong>Email :</strong> {creds.email}</div>
-          <div><strong>Mot de passe temporaire :</strong> <code style={{ background: '#eef2ff', padding: '0.125rem 0.375rem', borderRadius: '4px' }}>{creds.temp_password}</code></div>
           {creds.role && <div><strong>Role :</strong> {ROLE_LABELS[creds.role] || creds.role}</div>}
+          <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem' }}>Aucun mot de passe affiché ici pour des raisons de sécurité.</div>
         </div>
         <button onClick={onClose} style={{ marginTop: '1.25rem', width: '100%', padding: '0.625rem', border: 'none', background: '#6366f1', color: 'white', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
-          J'ai note les identifiants
+          Compris
         </button>
       </div>
     </div>

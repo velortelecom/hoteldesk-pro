@@ -1,5 +1,21 @@
 import { PLANS } from '../../lib/modules'
 
+export function buildEffectiveOfferLimits(row = {}) {
+  const planDefaults = PLANS[row.plan] || {}
+  const defaultUsers = Number(planDefaults.max_utilisateurs || 0)
+  const effectiveUsers = Number(row.max_utilisateurs || 0)
+  const hasOverride = defaultUsers > 0 && effectiveUsers > 0 && effectiveUsers !== defaultUsers
+
+  return {
+    defaultUsers,
+    effectiveUsers: effectiveUsers || defaultUsers || 0,
+    hasOverride,
+    usersLabel: hasOverride
+      ? `${effectiveUsers} utilisateurs - limite personnalisee`
+      : `${effectiveUsers || defaultUsers || 0} utilisateurs inclus`,
+  }
+}
+
 export function filterOfferRows(rows = [], searchQuery = '', filters = {}) {
   const needle = (searchQuery || '').trim().toLowerCase()
   const plan = filters.plan || ''
@@ -65,9 +81,15 @@ export async function fetchOffersLimitsData(supabase) {
 
   const subscriptionState = normalizeSubscriptionState(subRes.error)
 
+  const baseRows = enterpriseRes.data || []
+  const rows = baseRows.map((row) => ({
+    ...row,
+    offerLimits: buildEffectiveOfferLimits(row),
+  }))
+
   return {
-    rows: enterpriseRes.data || [],
-    summary: buildOfferSummary(enterpriseRes.data || []),
+    rows,
+    summary: buildOfferSummary(baseRows),
     subscriptions: subscriptionState === 'ok' ? (subRes.data || []) : [],
     subscriptionState,
   }

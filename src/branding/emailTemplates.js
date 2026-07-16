@@ -30,13 +30,13 @@ export function baseEmailTemplate(opts) {
 }
 
 export function welcomeEmail(data) {
-    const bodyHtml = '<p>Bonjour ' + data.prenom + ',</p><p>Votre compte ' + APP_NAME + ' a ete cree.</p><p>Identifiant : <strong>' + data.email + '</strong><br/>Mot de passe temporaire : <strong>' + data.tempPassword + '</strong></p><p>Merci de changer ce mot de passe des votre premiere connexion.</p>'
+    const bodyHtml = '<p>Bonjour ' + data.prenom + ',</p><p>Votre compte ' + APP_NAME + ' a ete cree.</p><p>Identifiant : <strong>' + data.email + '</strong></p><p>Cliquez sur le lien ci-dessous pour definir votre mot de passe et activer votre compte.</p><p><a href="' + data.resetUrl + '">Activer mon compte</a></p>'
     return baseEmailTemplate({ title: 'Bienvenue sur ' + APP_NAME, bodyHtml: bodyHtml, ctaLabel: 'Se connecter', ctaUrl: APP_URL })
 }
 
 export function passwordResetEmail(data) {
-    const bodyHtml = '<p>Bonjour ' + data.prenom + ',</p><p>Votre nouveau mot de passe temporaire est : <strong>' + data.tempPassword + '</strong></p><p>Merci de le modifier apres connexion.</p>'
-    return baseEmailTemplate({ title: 'Reinitialisation de votre mot de passe', bodyHtml: bodyHtml, ctaLabel: 'Se connecter', ctaUrl: APP_URL })
+    const bodyHtml = '<p>Bonjour ' + data.prenom + ',</p><p>Un lien de reinitialisation de mot de passe vous a ete envoye.</p><p>Cliquez ci-dessous pour definir un nouveau mot de passe securise.</p>'
+    return baseEmailTemplate({ title: 'Reinitialisation de votre mot de passe', bodyHtml: bodyHtml, ctaLabel: 'Reinitialiser mon mot de passe', ctaUrl: APP_URL })
 }
 
 export default { baseEmailTemplate: baseEmailTemplate, welcomeEmail: welcomeEmail, passwordResetEmail: passwordResetEmail }

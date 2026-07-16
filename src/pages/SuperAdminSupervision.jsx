@@ -239,9 +239,9 @@ export default function SuperAdminSupervision({ supabase, profile }) {
           </section>
 
           <section style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 16 }}>
-            <h3 style={{ marginTop: 0, fontSize: 15 }}>Derniers incidents métier</h3>
+            <h3 style={{ marginTop: 0, fontSize: 15 }}>Incidents ou erreurs critiques</h3>
             {visibleCriticalIncidents.length === 0 ? (
-              <EmptyState title="Aucun incident" description="Aucun incident critique dans le filtre courant." />
+              <EmptyState title="Aucun incident critique récent" description="Aucune erreur critique n a été détectée dans le filtre courant." />
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {visibleCriticalIncidents.slice(0, 8).map(evt => (

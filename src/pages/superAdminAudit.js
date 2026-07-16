@@ -134,13 +134,27 @@ export function buildSupervisionSnapshot({ entreprises = [], profiles = [], modu
     ...entrepriseSansSite.map(ent => ({ entreprise_id: ent.id, nom: ent.nom, type: 'sans_site' })),
     ...entrepriseSansModule.map(ent => ({ entreprise_id: ent.id, nom: ent.nom, type: 'sans_module' })),
   ];
-  const criticalIncidents = (events || []).filter(evt => [
-    'suppression_entreprise',
-    'suppression_utilisateur',
-    'reset_mot_de_passe_utilisateur',
-    'suspension_entreprise',
-    'modification_parametres_critiques',
-  ].includes(evt.action));
+  const criticalIncidents = (events || []).filter((evt) => {
+    const action = String(evt.action || '').toLowerCase()
+    const description = String(evt.description || '').toLowerCase()
+    const haystack = `${action} ${description}`
+    return [
+      'edge_function_error',
+      'deployment_error',
+      'migration_failed',
+      'security_critical',
+      'critical_authorization_error',
+      'platform_unavailable',
+    ].includes(action)
+      || haystack.includes('error')
+      || haystack.includes('erreur')
+      || haystack.includes('failed')
+      || haystack.includes('echec')
+      || haystack.includes('unauthorized')
+      || haystack.includes('forbidden')
+      || haystack.includes('indisponible')
+      || haystack.includes('critical')
+  })
 
   return {
     totalEntreprises: entreprises.length,

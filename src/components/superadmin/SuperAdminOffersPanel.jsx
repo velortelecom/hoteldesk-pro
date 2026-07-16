@@ -116,7 +116,7 @@ export default function SuperAdminOffersPanel({ supabase, searchQuery }) {
                         <span style={{ ...badgeStyle, background: planColor + '22', color: planColor }}>{row.plan || 'n/a'}</span>
                       </td>
                       <td style={{ padding: '8px 12px' }}>{row.prix_mensuel ?? 0} EUR</td>
-                      <td style={{ padding: '8px 12px' }}>{row.max_utilisateurs ?? 0}</td>
+                      <td style={{ padding: '8px 12px' }}>{row.offerLimits?.usersLabel || (row.max_utilisateurs ?? 0)}</td>
                       <td style={{ padding: '8px 12px', color: row.actif === false ? '#B91C1C' : '#047857', fontWeight: 700 }}>
                         {row.actif === false ? 'Suspendue' : 'Active'}
                       </td>

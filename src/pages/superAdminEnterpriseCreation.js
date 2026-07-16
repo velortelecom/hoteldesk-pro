@@ -55,22 +55,35 @@ export function applyEnterpriseCreationToState(current, result) {
 }
 
 export function mapEnterpriseCreationError(error) {
-  const raw = String(error?.message || error || '').toLowerCase()
+  const raw = String(error?.message || error?.error || error || '').toLowerCase()
+  const status = error?.status || error?.statusCode || 0
 
+  if (raw.includes('missing_supabase_client_env') || raw.includes('server_misconfigured')) {
+    return 'Configuration Supabase manquante ou invalide. Contacter l administrateur technique.'
+  }
+  if (raw.includes('missing_token') || raw.includes('invalid_token') || raw.includes('authentication_required')) {
+    return 'Session expirée. Reconnectez-vous puis réessayez.'
+  }
   if (raw.includes('entreprise_slug_exists') || raw.includes('entreprise_name_exists') || raw.includes('duplicate key')) {
     return 'Une entreprise avec ce nom existe deja.'
   }
+  if (raw.includes('failed to fetch') || raw.includes('failed to send a request to the edge function') || raw.includes('functionsfet') || raw.includes('network') || status === 0) {
+    return 'Erreur reseau ou Edge Function indisponible. Verifiez la connexion internet et reessayez.'
+  }
   if (raw.includes('admin_create_failed') || raw.includes('admin_profile_create_failed') || raw.includes('admin_email_already_exists')) {
-    return 'Impossible de creer l administrateur. La creation a ete annulee.'
+    return 'Impossible de creer l administrateur. Verifiez l email puis reessayez.'
   }
-  if (raw.includes('failed to send a request to the edge function') || raw.includes('functionsfet') || raw.includes('network')) {
-    return 'Impossible de creer l administrateur. La creation a ete annulee.'
+  if (raw.includes('enterprise_create_failed') || raw.includes('missing_nom') || raw.includes('invalid_slug')) {
+    return 'Impossible de creer l entreprise. Verifiez les informations puis reessayez.'
   }
-  if (raw.includes('forbidden') || raw.includes('authentication_required') || raw.includes('invalid_token')) {
+  if (raw.includes('function not found') || raw.includes('404') || raw.includes('edge function')) {
+    return 'Service de creation indisponible pour le moment.'
+  }
+  if (raw.includes('forbidden')) {
     return 'Action non autorisee pour ce compte.'
   }
 
-  return 'La creation a ete annulee.'
+  return 'La creation a ete annulee. Erreur: ' + raw.slice(0, 50)
 }
 
 export function buildEnterpriseCreationSuccessMessage({ isEdit, departementsCount, postesCount, adminCredentials }) {

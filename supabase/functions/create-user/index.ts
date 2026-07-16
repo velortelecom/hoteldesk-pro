@@ -33,7 +33,7 @@ function buildCorsHeaders(req: Request) {
 
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Headers': 'authorization, content-type',
+    'Access-Control-Allow-Headers': 'authorization, apikey, x-client-info, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Vary': 'Origin',
   };
@@ -200,8 +200,9 @@ Deno.serve(async (req: Request) => {
     return corsResponse(req, {
       success: true,
       user_id: createdAuthUser.id,
-      email,
-      temp_password: generatedPassword,
+      email: email,
+      prenom: prenom,
+      nom: nom,
       role: requestedRole,
     }, 200);
   } catch (error) {

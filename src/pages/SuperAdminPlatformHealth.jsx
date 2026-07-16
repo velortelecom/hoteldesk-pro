@@ -23,6 +23,22 @@ function Metric({ title, value, subtitle, accent = '#1D4ED8' }) {
 }
 
 const DEFAULT_BRANCH_NAME = process.env.REACT_APP_GITHUB_BRANCH || 'main'
+const GITHUB_CACHE_KEY = 'superadmin:platform:github'
+const GITHUB_CACHE_TTL_MS = 5 * 60 * 1000
+
+async function fetchJsonWithTimeout(url, timeoutMs = 3500) {
+  const controller = new AbortController()
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: 'application/vnd.github+json' },
+      signal: controller.signal,
+    })
+    return await response.json()
+  } finally {
+    window.clearTimeout(timeoutId)
+  }
+}
 
 export default function SuperAdminPlatformHealth({ supabase, branchName = DEFAULT_BRANCH_NAME }) {
   const [loading, setLoading] = useState(true)
@@ -40,13 +56,7 @@ export default function SuperAdminPlatformHealth({ supabase, branchName = DEFAUL
       setLoading(true)
       setError(null)
       try {
-        const [healthRes, branchRes, migrationsRes, functionsRes] = await Promise.all([
-          supabase.rpc('super_admin_platform_health'),
-          fetch('https://api.github.com/repos/velortelecom/hoteldesk-pro/commits?sha=' + encodeURIComponent(branchName) + '&per_page=1', { headers: { Accept: 'application/vnd.github+json' } }),
-          fetch('https://api.github.com/repos/velortelecom/hoteldesk-pro/contents/supabase/migrations?ref=' + encodeURIComponent(branchName), { headers: { Accept: 'application/vnd.github+json' } }),
-          fetch('https://api.github.com/repos/velortelecom/hoteldesk-pro/contents/supabase/functions?ref=' + encodeURIComponent(branchName), { headers: { Accept: 'application/vnd.github+json' } }),
-        ])
-
+        const healthRes = await supabase.rpc('super_admin_platform_health')
         if (!mounted) return
         if (healthRes.error) throw healthRes.error
 
@@ -65,22 +75,46 @@ export default function SuperAdminPlatformHealth({ supabase, branchName = DEFAUL
           setRecentAudits([])
         }
 
-        const branchJson = await branchRes.json()
+        const cached = window.sessionStorage.getItem(GITHUB_CACHE_KEY)
+        const cachedPayload = cached ? JSON.parse(cached) : null
+        if (cachedPayload?.ts && Date.now() - cachedPayload.ts < GITHUB_CACHE_TTL_MS) {
+          if (mounted) {
+            setDeployment(cachedPayload.deployment || null)
+            setMigrations(cachedPayload.migrations || [])
+            setFunctions(cachedPayload.functions || [])
+          }
+          return
+        }
+
+        const [branchJson, migrationsJson, functionsJson] = await Promise.all([
+          fetchJsonWithTimeout('https://api.github.com/repos/velortelecom/hoteldesk-pro/commits?sha=' + encodeURIComponent(branchName) + '&per_page=1'),
+          fetchJsonWithTimeout('https://api.github.com/repos/velortelecom/hoteldesk-pro/contents/supabase/migrations?ref=' + encodeURIComponent(branchName)),
+          fetchJsonWithTimeout('https://api.github.com/repos/velortelecom/hoteldesk-pro/contents/supabase/functions?ref=' + encodeURIComponent(branchName)),
+        ])
+
         const commit = Array.isArray(branchJson) ? branchJson[0] : null
         let statusData = null
         if (commit?.sha) {
-          const statusRes = await fetch('https://api.github.com/repos/velortelecom/hoteldesk-pro/commits/' + commit.sha + '/status', { headers: { Accept: 'application/vnd.github+json' } })
-          statusData = await statusRes.json()
+          statusData = await fetchJsonWithTimeout('https://api.github.com/repos/velortelecom/hoteldesk-pro/commits/' + commit.sha + '/status')
         }
-        setDeployment({
+
+        const nextDeployment = {
           commit: commit ? { sha: commit.sha, url: commit.html_url, date: commit.commit?.committer?.date } : null,
           status: statusData,
-        })
+        }
+        const nextMigrations = Array.isArray(migrationsJson) ? migrationsJson.filter((row) => row.type === 'file').map((row) => row.name).sort().reverse() : []
+        const nextFunctions = Array.isArray(functionsJson) ? functionsJson.filter((row) => row.type === 'dir').map((row) => row.name).sort() : []
 
-        const migrationsJson = await migrationsRes.json()
-        const functionsJson = await functionsRes.json()
-        setMigrations(Array.isArray(migrationsJson) ? migrationsJson.filter((row) => row.type === 'file').map((row) => row.name).sort().reverse() : [])
-        setFunctions(Array.isArray(functionsJson) ? functionsJson.filter((row) => row.type === 'dir').map((row) => row.name).sort() : [])
+        if (!mounted) return
+        setDeployment(nextDeployment)
+        setMigrations(nextMigrations)
+        setFunctions(nextFunctions)
+        window.sessionStorage.setItem(GITHUB_CACHE_KEY, JSON.stringify({
+          ts: Date.now(),
+          deployment: nextDeployment,
+          migrations: nextMigrations,
+          functions: nextFunctions,
+        }))
       } catch (err) {
         if (mounted) setError(err?.message || 'Impossible de charger l état de la plateforme.')
       } finally {
@@ -144,7 +178,7 @@ export default function SuperAdminPlatformHealth({ supabase, branchName = DEFAUL
 
         <aside style={{ display: 'grid', gap: 16 }}>
           <section style={cardStyle}>
-            <h3 style={{ marginTop: 0, fontSize: 15 }}>Événements récents</h3>
+            <h3 style={{ marginTop: 0, fontSize: 15 }}>Activité récente</h3>
             <div style={{ display: 'grid', gap: 8 }}>
               {recentAudits.slice(0, 8).map((evt) => (
                 <div key={evt.id} style={{ border: '1px solid #E5E7EB', borderRadius: 10, padding: 10, background: '#FAFAFB' }}>
@@ -153,7 +187,7 @@ export default function SuperAdminPlatformHealth({ supabase, branchName = DEFAUL
                   <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>{formatDateTime(evt.created_at)} {evt.acteur_email ? '· ' + evt.acteur_email : ''}</div>
                 </div>
               ))}
-              {recentAudits.length === 0 && <div style={{ color: '#9CA3AF', fontSize: 12 }}>Aucun événement disponible.</div>}
+              {recentAudits.length === 0 && <div style={{ color: '#9CA3AF', fontSize: 12 }}>Aucune activité récente.</div>}
             </div>
           </section>
 

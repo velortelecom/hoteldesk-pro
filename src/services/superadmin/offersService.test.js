@@ -1,4 +1,4 @@
-import { buildOfferSummary, filterOfferRows } from './offersService'
+import { buildEffectiveOfferLimits, buildOfferSummary, filterOfferRows } from './offersService'
 
 describe('offersService', () => {
   test('filterOfferRows filtre par texte/plan/statut', () => {
@@ -24,5 +24,15 @@ describe('offersService', () => {
     expect(summary.active).toBe(1)
     expect(summary.suspended).toBe(1)
     expect(summary.customLimits).toBe(1)
+  })
+
+  test('buildEffectiveOfferLimits distingue inclus vs personnalise', () => {
+    const starterDefault = buildEffectiveOfferLimits({ plan: 'starter', max_utilisateurs: 10 })
+    expect(starterDefault.hasOverride).toBe(false)
+    expect(starterDefault.usersLabel).toBe('10 utilisateurs inclus')
+
+    const starterOverride = buildEffectiveOfferLimits({ plan: 'starter', max_utilisateurs: 50 })
+    expect(starterOverride.hasOverride).toBe(true)
+    expect(starterOverride.usersLabel).toBe('50 utilisateurs - limite personnalisee')
   })
 })

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { randomBytes } from 'node:crypto'
 
 const baseUrl = process.env.SUPABASE_URL || process.env.REACT_APP_SUPABASE_URL
 const secretKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -12,14 +13,14 @@ if (!baseUrl || !secretKey || !publishableKey) {
 const admin = createClient(baseUrl, secretKey, { auth: { autoRefreshToken: false, persistSession: false } })
 const userClient = createClient(baseUrl, publishableKey, { auth: { autoRefreshToken: false, persistSession: false } })
 const stamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)
-const showPasswords = String(process.env.QA_SHOW_PASSWORDS || '').toLowerCase() === 'true'
 
 async function wait(ms) {
   await new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function tempPassword(label) {
-  return `Velor!${label}_${stamp}`
+  const randomSuffix = randomBytes(12).toString('base64url')
+  return `Tmp!${label}.${randomSuffix}`
 }
 
 function qaEmail(prefix) {
@@ -267,7 +268,6 @@ async function main() {
   await createDemoMessage(entrepriseA.id, managerA.userId, chefA.userId, 'Brief équipe pour demain')
 
   function sanitizeCredential(credential) {
-    if (showPasswords) return credential
     return {
       ...credential,
       password: credential.password ? '[redacted]' : null,

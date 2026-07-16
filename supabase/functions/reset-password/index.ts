@@ -81,5 +81,5 @@ Deno.serve(async (req: Request) => {
     adresse_ip: req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? null,
     user_agent: req.headers.get('user-agent'),
   });
-  return corsResponse({ success: true, user_id: userId, email, temp_password }, 200);
+  return corsResponse({ success: true, user_id: userId, email }, 200);
 });

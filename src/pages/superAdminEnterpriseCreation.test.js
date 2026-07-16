@@ -95,6 +95,21 @@ describe('superAdminEnterpriseCreation', () => {
 
   test('aucun etat partiel', () => {
     const message = mapEnterpriseCreationError(new Error('Failed to send a request to the Edge Function'))
-    expect(message).toBe('Impossible de creer l administrateur. La creation a ete annulee.')
+    expect(message).toBe('Erreur reseau pendant la creation. Verifiez la connexion puis reessayez.')
+  })
+
+  test('configuration supabase manquante', () => {
+    const message = mapEnterpriseCreationError(new Error('missing_supabase_client_env'))
+    expect(message).toBe('Configuration Supabase manquante ou invalide. Contacter l administrateur technique.')
+  })
+
+  test('session expiree', () => {
+    const message = mapEnterpriseCreationError(new Error('invalid_token'))
+    expect(message).toBe('Session expirée. Reconnectez-vous puis réessayez.')
+  })
+
+  test('echec creation entreprise sans admin', () => {
+    const message = mapEnterpriseCreationError(new Error('enterprise_create_failed'))
+    expect(message).toBe('Impossible de creer l entreprise. Verifiez les informations puis reessayez.')
   })
 })
