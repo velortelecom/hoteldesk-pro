@@ -141,9 +141,9 @@ export default function SuperAdminUsersPanel({ supabase, profile, entreprises = 
 
   async function resetPassword(user) {
     if (!window.confirm('Générer un nouveau mot de passe temporaire pour cet utilisateur ?')) return
-    const data = await handleInvokeFunction('reset-password', { user_id: user.id }, 'Mot de passe temporaire régénéré.')
-    if (data?.temp_password) {
-      setMsg({ type: 'success', text: 'Nouveau mot de passe temporaire généré pour ' + (data.email || user.email || 'cet utilisateur') + ': ' + data.temp_password })
+    const data = await handleInvokeFunction('reset-password', { user_id: user.id }, 'Mot de passe temporaire régénéré (valeur non affichée).')
+    if (data) {
+      setMsg({ type: 'success', text: 'Mot de passe temporaire régénéré pour ' + (data.email || user.email || 'cet utilisateur') + '. La valeur n est pas affichee en clair.' })
     }
   }
 

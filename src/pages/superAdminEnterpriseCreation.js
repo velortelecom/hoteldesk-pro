@@ -84,8 +84,6 @@ export function buildEnterpriseCreationSuccessMessage({ isEdit, departementsCoun
     baseMsg +
     ' Admin cree - Identifiant : ' +
     adminCredentials.email +
-    ' / Mot de passe temporaire : ' +
-    adminCredentials.password +
-    ' (a transmettre une seule fois)'
+    ' / Mot de passe initial non affiche (utiliser le flux securise de reinitialisation).'
   )
 }

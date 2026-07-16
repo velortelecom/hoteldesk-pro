@@ -32,7 +32,7 @@ describe('superAdminEnterpriseCreation', () => {
       isEdit: false,
       departementsCount: 2,
       postesCount: 3,
-      adminCredentials: { email: 'admin@velor.local', password: 'Temp1234!' },
+      adminCredentials: { email: 'admin@velor.local' },
     })
 
     expect(message).toContain('Entreprise creee')

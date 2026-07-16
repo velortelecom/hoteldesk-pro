@@ -318,8 +318,8 @@ export default function SuperAdmin() {
       setEntreprises(next.entreprises)
       setStats(next.stats)
 
-      const adminCredentials = data?.admin?.temp_password
-        ? { email: data.admin.email, password: data.admin.temp_password }
+      const adminCredentials = data?.admin?.email
+        ? { email: data.admin.email }
         : null
 
       setMsg({
@@ -532,7 +532,7 @@ export default function SuperAdmin() {
                 <Field label="Email admin"><input style={inputStyle} value={form.admin_email} onChange={e => setForm(f => ({ ...f, admin_email: e.target.value }))} placeholder="jean@entreprise.fr" /></Field>
                 <Field label="Telephone"><input style={inputStyle} value={form.admin_telephone} onChange={e => setForm(f => ({ ...f, admin_telephone: e.target.value }))} placeholder="+33 6 12 34 56 78" /></Field>
               </div>
-              {form.admin_email && <div style={{ marginTop: 8, fontSize: 12, color: '#6B7280', background: '#F9FAFB', padding: '8px 12px', borderRadius: 8 }}>Mot de passe temporaire : Velor2024!</div>}
+              {form.admin_email && <div style={{ marginTop: 8, fontSize: 12, color: '#6B7280', background: '#F9FAFB', padding: '8px 12px', borderRadius: 8 }}>Le mot de passe initial n est jamais affiche. Utiliser le flux de reinitialisation securise.</div>}
             </Section>
           )}
         </div>
@@ -570,7 +570,7 @@ async function createAdmin(entrepriseId) {
     setAdminMsg(null)
     try {
       const result = await creerCompteMembre(entrepriseId, adminForm, 'admin')
-      setAdminSuccessInfo({ email: result.email, password: result.temp_password, url: APP_URL, nom: adminForm.prenom + ' ' + adminForm.nom })
+      setAdminSuccessInfo({ email: result.email, url: APP_URL, nom: adminForm.prenom + ' ' + adminForm.nom })
       setAdminForm({ prenom: '', nom: '', email: '', telephone: '', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true })
       await fetchData()
     } catch (err) {
@@ -585,7 +585,7 @@ async function createEmploye(entrepriseId) {
     setEmployeMsg(null)
     try {
       const result = await creerCompteMembre(entrepriseId, employeForm, employeForm.role || 'employe')
-      setEmployeSuccessInfo({ email: result.email, password: result.temp_password, url: APP_URL, nom: employeForm.prenom + ' ' + employeForm.nom })
+      setEmployeSuccessInfo({ email: result.email, url: APP_URL, nom: employeForm.prenom + ' ' + employeForm.nom })
       setEmployeForm({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true })
       await fetchData()
     } catch (err) {
@@ -960,8 +960,8 @@ async function createEmploye(entrepriseId) {
               <div style={{ marginTop: 12, padding: 12, background: '#D1FAE5', borderRadius: 8, fontSize: 12, color: '#065F46' }}>
                 <div style={{ fontWeight: 700, marginBottom: 6 }}>Admin cree ! Transmettez ces infos une seule fois :</div>
                 <div>Identifiant/Email : <strong>{adminSuccessInfo.email}</strong></div>
-                <div>Mot de passe temporaire : <strong>{adminSuccessInfo.password}</strong></div>
                 <div>URL : <strong>{adminSuccessInfo.url}</strong></div>
+                <div style={{ marginTop: 6 }}>Mot de passe initial non affiche. Utiliser le reset securise si necessaire.</div>
               </div>
             ) : adminMsg ? (
               <div style={{ marginTop: 12, padding: '10px 14px', background: adminMsg.type === 'success' ? '#D1FAE5' : '#FEE2E2', color: adminMsg.type === 'success' ? '#065F46' : '#991B1B', borderRadius: 8, fontSize: 13 }}>
@@ -1025,8 +1025,8 @@ async function createEmploye(entrepriseId) {
                 <div style={{ padding: 12, background: '#D1FAE5', borderRadius: 8, fontSize: 12, color: '#065F46' }}>
                   <div style={{ fontWeight: 700, marginBottom: 6 }}>Membre cree ! Transmettez ces infos une seule fois :</div>
                   <div>Identifiant/Email : <strong>{employeSuccessInfo.email}</strong></div>
-                  <div>Mot de passe temporaire : <strong>{employeSuccessInfo.password}</strong></div>
                   <div>URL : <strong>{employeSuccessInfo.url}</strong></div>
+                  <div style={{ marginTop: 6 }}>Mot de passe initial non affiche. Utiliser le reset securise si necessaire.</div>
                 </div>
               ) : employeMsg ? (
                 <div style={{ padding: '8px 12px', borderRadius: 6, background: employeMsg.type === 'error' ? '#FEE2E2' : '#D1FAE5', color: employeMsg.type === 'error' ? '#DC2626' : '#065F46', fontSize: 13 }}>{employeMsg.text}</div>
