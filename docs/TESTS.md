@@ -3,8 +3,10 @@
 ## Commandes exécutées
 
 ```bash
+npm ci
 npm test -- --watchAll=false --runInBand
 npm run build
+npm run validate:app
 npm run qa:functions-health
 npm run qa:db-health
 npm run qa:backend-health
@@ -20,12 +22,14 @@ npm run validate:mission:ci
 - tests historiques : OK
 - nouveaux tests de fondation : routeur, permissions, helpers entreprise
 - verification QA edge function : create-user avec role chef_equipe
+- verification droits frontend chef_equipe : classification manager + régressions de portée
 - smoke E2E: create-entreprise (x2) + verification isolation multi-entreprise
 - healthcheck runtime edge functions: create-entreprise/create-user/create-pointage
 - healthcheck invariants DB: contrainte roles profiles, module pointage, RPC atomique entreprise
 - healthcheck backend agrégé: qa:functions-health + qa:db-health
 - pre-check environnement: les scripts QA signalent explicitement les variables manquantes
 - hygiene secrets: les sorties QA masquent les mots de passe temporaires par defaut
+- validation install propre: exécution `npm ci` après suppression de `node_modules`
 
 ## Fichiers de test clés
 

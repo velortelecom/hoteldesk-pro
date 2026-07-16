@@ -10,6 +10,7 @@ describe('permissions helpers', () => {
   it('detects enterprise managers correctly', () => {
     expect(isAdminLike({ role: 'admin' })).toBe(true)
     expect(isAdminLike({ role: 'responsable' })).toBe(true)
+    expect(isAdminLike({ role: 'chef_equipe' })).toBe(true)
     expect(isAdminLike({ role: 'employe' })).toBe(false)
   })
 

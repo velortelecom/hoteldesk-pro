@@ -278,6 +278,7 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, pro
                 style={{ padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '8px', fontSize: '0.8125rem' }}>
                 <option value="">-- Changer le rôle --</option>
                 <option value="employe">Employé</option>
+                <option value="chef_equipe">Chef d équipe</option>
                 <option value="responsable">Responsable</option>
                 {isSuperAdmin && <option value="admin">Admin</option>}
               </select>
@@ -293,10 +294,6 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, pro
           </div>
         )}
 
-        <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #e5e7eb', marginTop: '0.5rem', paddingTop: '1.5rem' }}>
-          <h3 style={{ color: '#111827', fontWeight: 600, marginTop: 0, marginBottom: '1rem' }}>Modules (à venir)</h3>
-          <OngletsAVenir />
-        </div>
       </div>
 
       {creds && (
@@ -315,37 +312,6 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, pro
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function OngletsAVenir() {
-  const [onglet, setOnglet] = useState('planning');
-  const onglets = [
-    { id: 'planning', label: 'Planning' },
-    { id: 'taches', label: 'Tâches' },
-    { id: 'conges', label: 'Congés' },
-    { id: 'pointages', label: 'Pointages' },
-    { id: 'documents', label: 'Documents' },
-    { id: 'vehicules', label: 'Véhicules' },
-    { id: 'historique', label: 'Historique' },
-  ];
-  return (
-    <div>
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-        {onglets.map(o => (
-          <button key={o.id} onClick={() => setOnglet(o.id)}
-            style={{
-              padding: '0.5rem 0.875rem', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8125rem', border: 'none',
-              background: onglet === o.id ? '#eef2ff' : '#f9fafb', color: onglet === o.id ? '#6366f1' : '#6b7280', fontWeight: onglet === o.id ? 600 : 400,
-            }}>
-            {o.label}
-          </button>
-        ))}
-      </div>
-      <div style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af', background: '#f9fafb', borderRadius: '8px', fontSize: '0.875rem' }}>
-        Module « {onglets.find(o => o.id === onglet)?.label} » à venir.
-      </div>
     </div>
   );
 }

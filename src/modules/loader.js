@@ -7,6 +7,8 @@
 
 import { MODULES_REGISTRY, getModuleById, getPermissions, checkPermission } from './registry.js'
 
+const V2_READY_MODULE_IDS = new Set(['organisation', 'pointage', 'conges'])
+
 // ===========================================================
 // TYPES (documentation du contrat de donnees)
 // ===========================================================
@@ -65,6 +67,7 @@ export function buildLoadedModules(modulesActifsBDD, profile) {
 
     // Le module existe dans la BDD mais pas (encore) dans le registre local : ignore
     if (!modRegistre || !modRegistre.actif) continue
+    if (!V2_READY_MODULE_IDS.has(moduleId)) continue
 
     // Verifier la permission 'voir' pour ce role
     const peutVoir = checkPermission(moduleId, role, 'voir')

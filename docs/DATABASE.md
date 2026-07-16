@@ -12,8 +12,16 @@
 
 ## Migrations récentes importantes
 
+- `20260715_profiles_role_include_chef_equipe.sql`
 - `20260719_fix_audit_trigger_entreprises.sql`
 - `20260719_sync_super_admin_delete_poste_refs.sql`
+
+## Invariants backend validés
+
+- rôle `chef_equipe` accepté par la contrainte de rôle `profiles.role`
+- RPC et Edge Functions de gestion utilisateur compatibles `chef_equipe`
+- isolation multi-entreprise préservée sur les parcours QA/E2E
+- santé runtime vérifiée sur `create-entreprise`, `create-user`, `create-pointage`
 
 ## Tables cœur utilisées par le frontend actuel
 

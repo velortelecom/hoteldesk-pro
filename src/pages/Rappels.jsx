@@ -22,6 +22,7 @@ const PRIO_CFG = {
 }
 
 const empty = { titre: '', description: '', priorite: 'normale', date_rappel: '', assigne_a: '' }
+const MANAGER_ROLES = ['admin', 'responsable', 'chef_equipe']
 
 // Recupere l'etat des rappels envoyes aujourd'hui depuis localStorage
 function getRappelsAujourdhui() {
@@ -293,7 +294,7 @@ export default function Rappels() {
         </div>
 
         {/* Actions rapides */}
-        {(userRole === 'admin' || userRole === 'responsable' || t.assigne_a === profile?.id) && (
+        {(MANAGER_ROLES.includes(userRole) || t.assigne_a === profile?.id) && (
           <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={() => marquerTacheEnCours(t.id)} style={{ padding: '5px 12px', fontSize: 11, borderRadius: 8, border: '1px solid #EF9F27', background: '#FFF8EE', color: '#854F0B', cursor: 'pointer', fontWeight: 600 }}>
               {String.fromCodePoint(0x25B6)} En cours

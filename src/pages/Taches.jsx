@@ -13,6 +13,7 @@ const CATS = ['menage', 'maintenance', 'accueil', 'admin', 'urgence']
 const PRIOS = ['haute', 'moyenne', 'basse']
 const STATUTS = ['planifiee', 'en_cours', 'terminee', 'annulee']
 const RECURRENCES = ['quotidienne', 'hebdomadaire', 'mensuelle', 'annuelle']
+const MANAGER_ROLES = ['admin', 'responsable', 'chef_equipe']
 const PRIO_COLORS = { haute: '#E24B4A', moyenne: '#EF9F27', basse: '#639922' }
 const STATUT_LABELS = { planifiee: 'Planifiee', en_cours: 'En cours', terminee: 'Terminee', annulee: 'Ann.' }
 const STATUT_COLORS = { planifiee: '#3B82F6', en_cours: '#F59E0B', terminee: '#10B981', annulee: '#6B7280' }
@@ -65,7 +66,7 @@ function TacheRow({ tache, enfants, profile, membres, expandedParents, setExpand
         )}
         {t.heure_debut && <span style={{ fontSize: 11, color: '#8B5CF6' }}>{t.heure_debut.slice(0,5)}</span>}
         {t.heure_fin && <span style={{ fontSize: 11, color: '#8B5CF6' }}>fin: {t.heure_fin.slice(0,5)}</span>}
-        {(profile?.role === 'admin' || profile?.role === 'responsable' || t.assigne_a === profile?.id) && (
+        {(MANAGER_ROLES.includes(profile?.role) || t.assigne_a === profile?.id) && (
           <select
             value={t.statut}
             onChange={e => onStatutChange(t.id, e.target.value)}
@@ -75,7 +76,7 @@ function TacheRow({ tache, enfants, profile, membres, expandedParents, setExpand
             {STATUTS.map(s => <option key={s} value={s}>{STATUT_LABELS[s]}</option>)}
           </select>
         )}
-        {(profile?.role === 'admin' || profile?.role === 'responsable') && (
+        {MANAGER_ROLES.includes(profile?.role) && (
           <>
             <button onClick={() => onEdit(t)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>Edit</button>
             <button onClick={() => onDelete(t.id, isParent)} style={{ background: '#FEE2E2', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>Sup</button>
@@ -253,7 +254,7 @@ export default function Taches() {
     }
   }
 
-  const canManage = profile?.role === 'admin' || profile?.role === 'responsable'
+  const canManage = MANAGER_ROLES.includes(profile?.role)
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#6B7280' }}>Chargement...</div>
 

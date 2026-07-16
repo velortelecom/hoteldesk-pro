@@ -17,6 +17,7 @@ export async function fetchTaskMembers(profile) {
 export async function fetchTasks(profile, roleFilters = {}) {
   const enterpriseId = requireEnterpriseId(profile)
   const profileId = requireProfileId(profile)
+  const role = profile?.role || 'employe'
   let query = supabase
     .from('taches')
     .select('*')
@@ -24,6 +25,7 @@ export async function fetchTasks(profile, roleFilters = {}) {
     .order('date_echeance', { ascending: true })
 
   if (roleFilters.onlyAssignedToCurrentUser) query = query.eq('assigne_a', profileId)
+  if (role === 'chef_equipe') query = query.or('assigne_a.eq.' + profileId + ',cree_par.eq.' + profileId)
 
   const { data, error } = await query
   if (error) throw error

@@ -12,7 +12,9 @@ function buildRoleScopedTaskQuery(profile, userRole) {
     .is('tache_parente_id', null)
 
   if (userRole === 'employe') query = query.eq('assigne_a', profileId)
-  if (userRole === 'responsable') query = query.or('assigne_a.eq.' + profileId + ',cree_par.eq.' + profileId)
+  if (userRole === 'responsable' || userRole === 'chef_equipe') {
+    query = query.or('assigne_a.eq.' + profileId + ',cree_par.eq.' + profileId)
+  }
 
   return query
 }
