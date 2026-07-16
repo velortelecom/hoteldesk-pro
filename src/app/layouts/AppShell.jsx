@@ -16,7 +16,7 @@ import Messagerie from '../../pages/Messagerie'
 import Rappels from '../../pages/Rappels'
 import Personnel from '../../pages/Personnel'
 import Dashboard from '../../pages/Dashboard'
-import SuperAdmin from '../../pages/SuperAdmin'
+import SuperAdminConsole from '../../pages/SuperAdminConsole'
 import { ModuleNonAutorise } from '../../pages/ModuleEnPreparation'
 import { BrandMark } from '../../branding/Brand'
 
@@ -63,6 +63,7 @@ export default function AppShell() {
   const currentPageId = getPageIdFromPath(location.pathname, loadedModules) || 'dashboard'
   const superAdminEnabled = canAccessSuperAdmin(profile)
   const adminLike = isAdminLike(profile)
+  const isSuperAdminRoute = location.pathname.startsWith('/superadmin')
 
   useEffect(() => {
     setShowUserMenu(false)
@@ -90,7 +91,7 @@ export default function AppShell() {
   }, [profile?.id, profile?.prenom, user?.email])
 
   useEffect(() => {
-    if (profile && !profile.is_super_admin && location.pathname === '/superadmin') {
+    if (profile && !profile.is_super_admin && location.pathname.startsWith('/superadmin')) {
       navigate('/', { replace: true })
     }
   }, [profile, location.pathname, navigate])
@@ -135,7 +136,7 @@ export default function AppShell() {
   const uniqueSocle = socleNavItems.filter((item) => !moduleIds.includes(item.id))
   const superAdminItem = superAdminEnabled ? [{ id: 'superadmin', label: 'Super Admin', icon: '🛡' }] : []
   const congesItem = adminLike && !moduleIds.includes('conges') ? [{ id: 'conges', label: 'Congés & Absences', icon: '🏖' }] : []
-  const navItems = [...superAdminItem, ...uniqueSocle, ...moduleNavItems, ...congesItem]
+  const navItems = isSuperAdminRoute ? [] : [...superAdminItem, ...uniqueSocle, ...moduleNavItems, ...congesItem]
   const routeEntries = buildRouteEntries(loadedModules)
 
   const prenomDisplay = profile?.prenom && profile.prenom !== 'Nouveau' ? profile.prenom : (user?.email?.split('@')[0] || 'Admin')
@@ -147,14 +148,19 @@ export default function AppShell() {
       <header style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <BrandMark size={32} radius={8} />
-          <span style={{ fontWeight: 700, fontSize: 16, color: '#111' }}>{nomEntreprise}</span>
+          <span style={{ fontWeight: 700, fontSize: 16, color: '#111' }}>{isSuperAdminRoute ? 'Velor Super Admin' : nomEntreprise}</span>
           {superAdminEnabled && <span style={{ background: '#FEF3C7', color: '#92400E', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4 }}>SUPER ADMIN</span>}
           {!superAdminEnabled && profile?.role === 'admin' && <span style={{ background: '#EEF2FF', color: '#3730A3', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 4 }}>ADMIN</span>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {superAdminEnabled && (
+          {superAdminEnabled && !isSuperAdminRoute && (
             <button onClick={() => goToPage('superadmin')} style={{ background: 'none', border: '1px solid #E5E7EB', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: '#6B7280' }}>
               🛡 Super Admin
+            </button>
+          )}
+          {superAdminEnabled && isSuperAdminRoute && (
+            <button onClick={() => navigate('/')} style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: '#1D4ED8' }}>
+              Retour espace entreprise
             </button>
           )}
           <div style={{ position: 'relative' }}>
@@ -207,7 +213,7 @@ export default function AppShell() {
       </header>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <nav className="desktop-nav" style={{ width: 220, background: '#fff', borderRight: '1px solid #E5E7EB', display: 'flex', flexDirection: 'column', paddingTop: 16, flexShrink: 0, overflowY: 'auto' }}>
+        <nav className="desktop-nav" style={{ width: isSuperAdminRoute ? 0 : 220, background: '#fff', borderRight: isSuperAdminRoute ? 'none' : '1px solid #E5E7EB', display: isSuperAdminRoute ? 'none' : 'flex', flexDirection: 'column', paddingTop: 16, flexShrink: 0, overflowY: 'auto' }}>
           {navItems.map((item) => (
             <button key={item.id} onClick={() => goToPage(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 20px', background: currentPageId === item.id ? '#EEF2FF' : 'none', border: 'none', borderLeft: currentPageId === item.id ? '3px solid #1E40AF' : '3px solid transparent', cursor: 'pointer', fontSize: 13, fontWeight: currentPageId === item.id ? 600 : 400, color: currentPageId === item.id ? '#1E40AF' : '#374151', textAlign: 'left', width: '100%' }}>
               <span style={{ fontSize: 16 }}>{item.icon}</span>
@@ -216,7 +222,7 @@ export default function AppShell() {
           ))}
         </nav>
 
-        <main className="main-content" style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+        <main className="main-content" style={{ flex: 1, overflowY: 'auto', padding: isSuperAdminRoute ? 0 : 24 }}>
           <ErrorBoundary>
             <Routes>
               <Route path="/" element={<Dashboard />} />
@@ -228,7 +234,7 @@ export default function AppShell() {
               <Route path="/personnel" element={<Navigate to="/equipe" replace />} />
               <Route path="/equipe" element={<Personnel />} />
               <Route path="/conges" element={adminLike ? <Suspense fallback={<LoadingModule />}><CongesModule permissions={getPermissionsForModule('conges', profile)} profile={profile} /></Suspense> : <ModuleNonAutorise />} />
-              <Route path="/superadmin" element={superAdminEnabled ? <SuperAdmin /> : <Navigate to="/" replace />} />
+              <Route path="/superadmin/*" element={superAdminEnabled ? <SuperAdminConsole /> : <Navigate to="/" replace />} />
               {routeEntries.map((entry) => (
                 <Route key={entry.id} path={entry.routePath} element={<ModuleRouteRenderer entry={entry} profile={profile} />} />
               ))}
@@ -240,14 +246,16 @@ export default function AppShell() {
 
       <footer style={{ textAlign: 'center', padding: '6px 0', fontSize: 11, color: '#9CA3AF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, borderTop: '1px solid #E5E7EB', flexShrink: 0 }}><BrandMark size={16} radius={4} />Velor One</footer>
 
-      <nav className="mobile-nav" style={{ display: 'none', position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #E5E7EB', padding: '8px 0', zIndex: 50 }}>
-        {navItems.slice(0, 7).map((item) => (
-          <button key={item.id} onClick={() => goToPage(item.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px', color: currentPageId === item.id ? '#1E40AF' : '#6B7280', fontSize: 10 }}>
-            <span style={{ fontSize: 18 }}>{item.icon}</span>
-            {item.label}
-          </button>
-        ))}
-      </nav>
+      {!isSuperAdminRoute && (
+        <nav className="mobile-nav" style={{ display: 'none', position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: '1px solid #E5E7EB', padding: '8px 0', zIndex: 50 }}>
+          {navItems.slice(0, 7).map((item) => (
+            <button key={item.id} onClick={() => goToPage(item.id)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px', color: currentPageId === item.id ? '#1E40AF' : '#6B7280', fontSize: 10 }}>
+              <span style={{ fontSize: 18 }}>{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+      )}
 
       <div style={{ position: 'fixed', bottom: 80, right: 16, zIndex: 300, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {toasts.map((toast) => (
