@@ -12,8 +12,8 @@ if (!baseUrl || !secretKey) {
 const admin = createClient(baseUrl, secretKey, { auth: { autoRefreshToken: false, persistSession: false } })
 const PLAN_DEFAULTS = {
   starter: { max_utilisateurs: 10 },
-  business: { max_utilisateurs: 20 },
-  premium: { max_utilisateurs: 100 },
+  business: { max_utilisateurs: 50 },
+  premium: { max_utilisateurs: 200 },
 }
 const QA_PATTERN = /(qa|e2e|test)/i
 

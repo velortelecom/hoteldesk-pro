@@ -67,14 +67,14 @@ export function mapEnterpriseCreationError(error) {
   if (raw.includes('entreprise_slug_exists') || raw.includes('entreprise_name_exists') || raw.includes('duplicate key')) {
     return 'Une entreprise avec ce nom existe deja.'
   }
-  if (raw.includes('failed to fetch') || raw.includes('failed to send a request to the edge function') || raw.includes('functionsfet') || raw.includes('network') || status === 0) {
-    return 'Erreur reseau ou Edge Function indisponible. Verifiez la connexion internet et reessayez.'
+  if (raw.includes('enterprise_create_failed') || raw.includes('missing_nom') || raw.includes('invalid_slug')) {
+    return 'Impossible de creer l entreprise. Verifiez les informations puis reessayez.'
   }
   if (raw.includes('admin_create_failed') || raw.includes('admin_profile_create_failed') || raw.includes('admin_email_already_exists')) {
     return 'Impossible de creer l administrateur. Verifiez l email puis reessayez.'
   }
-  if (raw.includes('enterprise_create_failed') || raw.includes('missing_nom') || raw.includes('invalid_slug')) {
-    return 'Impossible de creer l entreprise. Verifiez les informations puis reessayez.'
+  if (raw.includes('failed to send a request to the edge function') || raw.includes('failed to fetch') || raw.includes('functionsfet') || raw.includes('network') || status === 0) {
+    return 'Erreur reseau pendant la creation. Verifiez la connexion puis reessayez.'
   }
   if (raw.includes('function not found') || raw.includes('404') || raw.includes('edge function')) {
     return 'Service de creation indisponible pour le moment.'
