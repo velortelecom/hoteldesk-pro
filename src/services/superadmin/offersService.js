@@ -76,16 +76,24 @@ export async function fetchOffersLimitsData(supabase) {
 
   const subRes = await supabase
     .from('abonnements')
-      .select('id, entreprise_id, plan, actif, prix_mensuel, date_debut, date_fin, created_at')
+      .select('id, entreprise_id, plan, actif, prix_mensuel, date_debut, date_fin, created_at, paye, paye_le')
       .limit(200)
 
   const subscriptionState = normalizeSubscriptionState(subRes.error)
 
-  const baseRows = enterpriseRes.data || []
-  const rows = baseRows.map((row) => ({
-    ...row,
-    offerLimits: buildEffectiveOfferLimits(row),
-  }))
+const baseRows = enterpriseRes.data || []
+      const subscriptionByEntreprise = {}
+      ;(subRes.data || []).forEach((sub) => { subscriptionByEntreprise[sub.entreprise_id] = sub })
+      const rows = baseRows.map((row) => {
+              const sub = subscriptionByEntreprise[row.id] || null
+              return {
+                        ...row,
+                        offerLimits: buildEffectiveOfferLimits(row),
+                        abonnementId: sub?.id || null,
+                        paye: sub ? sub.paye === true : null,
+                        payeLe: sub?.paye_le || null,
+              }
+      })
 
   return {
     rows,
@@ -121,3 +129,13 @@ export async function fetchOffersLimitsData(supabase) {
         if (error) throw error
   }
   }
+
+
+              export async function setAbonnementPaiement(supabase, entrepriseId, paye) {
+                  if (!entrepriseId) return
+                  const { error } = await supabase
+                    .from('abonnements')
+                    .update({ paye: !!paye, paye_le: paye ? new Date().toISOString() : null })
+                    .eq('entreprise_id', entrepriseId)
+                  if (error) throw error
+              }Page_Down
