@@ -33,7 +33,7 @@ export default function Dashboard() {
   const prenom = profile?.prenom || profile?.nom || 'Utilisateur'
 
   useEffect(() => {
-    if (profile?.entreprise_id) fetchAll()
+      if (profile?.entreprise_id) { fetchAll() } else { setLoading(false) }
   }, [profile?.entreprise_id])
 
   async function fetchAll() {
@@ -77,6 +77,7 @@ export default function Dashboard() {
       Chargement...
     </div>
   )
+  if (!profile?.entreprise_id) return <div style={{ padding:32, textAlign:'center', color:'#6b7280' }}>Aucun espace entreprise associe a ce compte. Utilisez la console Super Admin pour gerer la plateforme et les entreprises clientes.</div>
 
   const pct = (n) => stats.total ? Math.round(n/stats.total*100) : 0
 
