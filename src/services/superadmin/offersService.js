@@ -76,8 +76,8 @@ export async function fetchOffersLimitsData(supabase) {
 
   const subRes = await supabase
     .from('abonnements')
-    .select('id, entreprise_id, plan, statut, max_utilisateurs, prix_mensuel, updated_at')
-    .limit(200)
+      .select('id, entreprise_id, plan, actif, prix_mensuel, date_debut, date_fin, created_at')
+      .limit(200)
 
   const subscriptionState = normalizeSubscriptionState(subRes.error)
 
