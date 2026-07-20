@@ -3,17 +3,40 @@ import { jsonResponse, readJsonBody } from '../_shared/http.ts';
 import { recordAuditEvent } from '../_shared/audit.ts';
 import { isAllowedRole, isProtectedSuperAdmin } from '../_shared/user_admin.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': Deno.env.get('ALLOWED_ORIGIN') ?? '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
+function isAllowedOrigin(origin: string, allowlist: string[]) {
+  if (!origin) return false;
 
-function corsResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
+  for (const entry of allowlist) {
+    const item = entry.trim();
+    if (!item) continue;
+    if (item === '*') return true;
+    if (item === origin) return true;
+    if (item.startsWith('*.')) {
+      const suffix = item.slice(1);
+      if (origin.endsWith(suffix)) return true;
+    }
+  }
+
+  const lower = origin.toLowerCase();
+  if (lower.startsWith('https://') && lower.endsWith('.vercel.app')) return true;
+  if (lower.startsWith('https://localhost') || lower.startsWith('http://localhost')) return true;
+  return false;
+}
+
+function buildCorsHeaders(req: Request) {
+  const configured = Deno.env.get('ALLOWED_ORIGIN') ?? '*';
+  const allowlist = configured.split(',').map((v) => v.trim()).filter(Boolean);
+  const origin = req.headers.get('origin') ?? '';
+  const allowedOrigin = isAllowedOrigin(origin, allowlist)
+    ? origin
+    : (allowlist[0] || '*');
+
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Vary': 'Origin',
+  };
 }
 
 async function getCallerProfile(supabase: ReturnType<typeof createClient>, userId: string) {
@@ -28,6 +51,13 @@ async function getCallerProfile(supabase: ReturnType<typeof createClient>, userI
 }
 
 Deno.serve(async (req: Request) => {
+  const corsHeaders = buildCorsHeaders(req);
+  function corsResponse(body: unknown, status = 200) {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   if (req.method !== 'POST') return corsResponse({ success: false, error: 'method_not_allowed' }, 405);
 
