@@ -10,6 +10,7 @@ import { SECTEURS_METIERS, SECTEURS_OPTIONS, getDepartementsBySecteur, getPostes
 import { BrandMark, APP_URL } from '../branding/Brand'
 import { buildCreationSlug, buildEditionForm } from './superAdminUtils'
 import { buildEntrepriseUpdatePayload, mapSuperAdminError } from './superAdminControlUtils'
+import { syncAbonnementFromEntreprise } from '../services/superadmin/offersService'
 import {
   applyEnterpriseCreationToState,
   buildEnterpriseCreationPayload,
@@ -262,7 +263,7 @@ export default function SuperAdmin() {
       return { ...f, modules_selectionnes: sel.includes(modId) ? sel.filter(m => m !== modId) : [...sel, modId] }
     })
   }
-
+function sauvegarder
   function toggleDept(code) {
     setForm(f => {
       const sel = f.departements_selectionnes || []
@@ -295,6 +296,7 @@ export default function SuperAdmin() {
       if (editEntreprise) {
         const { error } = await supabase.from('entreprises').update(entData).eq('id', editEntreprise.id)
         if (error) throw error
+        await syncAbonnementFromEntreprise(supabase, editEntreprise.id, { plan: entData.plan, prix_mensuel: entData.prix_mensuel, actif: entData.actif })
 
         setMsg({
           type: 'success',
@@ -314,6 +316,9 @@ export default function SuperAdmin() {
       const { data, error } = await supabase.functions.invoke('create-entreprise', { body: payload })
       if (error) throw error
       if (!data?.success) throw new Error(data?.error || 'enterprise_create_failed')
+      if (data?.entreprise?.id) {
+        await syncAbonnementFromEntreprise(supabase, data.entreprise.id, { plan: form.plan, prix_mensuel: form.prix_mensuel, actif: form.actif !== false })
+      }
 
       const next = applyEnterpriseCreationToState(
         { entreprises, stats },
@@ -366,6 +371,7 @@ export default function SuperAdmin() {
       return
     }
     await supabase.from('entreprises').update({ actif: !ent.actif }).eq('id', ent.id)
+    await syncAbonnementFromEntreprise(supabase, ent.id, { plan: ent.plan, prix_mensuel: ent.prix_mensuel, actif: nextState })
     fetchData()
   }
 
