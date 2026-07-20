@@ -434,7 +434,7 @@ export default function Personnel() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 400 }}>
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
-              <div style={{ fontSize: 40, marginBottom: 8 }}>â</div>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
               <div style={{ fontSize: 17, fontWeight: 700, color: '#065F46' }}>{nouvellesCreds.action === 'reset' ? 'Mot de passe reinitialise !' : 'Compte cree !'}</div>
               <div style={{ fontSize: 13, color: '#888', marginTop: 4 }}>{nouvellesCreds.prenom} {nouvellesCreds.nom}</div>
             </div>
