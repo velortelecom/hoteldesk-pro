@@ -136,7 +136,7 @@ export default function SuperAdminOffersPanel({ supabase, searchQuery }) {
                       <td style={{ padding: '8px 12px', color: row.actif === false ? '#B91C1C' : '#047857', fontWeight: 700 }}>
                         {row.actif === false ? 'Suspendue' : 'Active'}
                       </td>
-                      <td style={{ padding: '8px 12px' }}><button onClick={() => handleTogglePaiement(row)} disabled={row.paye === null || togglingId === row.id} style={{ ...badgeStyle, border: 'none', cursor: 'pointer', background: row.paye === null ? '#F1F5F9' : (row.paye ? '#DCFCE7' : '#FEE2E2'), color: row.paye === null ? '#94A3B8' : (row.paye ? '#166534' : '#B91C1C') }}>{togglingId === row.id ? '...' : (row.paye === null ? 'N/A' : (row.paye ? 'Paye' : 'Non paye'))}</button>}</td>
+                      <td style={{ padding: '8px 12px' }}><button onClick={() => handleTogglePaiement(row)} disabled={row.paye === null || togglingId === row.id} style={{ ...badgeStyle, border: 'none', cursor: 'pointer', background: row.paye === null ? '#F1F5F9' : (row.paye ? '#DCFCE7' : '#FEE2E2'), color: row.paye === null ? '#94A3B8' : (row.paye ? '#166534' : '#B91C1C') }}>{togglingId === row.id ? '...' : (row.paye === null ? 'N/A' : (row.paye ? 'Paye' : 'Non paye'))}</button></td>
                     </tr>
                   )
                 })}
