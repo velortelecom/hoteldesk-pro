@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { PLANS } from '../../lib/modules'
 import { mapSuperAdminError } from '../../pages/superAdminControlUtils'
-import { fetchOffersLimitsData, filterOfferRows } from '../../services/superadmin/offersService'
+import { fetchOffersLimitsData, filterOfferRows, setAbonnementPaiement } from '../../services/superadmin/offersService'
 
 const cardStyle = { background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: 14 }
 const inputStyle = { border: '1px solid #CBD5E1', borderRadius: 8, padding: '8px 10px', fontSize: 12 }
@@ -21,6 +21,7 @@ export default function SuperAdminOffersPanel({ supabase, searchQuery }) {
   const [msg, setMsg] = useState(null)
   const [dataset, setDataset] = useState({ rows: [], summary: null, subscriptions: [], subscriptionState: 'ok' })
   const [filters, setFilters] = useState({ plan: '', status: '' })
+  const [togglingId, setTogglingId] = useState(null)
 
   useEffect(() => {
     load()
@@ -37,6 +38,20 @@ export default function SuperAdminOffersPanel({ supabase, searchQuery }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleTogglePaiement(row) {
+      if (!row?.id) return
+      setTogglingId(row.id)
+      setMsg(null)
+      try {
+            await setAbonnementPaiement(supabase, row.id, !row.paye)
+            await load()
+      } catch (error) {
+            setMsg({ type: 'error', text: mapSuperAdminError(error, 'Mise a jour du paiement impossible.') })
+      } finally {
+            setTogglingId(null)
+      }
   }
 
   const visibleRows = useMemo(() => filterOfferRows(dataset.rows, searchQuery, filters), [dataset.rows, searchQuery, filters])
@@ -101,6 +116,7 @@ export default function SuperAdminOffersPanel({ supabase, searchQuery }) {
                   <th style={{ textAlign: 'left', padding: '9px 12px' }}>Prix mensuel</th>
                   <th style={{ textAlign: 'left', padding: '9px 12px' }}>Max utilisateurs</th>
                   <th style={{ textAlign: 'left', padding: '9px 12px' }}>Statut</th>
+                  <th style={{ textAlign: 'left', padding: '9px 12px' }}>Paiement</th>
                 </tr>
               </thead>
               <tbody>
@@ -120,6 +136,7 @@ export default function SuperAdminOffersPanel({ supabase, searchQuery }) {
                       <td style={{ padding: '8px 12px', color: row.actif === false ? '#B91C1C' : '#047857', fontWeight: 700 }}>
                         {row.actif === false ? 'Suspendue' : 'Active'}
                       </td>
+                      <td style={{ padding: '8px 12px' }}><button onClick={() => handleTogglePaiement(row)} disabled={row.paye === null || togglingId === row.id} style={{ ...badgeStyle, border: 'none', cursor: 'pointer', background: row.paye === null ? '#F1F5F9' : (row.paye ? '#DCFCE7' : '#FEE2E2'), color: row.paye === null ? '#94A3B8' : (row.paye ? '#166534' : '#B91C1C') }}>{togglingId === row.id ? '...' : (row.paye === null ? 'N/A' : (row.paye ? 'Paye' : 'Non paye'))}</button>}</td>
                     </tr>
                   )
                 })}
