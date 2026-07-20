@@ -35,7 +35,7 @@ async function fetchJsonWithTimeout(url, timeoutMs = 3500) {
       signal: controller.signal,
     })
     return await response.json()
-  } finally {
+  } catch { return null } finally {
     window.clearTimeout(timeoutId)
   }
 }
