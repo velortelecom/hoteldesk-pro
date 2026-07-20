@@ -94,3 +94,30 @@ export async function fetchOffersLimitsData(supabase) {
     subscriptionState,
   }
 }
+
+
+  export async function syncAbonnementFromEntreprise(supabase, entrepriseId, { plan, prix_mensuel, actif } = {}) {
+      if (!entrepriseId) return
+
+  const { data: existing, error: selectError } = await supabase
+        .from('abonnements')
+        .select('id')
+        .eq('entreprise_id', entrepriseId)
+        .limit(1)
+        .maybeSingle()
+
+  if (selectError) throw selectError
+
+  if (existing) {
+        const { error } = await supabase
+          .from('abonnements')
+          .update({ plan, prix_mensuel, actif })
+          .eq('id', existing.id)
+        if (error) throw error
+  } else {
+        const { error } = await supabase
+          .from('abonnements')
+          .insert({ entreprise_id: entrepriseId, plan, prix_mensuel, actif, date_debut: new Date().toISOString() })
+        if (error) throw error
+  }
+  }
