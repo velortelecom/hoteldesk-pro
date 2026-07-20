@@ -263,7 +263,6 @@ export default function SuperAdmin() {
       return { ...f, modules_selectionnes: sel.includes(modId) ? sel.filter(m => m !== modId) : [...sel, modId] }
     })
   }
-function sauvegarder
   function toggleDept(code) {
     setForm(f => {
       const sel = f.departements_selectionnes || []
