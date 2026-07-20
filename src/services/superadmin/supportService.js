@@ -59,7 +59,7 @@ export async function createSupportTicket(supabase, payload) {
     titre: payload.title,
     description: payload.description,
     statut: payload.status || 'ouvert',
-    priorite: payload.priority || 'normal',
+    priorite:(['haute','moyenne','basse'].includes(String(payload.priority||'').toLowerCase()) ? String(payload.priority).toLowerCase() : (String(payload.priority||'').toLowerCase()==='high' ? 'haute' : String(payload.priority||'').toLowerCase()==='low' ? 'basse' : 'moyenne')),
     entreprise_id: payload.entreprise_id || null,
   }
 
