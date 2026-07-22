@@ -27,7 +27,21 @@ export function AuthProvider({ children }) {
   async function fetchProfile(userId) {
     setLoading(true)
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
-    setProfile(data ?? null)
+    let effectiveProfile = data ?? null
+
+    if (effectiveProfile?.is_super_admin) {
+      try {
+        const nowIso = new Date().toISOString()
+        const { data: sessions } = await supabase.from('super_admin_assistance_sessions').select('id, entreprise_id, expires_at, closed_at').eq('super_admin_profile_id', userId).is('closed_at', null).order('created_at', { ascending: false }).limit(5)
+        const active = (sessions || []).find((s) => !s.expires_at || new Date(s.expires_at) > new Date(nowIso))
+        if (active?.entreprise_id) {
+          effectiveProfile = { ...effectiveProfile, entreprise_id: active.entreprise_id, _real_entreprise_id: effectiveProfile.entreprise_id ?? null, _assistance_session_id: active.id }
+        }
+      } catch {
+        // best effort: keep the super admin profile unchanged on failure
+      }
+    }
+    setProfile(effectiveProfile)
     setLoading(false)
   }
 
