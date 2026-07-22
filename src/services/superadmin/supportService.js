@@ -79,3 +79,26 @@ export async function createSupportTicket(supabase, payload) {
 
   return normalizeTicketRow((secondRes.data || [])[0] || secondAttempt)
 }
+
+  export async function fetchTicketMessages(supabase, ticketId) {
+    const { data, error } = await supabase
+    .from('ticket_messages')
+    .select('*')
+    .eq('ticket_id', ticketId)
+    .order('created_at', { ascending: true })
+    if (error) throw error
+    return data || []
+  }
+
+export async function createTicketMessage(supabase, { ticketId, entrepriseId, senderProfileId, senderRole, message }) {
+  const payload = {
+    ticket_id: ticketId,
+    entreprise_id: entrepriseId || null,
+    sender_profile_id: senderProfileId,
+    sender_role: senderRole || 'super_admin',
+    message,
+  }
+  const { data, error } = await supabase.from('ticket_messages').insert(payload).select('*').single()
+  if (error) throw error
+  return data
+}
