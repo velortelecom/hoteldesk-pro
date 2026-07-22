@@ -7,7 +7,7 @@
 
 import { MODULES_REGISTRY, getModuleById, getPermissions, checkPermission } from './registry.js'
 
-const V2_READY_MODULE_IDS = new Set(['organisation', 'pointage', 'conges'])
+const V2_READY_MODULE_IDS = new Set(['organisation', 'pointage', 'conges', 'support'])
 
 // ===========================================================
 // TYPES (documentation du contrat de donnees)
