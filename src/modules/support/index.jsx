@@ -7,14 +7,14 @@ import { supabase } from '../../lib/supabase'
 
 const PRIORITES = {
 basse: { label: 'Basse', couleur: '#6B7280' },
-normale: { label: 'Normale', couleur: '#3B82F6' },
+moyenne: { label: 'Moyenne', couleur: '#3B82F6' },
 haute: { label: 'Haute', couleur: '#EF4444' },
 }
 
-const STATUTS = {
+const STATUTS = { 
 ouvert: { label: 'Ouvert', couleur: '#F59E0B', bg: '#FEF3C7' },
 en_cours: { label: 'En cours', couleur: '#3B82F6', bg: '#DBEAFE' },
-ferme: { label: 'Ferme', couleur: '#10B981', bg: '#D1FAE5' },
+resolu: { label: 'Resolu', couleur: '#10B981', bg: '#D1FAE5' },
 }
 
 const cardStyle = { background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: 16 }
@@ -31,7 +31,7 @@ const [messages, setMessages] = useState([])
 const [reply, setReply] = useState('')
 const [sending, setSending] = useState(false)
 const [showForm, setShowForm] = useState(false)
-const [form, setForm] = useState({ titre: '', description: '', priorite: 'normale' })
+const [form, setForm] = useState({ titre: '', description: '', priorite: 'moyenne' })
 const [creating, setCreating] = useState(false)
 
 useEffect(() => { init() }, [])
@@ -76,13 +76,13 @@ titre: form.titre.trim(),
 description: form.description.trim() || null,
 priorite: form.priorite,
 statut: 'ouvert',
-categorie: 'support',
+categorie: 'autre',
 entreprise_id: profile.entreprise_id,
 cree_par: profile.id,
 }
 const { data, error } = await supabase.from('maintenance_tickets').insert(payload).select('*').single()
 if (error) throw error
-setForm({ titre: '', description: '', priorite: 'normale' })
+setForm({ titre: '', description: '', priorite: 'moyenne' })
 setShowForm(false)
 setMsg({ type: 'success', text: 'Ticket cree. Le support va vous repondre ici.' })
 await loadTickets(profile)
