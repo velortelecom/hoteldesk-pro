@@ -56,6 +56,16 @@ export default function SuperAdminSupportPanel({ supabase, searchQuery, entrepri
         senderProfileId: adminId,
         senderRole: 'super_admin',
         message: replyText.trim(),
+      })
+      setReplyText('')
+      const msgs = await fetchTicketMessages(supabase, selectedTicket.id)
+      setTicketMessages(msgs)
+    } catch (error) {
+      setMsg({ type: 'error', text: "Erreur lors de l'envoi de la reponse." })
+    } finally {
+      setSendingReply(false)
+    }
+  }
 
   async function submitTicket() {
     if (!form.title.trim() || !form.description.trim()) {
