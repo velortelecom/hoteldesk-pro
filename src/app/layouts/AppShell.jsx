@@ -291,7 +291,7 @@ export default function AppShell() {
               <Route path="/rappels" element={<Rappels />} />
               <Route path="/personnel" element={<Navigate to="/equipe" replace />} />
               <Route path="/equipe" element={<Personnel />} />
-              <Route path="/conges" element={adminLike ? <Suspense fallback={<LoadingModule />}><CongesModule permissions={getPermissionsForModule('conges', profile)} profile={profile} /></Suspense> : <ModuleNonAutorise />} />
+              <Route path="/conges" element={loadedModules.some((m) => m.id === 'conges') ? <Suspense fallback={<LoadingModule />}><CongesModule permissions={getPermissionsForModule('conges', profile)} profile={profile} /></Suspense> : <ModuleNonAutorise />} />
               <Route path="/superadmin/*" element={superAdminEnabled ? <SuperAdminConsole /> : <Navigate to="/" replace />} />
               {routeEntries.map((entry) => (
                 <Route key={entry.id} path={entry.routePath} element={<ModuleRouteRenderer entry={entry} profile={profile} />} />
