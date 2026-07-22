@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { mapSuperAdminError } from '../../pages/superAdminControlUtils'
-import { createSupportTicket, fetchSupportTicketsData, filterSupportTickets } from '../../services/superadmin/supportService'
-
+import { createSupportTicket, fetchSupportTicketsData, filterSupportTickets, fetchTicketMessages, createTicketMessage } from '../../services/superadmin/supportService'
 const cardStyle = { background: '#fff', border: '1px solid #E2E8F0', borderRadius: 12, padding: 14 }
 const inputStyle = { border: '1px solid #CBD5E1', borderRadius: 8, padding: '8px 10px', fontSize: 12 }
 
@@ -12,6 +11,10 @@ export default function SuperAdminSupportPanel({ supabase, searchQuery, entrepri
   const [dataset, setDataset] = useState({ backendState: 'ok', rows: [] })
   const [filters, setFilters] = useState({ status: '', priority: '' })
   const [form, setForm] = useState({ title: '', description: '', priority: 'normal', entreprise_id: '' })
+  const [selectedTicket, setSelectedTicket] = useState(null)
+  const [ticketMessages, setTicketMessages] = useState([])
+  const [replyText, setReplyText] = useState('')
+  const [sendingReply, setSendingReply] = useState(false)
 
   useEffect(() => {
     load()
@@ -29,6 +32,30 @@ export default function SuperAdminSupportPanel({ supabase, searchQuery, entrepri
       setLoading(false)
     }
   }
+
+  async function abrirTicket(row) {
+    setSelectedTicket(row)
+    setTicketMessages([])
+    try {
+      const msgs = await fetchTicketMessages(supabase, row.id)
+      setTicketMessages(msgs)
+    } catch (error) {
+      setMsg({ type: 'error', text: 'Chargement des messages impossible.' })
+    }
+  }
+
+  async function envoyerReponse() {
+    if (!replyText.trim() || !selectedTicket) return
+    setSendingReply(true)
+    try {
+      const { data: authData } = await supabase.auth.getUser()
+      const adminId = authData?.user?.id
+      await createTicketMessage(supabase, {
+        ticketId: selectedTicket.id,
+        entrepriseId: selectedTicket.entreprise_id || null,
+        senderProfileId: adminId,
+        senderRole: 'super_admin',
+        message: replyText.trim(),
 
   async function submitTicket() {
     if (!form.title.trim() || !form.description.trim()) {
@@ -128,7 +155,7 @@ export default function SuperAdminSupportPanel({ supabase, searchQuery, entrepri
         ) : (
           <div style={{ display: 'grid', gap: 8 }}>
             {visibleRows.map((row) => (
-              <div key={row.id} style={{ border: '1px solid #E2E8F0', borderRadius: 10, padding: 10, background: '#F8FAFC' }}>
+              <div key={row.id} onClick={() => abrirTicket(row)} style={{ border: selectedTicket?.id === row.id ? '2px solid #2563EB' : '1px solid #E2E8F0', borderRadius: 10, padding: 10, background: '#F8FAFC', cursor: 'pointer' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                   <strong>{row.title}</strong>
                   <span style={{ fontSize: 11, color: '#64748B' }}>{row.created_at ? new Date(row.created_at).toLocaleString('fr-FR') : 'date n/a'}</span>
@@ -140,6 +167,28 @@ export default function SuperAdminSupportPanel({ supabase, searchQuery, entrepri
             {visibleRows.length === 0 && <div style={{ color: '#94A3B8' }}>Aucun ticket selon les filtres.</div>}
           </div>
         )}
+        {selectedTicket && (
+      <div style={{ marginTop: 12, borderTop: '1px solid #E2E8F0', paddingTop: 12 }}>
+        <h4 style={{ marginTop: 0 }}>{selectedTicket.titre || selectedTicket.title}</h4>
+        <div style={{ color: '#64748B', fontSize: 12, marginBottom: 10 }}>{selectedTicket.description}</div>
+        <div style={{ display: 'grid', gap: 8, maxHeight: 260, overflowY: 'auto', margin: '10px 0' }}>
+          {ticketMessages.length === 0 && <div style={{ color: '#94A3B8', fontSize: 12 }}>Aucun message pour ce ticket.</div>}
+          {ticketMessages.map((m) => {
+        const isAdmin = m.sender_role === 'super_admin'
+          return (
+            <div key={m.id} style={{ alignSelf: isAdmin ? 'flex-end' : 'flex-start', maxWidth: '85%', background: isAdmin ? '#DBEAFE' : '#F1F5F9', borderRadius: 8, padding: '8px 10px' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', marginBottom: 3 }}>{isAdmin ? 'Support (vous)' : 'Client'}</div>
+              <div style={{ fontSize: 13 }}>{m.message}</div>
+            </div>
+            )
+      })}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input style={inputStyle} placeholder="Repondre au client..." value={replyText} onChange={(event) => setReplyText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') envoyerReponse() }} />
+          <button disabled={sendingReply} onClick={envoyerReponse} style={{ border: 'none', borderRadius: 8, background: sendingReply ? '#93C5FD' : '#2563EB', color: '#fff', padding: '8px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>{sendingReply ? '...' : 'Envoyer'}</button>button>
+        </div>
+      </div>
+      )}
       </section>
     </div>
   )
