@@ -7,10 +7,39 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const ALLOWED_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") ?? "*";
+function isAllowedOrigin(origin: string, allowlist: string[]) {
+    if (!origin) return false;
+    for (const entry of allowlist) {
+        const item = entry.trim();
+        if (!item) continue;
+        if (item === "*") return true;
+        if (item === origin) return true;
+        if (item.startsWith("*.")) {
+            const suffix = item.slice(1);
+            if (origin.endsWith(suffix)) return true;
+        }
+    }
+    const lower = origin.toLowerCase();
+    if (lower.startsWith("https://") && lower.endsWith(".vercel.app")) return true;
+    if (lower.startsWith("https://localhost") || lower.startsWith("http://localhost")) return true;
+    return false;
+}
 
-const corsHeaders = {
-    "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+function buildCorsHeaders(req: Request) {
+    const configured = Deno.env.get("ALLOWED_ORIGIN") ?? "*";
+    const allowlist = configured.split(",").map((v) => v.trim()).filter(Boolean);
+    const origin = req.headers.get("origin") ?? "";
+    const allowedOrigin = isAllowedOrigin(origin, allowlist) ? origin : (allowlist[0] || "*");
+    return {
+        "Access-Control-Allow-Origin": allowedOrigin,
+        "Access-Control-Allow-Headers": "authorization, content-type",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Vary": "Origin",
+    };
+}
+
+let corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "authorization, content-type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
@@ -193,6 +222,7 @@ const REGISTRE_METHODES: Record<string, ValidateurMethode> = {
 };
 
 Deno.serve(async (req: Request) => {
+    corsHeaders = buildCorsHeaders(req);
     if (req.method === "OPTIONS") {
           return new Response(null, { headers: corsHeaders });
     }
