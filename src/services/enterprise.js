@@ -4,14 +4,14 @@ export function isUuid(value) {
 
 export function requireProfileId(profile) {
   if (!isUuid(profile?.id)) {
-    throw new Error('missing_profile_id')
+    throw new Error('Session invalide : identifiant du profil introuvable. Merci de vous reconnecter.')
   }
   return profile.id
 }
 
 export function requireEnterpriseId(profile) {
   if (!isUuid(profile?.entreprise_id)) {
-    throw new Error('missing_enterprise_id')
+    throw new Error('Aucune entreprise associee a cette session. Si vous etes en mode assistance, rafraichissez la page puis reessayez.')
   }
   return profile.entreprise_id
 }
