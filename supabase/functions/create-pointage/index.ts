@@ -32,7 +32,7 @@ function buildCorsHeaders(req: Request) {
     const allowedOrigin = isAllowedOrigin(origin, allowlist) ? origin : (allowlist[0] || "*");
     return {
         "Access-Control-Allow-Origin": allowedOrigin,
-        "Access-Control-Allow-Headers": "authorization, content-type",
+        "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type",
         "Access-Control-Allow-Methods": "POST, OPTIONS",
         "Vary": "Origin",
     };
@@ -40,7 +40,7 @@ function buildCorsHeaders(req: Request) {
 
 let corsHeaders = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, content-type",
+    "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
