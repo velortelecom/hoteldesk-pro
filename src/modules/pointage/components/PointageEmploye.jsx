@@ -1,11 +1,20 @@
 import React, { useMemo, useState } from 'react'
 import { createPointageEntry } from '../services.js'
 
+const LOCATION_LABELS = {
+  idle: '',
+  locating: '📍 Localisation en cours…',
+  ok: '📍 Position obtenue.',
+  error: '⚠️ Localisation indisponible ou refusée : le pointage sera enregistré sans position GPS.',
+  unsupported: '⚠️ Géolocalisation non supportée par cet appareil.',
+}
+
 export default function PointageEmploye({ permissions, profile, sites = [] }) {
   const [nextAction, setNextAction] = useState('arrivee')
   const [selectedSiteId, setSelectedSiteId] = useState(profile?.site_id || sites[0]?.id || '')
   const [message, setMessage] = useState('En attente d’un pointage pour aujourd’hui.')
   const [saving, setSaving] = useState(false)
+  const [locationStatus, setLocationStatus] = useState('idle')
 
   const canCreate = permissions?.canCreate === true
   const siteOptions = useMemo(() => sites || [], [sites])
@@ -22,15 +31,39 @@ export default function PointageEmploye({ permissions, profile, sites = [] }) {
     }
 
     setSaving(true)
+    setLocationStatus('locating')
+
+    let coords = { latitude: null, longitude: null, precisionMetres: null }
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      try {
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+          })
+        })
+        coords = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          precisionMetres: position.coords.accuracy,
+        }
+        setLocationStatus('ok')
+      } catch (geoError) {
+        setLocationStatus('error')
+      }
+    } else {
+      setLocationStatus('unsupported')
+    }
 
     try {
       const result = await createPointageEntry({
         profile,
         action: nextAction,
-        latitude: null,
-        longitude: null,
-        precisionMetres: null,
-        commentaire: 'Pointage manuel depuis le module V1.',
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        precisionMetres: coords.precisionMetres,
+        commentaire: coords.latitude !== null ? 'Pointage GPS depuis le module V1.' : 'Pointage manuel depuis le module V1 (localisation indisponible).',
       })
 
       const serverNextAction = result?.historique_jour?.prochain_bouton_autorise || 'arrivee'
@@ -96,6 +129,12 @@ export default function PointageEmploye({ permissions, profile, sites = [] }) {
                 : 'Enregistrer l’entrée'}
           </button>
         </div>
+
+                {locationStatus !== 'idle' && (
+          <div style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: '#6b7280' }}>
+            {LOCATION_LABELS[locationStatus]}
+          </div>
+        )}
 
         <div style={{ marginTop: '1rem', color: '#374151', background: '#f3f4f6', padding: '0.75rem', borderRadius: '8px' }}>
           {message}
