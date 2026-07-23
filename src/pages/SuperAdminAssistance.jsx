@@ -6,11 +6,13 @@ import {
   openAssistanceSession,
 } from '../services/superadmin/assistanceService'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../hooks/useAuth'
 
 const cardStyle = { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 16 }
 const inputStyle = { border: '1px solid #D1D5DB', borderRadius: 8, padding: '8px 10px', fontSize: 13, width: '100%', boxSizing: 'border-box' }
 
 export default function SuperAdminAssistance({ entreprises = [], profile = null, onSessionChange }) {
+  const { refreshProfile } = useAuth()
   const [draft, setDraft] = useState({ entrepriseId: '', reason: '', durationMinutes: 30, readonlyMode: true })
   const [session, setSession] = useState(null)
   const [backendState, setBackendState] = useState('ok')
@@ -62,6 +64,7 @@ export default function SuperAdminAssistance({ entreprises = [], profile = null,
       setMsg({ type: 'success', text: 'Session assistance ouverte avec succes.' })
       if (onSessionChange) {
         onSessionChange({ backendState, activeSession: next, rows: [next] })
+        if (refreshProfile) await refreshProfile()
       }
     } catch (error) {
       const raw = String(error?.message || error || '')
@@ -89,6 +92,7 @@ export default function SuperAdminAssistance({ entreprises = [], profile = null,
       setSession(null)
       setMsg({ type: 'success', text: 'Session assistance cloturee.' })
       if (onSessionChange) onSessionChange({ backendState, activeSession: null, rows: [] })
+      if (refreshProfile) await refreshProfile()
     } catch (error) {
       setMsg({ type: 'error', text: mapSuperAdminError(error, 'Fermeture assistance impossible.') })
     } finally {
