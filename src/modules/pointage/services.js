@@ -159,7 +159,7 @@ export async function getSitesSummary(profile) {
   if (!profile?.entreprise_id) return []
 
   const [{ data: sites = [] }, { data: members = [] }] = await Promise.all([
-    supabase.from('sites').select('id, nom, latitude, longitude, rayon_pointage_metres, pointage_gps_obligatoire').eq('entreprise_id', profile.entreprise_id),
+    supabase.from('sites').select('id, nom, adresse, ville, pays, latitude, longitude, rayon_pointage_metres, pointage_gps_obligatoire').eq('entreprise_id', profile.entreprise_id),
     supabase.from('profiles').select('id, site_id').eq('entreprise_id', profile.entreprise_id).eq('actif', true),
   ])
 
@@ -176,7 +176,33 @@ export async function getSitesSummary(profile) {
     actif: Boolean(site.latitude && site.longitude && site.rayon_pointage_metres),
     rayonPointageMetres: site.rayon_pointage_metres,
     gpsObligatoire: site.pointage_gps_obligatoire,
+    adresse: site.adresse || '',
+    ville: site.ville || '',
+    pays: site.pays || '',
+    latitude: site.latitude ?? null,
+    longitude: site.longitude ?? null,
   }))
+}
+
+export async function updateSite(siteId, updates) {
+  if (!siteId) throw new Error('Site invalide.')
+
+  const payload = {}
+  if (Object.prototype.hasOwnProperty.call(updates, 'adresse')) payload.adresse = updates.adresse || null
+  if (Object.prototype.hasOwnProperty.call(updates, 'ville')) payload.ville = updates.ville || null
+  if (Object.prototype.hasOwnProperty.call(updates, 'pays')) payload.pays = updates.pays || null
+  if (Object.prototype.hasOwnProperty.call(updates, 'latitude')) payload.latitude = updates.latitude
+  if (Object.prototype.hasOwnProperty.call(updates, 'longitude')) payload.longitude = updates.longitude
+  if (Object.prototype.hasOwnProperty.call(updates, 'rayonPointageMetres')) payload.rayon_pointage_metres = updates.rayonPointageMetres
+  if (Object.prototype.hasOwnProperty.call(updates, 'gpsObligatoire')) payload.pointage_gps_obligatoire = updates.gpsObligatoire
+
+  const { error } = await supabase.from('sites').update(payload).eq('id', siteId)
+  if (error) {
+    console.error('Pointage: erreur lors de la mise a jour du site', error)
+    throw new Error('Impossible d’enregistrer les paramètres du site.')
+  }
+
+  return true
 }
 
 export async function getPointageSettings(profile) {
