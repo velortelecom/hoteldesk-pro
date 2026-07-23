@@ -195,7 +195,7 @@ export default function SuperAdminSupportPanel({ supabase, searchQuery, entrepri
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <input style={inputStyle} placeholder="Repondre au client..." value={replyText} onChange={(event) => setReplyText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') envoyerReponse() }} />
-          <button disabled={sendingReply} onClick={envoyerReponse} style={{ border: 'none', borderRadius: 8, background: sendingReply ? '#93C5FD' : '#2563EB', color: '#fff', padding: '8px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>{sendingReply ? '...' : 'Envoyer'}</button>button>
+          <button disabled={sendingReply} onClick={envoyerReponse} style={{ border: 'none', borderRadius: 8, background: sendingReply ? '#93C5FD' : '#2563EB', color: '#fff', padding: '8px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>{sendingReply ? '...' : 'Envoyer'}</button>
         </div>
       </div>
       )}
