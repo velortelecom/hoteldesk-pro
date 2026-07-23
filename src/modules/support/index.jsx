@@ -43,8 +43,19 @@ const { data: authData } = await supabase.auth.getUser()
 const userId = authData?.user?.id
 if (!userId) throw new Error('non_authentifie')
 const { data: prof } = await supabase.from('profiles').select('*').eq('id', userId).single()
-setProfile(prof)
-await loadTickets(prof)
+  let enrichedProf = prof
+  if (enrichedProf?.is_super_admin) {
+    try {
+      const nowIso = new Date().toISOString()
+      const { data: sessions } = await supabase.from('super_admin_assistance_sessions').select('id, entreprise_id, expires_at, closed_at').eq('super_admin_profile_id', userId).is('closed_at', null).order('created_at', { ascending: false }).limit(5)
+      const active = (sessions || []).find((s) => !s.expires_at || new Date(s.expires_at) > new Date(nowIso))
+      if (active?.entreprise_id) {
+        enrichedProf = { ...enrichedProf, entreprise_id: active.entreprise_id }
+      }
+    } catch (e) {}
+  }
+setProfile(enrichedProf)
+await loadTickets(enrichedProf)
 } catch (error) {
 setMsg({ type: 'error', text: 'Impossible de charger le support.' })
 } finally {
