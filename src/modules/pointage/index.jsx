@@ -96,7 +96,7 @@ export default function PointageModule({ profile, permissions: permissionsLoader
         {activeTab === 'dashboard' && <DashboardPointage stats={stats} sites={sites} />}
         {activeTab === 'pointage' && <PointageEmploye permissions={permissions} profile={profile} sites={sites} />}
         {activeTab === 'historique' && <HistoriquePointages pointages={pointages} />}
-        {activeTab === 'sites' && <GestionSitesPointage sites={sites} />}
+        {activeTab === 'sites' && <GestionSitesPointage sites={sites} permissions={permissions} />}
         {activeTab === 'parametres' && <ParametresPointage permissions={permissions} moduleId={moduleId} settings={settings} />}
 
         {activeTab !== 'dashboard' && activeTab !== 'pointage' && activeTab !== 'historique' && activeTab !== 'sites' && activeTab !== 'parametres' && (
