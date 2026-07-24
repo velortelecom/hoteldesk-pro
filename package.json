@@ -1,37 +1,46 @@
 {
-    "name": "velor-one",
-  "version": "1.0.0",
-  "private": true,
-  "packageManager": "npm@11.13.0",
-  "dependencies": {
-    "@supabase/supabase-js": "^2.39.0",
-    "date-fns": "^3.2.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.30.1",
-    "react-scripts": "5.0.1"
-  },
-  "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "validate:app": "npm run test -- --watch=false && npm run build",
-    "qa:provision": "node scripts/check-required-env.mjs SUPABASE_URL SUPABASE_SECRET_KEY SUPABASE_PUBLISHABLE_KEY && node scripts/provision-qa-data.mjs",
-    "qa:isolation": "node scripts/check-required-env.mjs SUPABASE_URL SUPABASE_PUBLISHABLE_KEY QA_ADMIN_EMAIL QA_ADMIN_PASSWORD QA_FOREIGN_ENTREPRISE_SLUG && node scripts/verify-enterprise-isolation.mjs",
-    "qa:verify-chef-role": "node scripts/check-required-env.mjs SUPABASE_URL SUPABASE_PUBLISHABLE_KEY QA_ADMIN_EMAIL QA_ADMIN_PASSWORD && node scripts/verify-create-user-chef-role.mjs",
-    "qa:e2e-smoke": "node scripts/check-required-env.mjs SUPABASE_URL SUPABASE_PUBLISHABLE_KEY E2E_SUPERADMIN_EMAIL E2E_SUPERADMIN_PASSWORD && node scripts/e2e-enterprise-creation-isolation.mjs",
-    "qa:functions-health": "node scripts/check-required-env.mjs SUPABASE_URL && node scripts/verify-edge-functions-runtime.mjs",
-    "qa:db-health": "supabase db query --linked --file \"scripts/sql/qa_runtime_health.sql\"",
-    "qa:data-audit": "node scripts/check-required-env.mjs SUPABASE_URL SUPABASE_SECRET_KEY && node scripts/qa-data-audit.mjs",
-    "qa:data-cleanup": "node scripts/check-required-env.mjs SUPABASE_URL SUPABASE_SECRET_KEY && node scripts/qa-data-cleanup.mjs",
-    "qa:reconcile-offers": "node scripts/check-required-env.mjs SUPABASE_URL SUPABASE_SECRET_KEY && node scripts/reconcile-offer-limits.mjs",
-    "qa:backend-health": "npm run qa:functions-health && npm run qa:db-health",
-    "qa:full": "npm run qa:verify-chef-role && npm run qa:e2e-smoke",
-    "validate:mission": "npm run validate:app && npm run qa:backend-health && npm run qa:full",
-    "validate:mission:ci": "npm run validate:app && npm run qa:functions-health"
-  },
-  "browserslist": {
-    "production": [">0.2%", "not dead", "not op_mini all"],
-    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
-  }
+        "name": "velor-one",
+        "version": "1.0.0",
+        "private": true,
+        "packageManager": "npm@11.13.0",
+        "dependencies": {
+                    "@capacitor/android": "^6.1.2",
+                    "@capacitor/core": "^6.1.2",
+                    "@capacitor/ios": "^6.1.2",
+                    "@supabase/supabase-js": "^2.39.0",
+                    "date-fns": "^3.2.0",
+                    "react": "^18.2.0",
+                    "react-dom": "^18.2.0",
+                    "react-router-dom": "^6.30.1",
+                    "react-scripts": "5.0.1"
+        },
+        "devDependencies": {
+                    "@capacitor/cli": "^6.1.2"
+        },
+        "scripts": {
+                    "start": "react-scripts start",
+                    "build": "react-scripts build",
+                    "test": "react-scripts test",
+                    "validate:app": "npm run test -- --watch=false && npm run build",
+                    "qa:provision": "node scripts/check-required-env.mjs SUPABASE_URL SUPABASE_SECRET_KEY SUPABASE_PUBLISHABLE_KEY && node scripts/provision-qa-data.mjs",
+                    "qa:isolation": "node scripts/check-required-env.mjs SUPABASE_URL SUPABASE_PUBLISHABLE_KEY QA_ADMIN_EMAIL QA_ADMIN_PASSWORD QA_FOREIGN_ENTREPRISE_SLUG && node scripts/verify-enterprise-isolation.mjs",
+                    "qa:verify-chef-role": "node scripts/check-required-env.mjs SUPABASE_URL SUPABASE_PUBLISHABLE_KEY QA_ADMIN_EMAIL QA_ADMIN_PASSWORD && node scripts/verify-create-user-chef-role.mjs",
+                    "qa:e2e-smoke": "node scripts/check-required-env.mjs SUPABASE_URL SUPABASE_PUBLISHABLE_KEY E2E_SUPERADMIN_EMAIL E2E_SUPERADMIN_PASSWORD && node scripts/e2e-enterprise-creation-isolation.mjs",
+                    "qa:functions-health": "node scripts/check-required-env.mjs SUPABASE_URL && node scripts/verify-edge-functions-runtime.mjs",
+                    "qa:db-health": "supabase db query --linked --file \"scripts/sql/qa_runtime_health.sql\"",
+                    "qa:data-audit": "node scripts/check-required-env.mjs SUPABASE_URL SUPABASE_SECRET_KEY && node scripts/qa-data-audit.mjs",
+                    "qa:data-cleanup": "node scripts/check-required-env.mjs SUPABASE_URL SUPABASE_SECRET_KEY && node scripts/qa-data-cleanup.mjs",
+                    "qa:reconcile-offers": "node scripts/check-required-env.mjs SUPABASE_URL SUPABASE_SECRET_KEY && node scripts/reconcile-offer-limits.mjs",
+                    "qa:backend-health": "npm run qa:functions-health && npm run qa:db-health",
+                    "qa:full": "npm run qa:verify-chef-role && npm run qa:e2e-smoke",
+                    "validate:mission": "npm run validate:app && npm run qa:backend-health && npm run qa:full",
+                    "validate:mission:ci": "npm run validate:app && npm run qa:functions-health",
+                    "cap:sync": "npm run build && npx cap sync",
+                    "cap:open:android": "npx cap open android",
+                    "cap:open:ios": "npx cap open ios"
+        },
+        "browserslist": {
+                    "production": [">0.2%", "not dead", "not op_mini all"],
+                    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
+        }
 }
