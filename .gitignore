@@ -11,3 +11,10 @@ supabase/.temp/
 *.log
 logs/
 test-rpc.js
+# Capacitor (mobile)
+android/app/build/
+android/.gradle/
+android/capacitor-cordova-android-plugins/
+ios/App/Pods/
+ios/App/build/
+.capacitor/
