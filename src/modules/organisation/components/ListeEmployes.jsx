@@ -28,6 +28,7 @@ export default function ListeEmployes({ entrepriseId, permissions, profile, onVi
   const [vue, setVue] = useState(() => (typeof window !== 'undefined' && window.localStorage.getItem('organisation_vue_employes')) || 'cartes');
   const [showCreate, setShowCreate] = useState(false);
   const [creds, setCreds] = useState(null);
+const [resetTarget, setResetTarget] = useState(null);
 
   const isSuperAdmin = profile?.is_super_admin === true;
   const isAdminEntreprise = profile?.role === 'admin' || isSuperAdmin;
@@ -73,14 +74,14 @@ export default function ListeEmployes({ entrepriseId, permissions, profile, onVi
     return result;
   };
 
-  const handleReinitialiser = async (employe) => {
-    const nouveauMdp = window.prompt(`Nouveau mot de passe pour ${employe.prenom} ${employe.nom} (min. 8 caracteres, vide = auto) :`); if (nouveauMdp === null) return; const mdpPropre = nouveauMdp ? nouveauMdp.trim() : ''; if (mdpPropre.length > 0 && mdpPropre.length < 8) { alert('Le mot de passe doit contenir au moins 8 caracteres.'); return; }
-    try {
-      const result = await reinitialiserMotDePasse(employe.id, mdpPropre || undefined);
-      setCreds({ action: 'reset', prenom: employe.prenom, nom: employe.nom, email: result.email, temp_password: result.temp_password });
-    } catch (err) {
-      alert('Erreur : ' + err.message);
-    }
+  const handleReinitialiser = (employe) => {
+    setResetTarget(employe);
+  };
+
+  const confirmReinitialiser = async (mdpPropre) => {
+    const result = await reinitialiserMotDePasse(resetTarget.id, mdpPropre);
+    setCreds({ action: 'reset', prenom: resetTarget.prenom, nom: resetTarget.nom, email: result.email, temp_password: result.temp_password });
+    setResetTarget(null);
   };
 
   const handleSupprimer = async (employe) => {
@@ -229,6 +230,10 @@ export default function ListeEmployes({ entrepriseId, permissions, profile, onVi
 
       {creds && (
         <ModalCredentials creds={creds} onClose={() => setCreds(null)} />
+      )}
+
+      {resetTarget && (
+        <ModalResetPassword employe={resetTarget} onClose={() => setResetTarget(null)} onConfirm={confirmReinitialiser} />
       )}
     </div>
   );
@@ -498,6 +503,43 @@ function Champ({ label, children }) {
 }
 
 const inputStyle = { width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.875rem', boxSizing: 'border-box' };
+
+function ModalResetPassword({ employe, onClose, onConfirm }) {
+  const [mdp, setMdp] = useState('');
+  const [erreur, setErreur] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const handleConfirm = async () => {
+    const mdpPropre = mdp.trim();
+    if (mdpPropre.length > 0 && mdpPropre.length < 8) {
+      setErreur('Le mot de passe doit contenir au moins 8 caracteres.');
+      return;
+    }
+    setSaving(true);
+    setErreur(null);
+    try {
+      await onConfirm(mdpPropre || undefined);
+    } catch (err) {
+      setErreur(err.message);
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1150, padding: '1rem' }}>
+      <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', width: '100%', maxWidth: '420px' }}>
+        <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.125rem', fontWeight: 700, color: '#111827' }}>Reinitialiser le mot de passe</h3>
+        <p style={{ fontSize: '0.8125rem', color: '#6b7280', marginBottom: '1rem' }}>Pour {employe.prenom} {employe.nom}. Laissez vide pour generer un mot de passe automatiquement.</p>
+        {erreur && <div style={{ background: '#fef2f2', color: '#dc2626', padding: '0.625rem 0.875rem', borderRadius: '8px', fontSize: '0.8125rem', marginBottom: '1rem' }}>{erreur}</div>}
+        <input type="text" value={mdp} onChange={e => setMdp(e.target.value)} placeholder="Nouveau mot de passe (min. 8 caracteres)" style={inputStyle} autoFocus />
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.25rem' }}>
+          <button onClick={onClose} disabled={saving} style={{ padding: '0.625rem 1.25rem', border: '1px solid #d1d5db', background: 'white', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem' }}>Annuler</button>
+          <button onClick={handleConfirm} disabled={saving} style={{ padding: '0.625rem 1.25rem', border: 'none', background: '#6366f1', color: 'white', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>{saving ? 'Reinitialisation...' : 'Reinitialiser'}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ModalCredentials({ creds, onClose }) {
   const titre = creds.action === 'reset' ? 'Mot de passe reinitialisé' : 'Compte créé';
