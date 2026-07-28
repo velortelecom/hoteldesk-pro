@@ -265,8 +265,8 @@ export async function changerRoleEmploye(employeId, nouveauRole) {
   return data;
 }
 
-export async function reinitialiserMotDePasseEmploye(employeId) {
-  const { data, error } = await supabase.functions.invoke('reset-password', { body: { user_id: employeId } });
+export async function reinitialiserMotDePasseEmploye(employeId, newPassword) {
+  const { data, error } = await supabase.functions.invoke('reset-password', { body: { user_id: employeId, new_password: newPassword } });
   if (error) throw error;
   if (data && data.success === false) throw new Error(data.error || 'Erreur lors de la reinitialisation du mot de passe');
   return data;
