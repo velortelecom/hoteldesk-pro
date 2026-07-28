@@ -140,10 +140,10 @@ export default function SuperAdminUsersPanel({ supabase, profile, entreprises = 
   }
 
   async function resetPassword(user) {
-    if (!window.confirm('Générer un nouveau mot de passe temporaire pour cet utilisateur ?')) return
-    const data = await handleInvokeFunction('reset-password', { user_id: user.id }, 'Mot de passe temporaire régénéré (valeur non affichée).')
+    const nouveauMdp = window.prompt(`Nouveau mot de passe pour ${user.prenom} ${user.nom} (min. 8 caracteres, vide = auto) :`); if (nouveauMdp === null) return; const mdpPropre = nouveauMdp ? nouveauMdp.trim() : ''; if (mdpPropre.length > 0 && mdpPropre.length < 8) { alert('Le mot de passe doit contenir au moins 8 caracteres.'); return; }
+    const data = await handleInvokeFunction('reset-password', { user_id: user.id, new_password: mdpPropre || undefined }, 'Mot de passe mis a jour.')
     if (data) {
-      setMsg({ type: 'success', text: 'Mot de passe temporaire régénéré pour ' + (data.email || user.email || 'cet utilisateur') + '. La valeur n est pas affichee en clair.' })
+      setMsg({ type: 'success', text: 'Mot de passe pour ' + (data.email || user.email || 'cet utilisateur') + ' : ' + data.temp_password })
     }
   }
 
