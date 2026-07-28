@@ -69,7 +69,7 @@ export default function ListeEmployes({ entrepriseId, permissions, profile, onVi
   const handleCreer = async (payload) => {
     const result = await creer(payload);
     setShowCreate(false);
-    setCreds({ action: 'created', prenom: payload.prenom, nom: payload.nom, role: payload.role, email: result.email });
+    setCreds({ action: 'created', prenom: payload.prenom, nom: payload.nom, role: payload.role, email: result.email, temp_password: result.temp_password });
     return result;
   };
 
@@ -503,7 +503,7 @@ function ModalCredentials({ creds, onClose }) {
   const titre = creds.action === 'reset' ? 'Mot de passe reinitialisé' : 'Compte créé';
   const message = creds.action === 'reset'
     ? 'Un lien de réinitialisation a été envoyé par email.'
-    : 'Un email d\'activation avec lien de création de mot de passe a été envoyé.';
+    : 'Voici le mot de passe initial. Transmettez-le a l\'employe.';
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
       <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', width: '100%', maxWidth: '420px' }}>
@@ -515,7 +515,7 @@ function ModalCredentials({ creds, onClose }) {
           {creds.prenom && <div><strong>Nom :</strong> {creds.prenom} {creds.nom}</div>}
           <div><strong>Email :</strong> {creds.email}</div>
           {creds.role && <div><strong>Role :</strong> {ROLE_LABELS[creds.role] || creds.role}</div>}
-          <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.5rem' }}>Aucun mot de passe affiché ici pour des raisons de sécurité.</div>
+          {creds.temp_password && <div><strong>Mot de passe : </strong> <code style={{ background: '#eef2ff', padding: '0.125rem 0.375rem', borderRadius: '4px' }}>{creds.temp_password}</code></div>}
         </div>
         <button onClick={onClose} style={{ marginTop: '1.25rem', width: '100%', padding: '0.625rem', border: 'none', background: '#6366f1', color: 'white', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
           Compris
