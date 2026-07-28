@@ -97,6 +97,6 @@ export function buildEnterpriseCreationSuccessMessage({ isEdit, departementsCoun
     baseMsg +
     ' Admin cree - Identifiant : ' +
     adminCredentials.email +
-    ' / Mot de passe initial non affiche (utiliser le flux securise de reinitialisation).'
+    (adminCredentials.password ? (' / Mot de passe : ' + adminCredentials.password) : ' / Mot de passe initial non affiche (utiliser le flux securise de reinitialisation).')
   )
 }
