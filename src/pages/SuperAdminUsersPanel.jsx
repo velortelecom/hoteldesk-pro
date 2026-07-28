@@ -12,7 +12,7 @@ export default function SuperAdminUsersPanel({ supabase, profile, entreprises = 
   const [sortBy, setSortBy] = useState('name')
   const [msg, setMsg] = useState(null)
   const [editing, setEditing] = useState(null)
-  const [saving, setSaving] = useState(false)
+  const [saving, setSaving] = useState(false); const [resetTarget, setResetTarget] = useState(null)
 
   useEffect(() => {
     fetchUsers()
@@ -139,12 +139,16 @@ export default function SuperAdminUsersPanel({ supabase, profile, entreprises = 
     await handleInvokeFunction('toggle-user-actif', { user_id: user.id, actif: targetActif }, targetActif ? 'Utilisateur activé.' : 'Utilisateur désactivé.')
   }
 
-  async function resetPassword(user) {
-    const nouveauMdp = window.prompt(`Nouveau mot de passe pour ${user.prenom} ${user.nom} (min. 8 caracteres, vide = auto) :`); if (nouveauMdp === null) return; const mdpPropre = nouveauMdp ? nouveauMdp.trim() : ''; if (mdpPropre.length > 0 && mdpPropre.length < 8) { alert('Le mot de passe doit contenir au moins 8 caracteres.'); return; }
-    const data = await handleInvokeFunction('reset-password', { user_id: user.id, new_password: mdpPropre || undefined }, 'Mot de passe mis a jour.')
+  function resetPassword(user) {
+    setResetTarget(user)
+  }
+
+  async function confirmResetPassword(mdpPropre) {
+    const data = await handleInvokeFunction('reset-password', { user_id: resetTarget.id, new_password: mdpPropre }, 'Mot de passe mis a jour.')
     if (data) {
-      setMsg({ type: 'success', text: 'Mot de passe pour ' + (data.email || user.email || 'cet utilisateur') + ' : ' + data.temp_password })
+      setMsg({ type: 'success', text: 'Mot de passe pour ' + (data.email || resetTarget.email || 'cet utilisateur') + ' : ' + data.temp_password })
     }
+    setResetTarget(null)
   }
 
   async function deleteUser(user) {
@@ -257,6 +261,10 @@ export default function SuperAdminUsersPanel({ supabase, profile, entreprises = 
           </div>
         </div>
       )}
+
+      {resetTarget && (
+        <ModalResetPassword user={resetTarget} saving={saving} onClose={() => setResetTarget(null)} onConfirm={confirmResetPassword} />
+      )}
     </div>
   )
 }
@@ -266,3 +274,33 @@ const btnPrimary = { border: 'none', background: '#3B82F6', color: '#fff', borde
 const btnDanger = { border: 'none', background: '#EF4444', color: '#fff', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12 }
 const modalBackdrop = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1002 }
 const modalCard = { width: 420, maxWidth: '92vw', background: '#fff', borderRadius: 12, padding: 16 }
+
+function ModalResetPassword({ user, saving, onClose, onConfirm }) {
+  const [mdp, setMdp] = useState('')
+  const [erreur, setErreur] = useState(null)
+
+  function handleConfirm() {
+    const mdpPropre = mdp.trim()
+    if (mdpPropre.length > 0 && mdpPropre.length < 8) {
+      setErreur('Le mot de passe doit contenir au moins 8 caracteres.')
+      return
+    }
+    setErreur(null)
+    onConfirm(mdpPropre || undefined)
+  }
+
+  return (
+    <div style={modalBackdrop}>
+      <div style={modalCard}>
+        <h3 style={{ marginTop: 0 }}>Reinitialiser le mot de passe</h3>
+        <p style={{ fontSize: 13, color: '#6B7280' }}>Pour {user.prenom} {user.nom}. Laissez vide pour generer un mot de passe automatiquement.</p>
+        {erreur && <div style={{ color: '#991B1B', fontSize: 13, marginBottom: 8 }}>{erreur}</div>}
+        <input value={mdp} onChange={(e) => setMdp(e.target.value)} placeholder='Nouveau mot de passe (min. 8 caracteres)' style={inputStyle} autoFocus />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+          <button onClick={onClose} disabled={saving} style={btnPlain}>Annuler</button>
+          <button onClick={handleConfirm} disabled={saving} style={btnPrimary}>Reinitialiser</button>
+        </div>
+      </div>
+    </div>
+  )
+}
