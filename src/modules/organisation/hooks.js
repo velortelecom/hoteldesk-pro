@@ -203,8 +203,8 @@ export function useEmployes(entrepriseId, options = {}) {
     return result;
   };
 
-  const reinitialiserMotDePasse = async (id) => {
-    return await reinitialiserMotDePasseEmploye(id);
+  const reinitialiserMotDePasse = async (id, newPassword) => {
+    return await reinitialiserMotDePasseEmploye(id, newPassword);
   };
 
   return { employes, loading, error, reload: load, update, desactiver, reactiver, updateDepartements, creer, supprimer, changerRole, reinitialiserMotDePasse };
