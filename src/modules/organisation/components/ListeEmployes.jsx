@@ -74,10 +74,10 @@ export default function ListeEmployes({ entrepriseId, permissions, profile, onVi
   };
 
   const handleReinitialiser = async (employe) => {
-    if (!window.confirm(`Reinitialiser le mot de passe de ${employe.prenom} ${employe.nom} ?`)) return;
+    const nouveauMdp = window.prompt(`Nouveau mot de passe pour ${employe.prenom} ${employe.nom} (min. 8 caracteres, vide = auto) :`); if (nouveauMdp === null) return; const mdpPropre = nouveauMdp ? nouveauMdp.trim() : ''; if (mdpPropre.length > 0 && mdpPropre.length < 8) { alert('Le mot de passe doit contenir au moins 8 caracteres.'); return; }
     try {
-      const result = await reinitialiserMotDePasse(employe.id);
-      setCreds({ action: 'reset', prenom: employe.prenom, nom: employe.nom, email: result.email });
+      const result = await reinitialiserMotDePasse(employe.id, mdpPropre || undefined);
+      setCreds({ action: 'reset', prenom: employe.prenom, nom: employe.nom, email: result.email, temp_password: result.temp_password });
     } catch (err) {
       alert('Erreur : ' + err.message);
     }
@@ -426,7 +426,7 @@ function ModalCreation({ departements, postes, isSuperAdmin, onClose, onCreer })
       <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', width: '100%', maxWidth: '520px', maxHeight: '90vh', overflow: 'auto' }}>
         <h3 style={{ margin: '0 0 1rem', fontSize: '1.125rem', fontWeight: 700, color: '#111827' }}>Nouvel employe</h3>
         <p style={{ fontSize: '0.8125rem', color: '#6b7280', marginTop: '-0.5rem', marginBottom: '1rem' }}>
-          Aucun mot de passe a saisir : un email d'activation avec lien securise sera envoye automatiquement.
+          Le mot de passe initial sera affiche a l'ecran apres la creation. Aucun email n'est envoye.
         </p>
         {erreur && <div style={{ background: '#fef2f2', color: '#dc2626', padding: '0.625rem 0.875rem', borderRadius: '8px', fontSize: '0.8125rem', marginBottom: '1rem' }}>{erreur}</div>}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
@@ -502,7 +502,7 @@ const inputStyle = { width: '100%', padding: '0.5rem', border: '1px solid #d1d5d
 function ModalCredentials({ creds, onClose }) {
   const titre = creds.action === 'reset' ? 'Mot de passe reinitialisé' : 'Compte créé';
   const message = creds.action === 'reset'
-    ? 'Un lien de réinitialisation a été envoyé par email.'
+    ? 'Voici le nouveau mot de passe. Transmettez-le a la personne.'
     : 'Voici le mot de passe initial. Transmettez-le a l\'employe.';
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
