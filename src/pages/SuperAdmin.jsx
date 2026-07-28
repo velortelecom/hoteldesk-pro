@@ -1045,7 +1045,7 @@ async function createEmploye(entrepriseId) {
                   <div style={{ fontWeight: 700, marginBottom: 6 }}>Membre cree ! Transmettez ces infos une seule fois :</div>
                   <div>Identifiant/Email : <strong>{employeSuccessInfo.email}</strong></div>
                   <div>URL : <strong>{employeSuccessInfo.url}</strong></div>
-                  <div style={{ marginTop: 6 }}>Mot de passe initial : <strong>>{employeSuccessInfo.password}</strong></div>
+                  <div style={{ marginTop: 6 }}>Mot de passe initial : <strong>{employeSuccessInfo.password}</strong></div>
                 </div>
               ) : employeMsg ? (
                 <div style={{ padding: '8px 12px', borderRadius: 6, background: employeMsg.type === 'error' ? '#FEE2E2' : '#D1FAE5', color: employeMsg.type === 'error' ? '#DC2626' : '#065F46', fontSize: 13 }}>{employeMsg.text}</div>
