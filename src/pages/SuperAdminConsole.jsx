@@ -234,7 +234,7 @@ export default function SuperAdminConsole() {
       breadcrumbs={breadcrumbs}
       searchValue={searchQuery}
       onSearch={setSearchQuery}
-      onSectionChange={(sectionId) => { setActiveSection(sectionId); setLegacyMode(false) }}
+      onSectionChange={(sectionId) => { setActiveSection(sectionId); setLegacyMode(false); reloadSnapshot() }}
       onQuickCreate={openLegacyEnterpriseManager}
       onExitAssistance={handleExitAssistance}
       assistanceActive={assistanceActive}
