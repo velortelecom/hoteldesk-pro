@@ -319,7 +319,7 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, pro
 
       </div>
 
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+      {creds && (<div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
           <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', width: '100%', maxWidth: '420px' }}>
             <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.125rem', fontWeight: 700, color: '#111827' }}>Utilisateur créé !</h3>
             <p style={{ fontSize: '0.8125rem', color: '#6b7280', marginBottom: '1rem' }}>Un email a été envoyé avec le lien d'activation et instructions de sécurité.</p>
