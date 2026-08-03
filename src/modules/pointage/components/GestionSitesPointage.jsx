@@ -42,33 +42,50 @@ export default function GestionSitesPointage({ sites = [], permissions }) {
     setForm({})
   }
 
-  async function handleGeocode() {
-    const query = [form.adresse, form.ville, form.pays].filter(Boolean).join(', ')
-    if (!query) {
-      setFeedback({ type: 'error', message: 'Renseignez une adresse avant de géocoder.' })
+async function handleGeocode() {
+  const candidates = [
+    [form.adresse, form.ville, form.pays].filter(Boolean).join(', '),
+    [form.ville, form.pays].filter(Boolean).join(', '),
+    form.ville || '',
+    ].filter((value, index, array) => value && array.indexOf(value) === index)
+  if (candidates.length === 0) {
+    setFeedback({ type: 'error', message: 'Renseignez une adresse avant de géocoder.' })
+    return
+  }
+  setGeocoding(true)
+  setFeedback({})
+  try {
+    let results = []
+    let usedFallback = false
+    for (let index = 0; index < candidates.length; index += 1) {
+      results = await geocodeAddress(candidates[index])
+      if (results && results.length > 0) {
+        usedFallback = index > 0
+        break
+      }
+    }
+    if (!results || results.length === 0) {
+      setFeedback({ type: 'error', message: "Adresse introuvable, meme en simplifiant la recherche. Renseignez la position manuellement." })
       return
     }
-    setGeocoding(true)
-    setFeedback({})
-    try {
-      const results = await geocodeAddress(query)
-      if (!results || results.length === 0) {
-        setFeedback({ type: 'error', message: 'Adresse introuvable. Vérifiez la saisie ou renseignez la position manuellement.' })
-        return
-      }
-      const [best] = results
-      setForm((current) => ({
-        ...current,
-        latitude: Number(best.lat),
-        longitude: Number(best.lon),
-      }))
-      setFeedback({ type: 'success', message: 'Position trouvée à partir de l’adresse.' })
-    } catch (error) {
-      setFeedback({ type: 'error', message: error.message || 'Erreur lors du géocodage.' })
-    } finally {
-      setGeocoding(false)
-    }
+    const [best] = results
+    setForm((current) => ({
+      ...current,
+      latitude: Number(best.lat),
+      longitude: Number(best.lon),
+    }))
+    setFeedback({
+      type: 'success',
+      message: usedFallback
+        ? "Adresse precise introuvable : position approximative trouvee a partir de la ville."
+        : "Position trouvee a partir de l'adresse.",
+    })
+  } catch (error) {
+    setFeedback({ type: 'error', message: error.message || 'Erreur lors du géocodage.' })
+  } finally {
+    setGeocoding(false)
   }
+}
 
   async function handleSave(siteId) {
     setSaving(true)
