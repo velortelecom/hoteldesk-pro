@@ -3,10 +3,10 @@
 // Fiche complète d'un employé
 // ============================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useEmployeDetail, useDepartements, usePostes } from '../hooks.js';
 import { ROLE_COLORS, NIVEAUX_POSTE } from '../config.js';
-import { updateEmploye, setEmployeDepartements, desactiverEmploye, reactiversEmploye, changerRoleEmploye, supprimerEmploye, reinitialiserMotDePasseEmploye } from '../services.js';
+import { updateEmploye, setEmployeDepartements, desactiverEmploye, reactiversEmploye, changerRoleEmploye, supprimerEmploye, reinitialiserMotDePasseEmploye, getSites } from '../services.js';
 
 const ROLE_LABELS = { admin: 'Admin', responsable: 'Responsable', chef_equipe: 'Chef d équipe', employe: 'Employé', super_admin: 'Super Admin' };
 const LANGUE_LABELS = { fr: 'Français', en: 'English', es: 'Español', ar: 'Arabe' };
@@ -15,6 +15,7 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, pro
   const { employe, loading, error } = useEmployeDetail(employeId);
   const { departements } = useDepartements(entrepriseId);
   const { postes } = usePostes(entrepriseId);
+  const [sites, setSites] = useState([]);
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -29,6 +30,7 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, pro
         telephone: employe.telephone || '',
         poste_id: employe.poste_id || '',
         poste_secondaire_id: employe.poste_secondaire_id || '',
+        site_id: employe.site_id || '',
         date_entree: employe.date_entree || '',
         notes_internes: employe.notes_internes || '',
         langue: employe.langue || 'fr',
@@ -40,6 +42,16 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, pro
       setPrincipalDept(principal?.departement_id || depts[0] || null);
     }
   }, [employe]);
+
+        useEffect(() => {
+          let cancelled = false;
+          if (entrepriseId) {
+            getSites(entrepriseId)
+            .then((data) => { if (!cancelled) setSites(data); })
+            .catch((err) => { console.error('FicheEmploye: erreur chargement sites', err); });
+          }
+          return () => { cancelled = true; };
+        }, [entrepriseId]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -215,6 +227,17 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, pro
                 </select>
               ) : (
                 <span style={{ fontSize: '0.875rem', color: '#111827' }}>{employe.poste_secondaire?.nom || '—'}</span>
+              )}
+            </div>
+                        <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', fontSize: '0.8125rem', color: '#6b7280', marginBottom: '0.375rem' }}>Site de pointage</label>
+              {editMode ? (
+                <select value={form?.site_id} onChange={e => setForm(p => ({...p, site_id: e.target.value}))} style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.875rem' }}>
+                  <option value="">— Aucun —</option>
+                  {sites.map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
+                </select>
+              ) : (
+                <span style={{ fontSize: '0.875rem', color: '#111827' }}>{sites.find(s => s.id === employe.site_id)?.nom || '—'}</span>
               )}
             </div>
 
