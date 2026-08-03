@@ -334,3 +334,20 @@ export async function getStatsOrganisation(entrepriseId) {
     totalEquipes: equipes.count || 0,
   };
 }
+
+
+    // ============================================================
+// SITES (pour affectation employe -> module Pointage)
+// ============================================================
+
+export async function getSites(entrepriseId) {
+  const { data, error } = await supabase
+  .from('sites')
+  .select('id, nom')
+  .eq('entreprise_id', entrepriseId)
+  .eq('actif', true)
+  .order('nom', { ascending: true });
+
+if (error) throw error;
+  return data || [];
+}
