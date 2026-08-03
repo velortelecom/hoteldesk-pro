@@ -59,6 +59,7 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, pro
 if (form.poste_id === '') form.poste_id = null;
       if (form.poste_secondaire_id === '') form.poste_secondaire_id = null;
       if (form.site_id === '') form.site_id = null;
+if (form.date_entree === '') form.date_entree = null;
       await updateEmploye(employeId, form);
       await setEmployeDepartements(employeId, entrepriseId, selectedDepts, principalDept);
       setEditMode(false);
