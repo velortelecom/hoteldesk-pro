@@ -56,6 +56,9 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, pro
   const handleSave = async () => {
     setSaving(true);
     try {
+if (form.poste_id === '') form.poste_id = null;
+      if (form.poste_secondaire_id === '') form.poste_secondaire_id = null;
+      if (form.site_id === '') form.site_id = null;
       await updateEmploye(employeId, form);
       await setEmployeDepartements(employeId, entrepriseId, selectedDepts, principalDept);
       setEditMode(false);
