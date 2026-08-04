@@ -210,7 +210,7 @@ export async function getPointageSettings(profile) {
 
   const { data, error } = await supabase
     .from('entreprise_parametres_pointage')
-    .select('precision_gps_max_metres, gps_obligatoire, autoriser_hors_zone_avec_validation, duree_max_entre_pointages_minutes, methodes_actives')
+    .select('precision_gps_max_metres, gps_obligatoire, autoriser_hors_zone_avec_validation, duree_max_entre_pointages_minutes, methodes_actives, heure_debut_travail, heure_fin_travail, pause_duree_minutes, pause_obligatoire')
     .eq('entreprise_id', profile.entreprise_id)
     .maybeSingle()
 
@@ -225,8 +225,30 @@ export async function getPointageSettings(profile) {
     heuresParJour: data?.duree_max_entre_pointages_minutes ?? DEFAULT_POINTAGE_SETTINGS.heuresParJour,
     autoriserPointageMobile: data?.gps_obligatoire ?? DEFAULT_POINTAGE_SETTINGS.autoriserPointageMobile,
     notificationRetards: data?.autoriser_hors_zone_avec_validation ?? DEFAULT_POINTAGE_SETTINGS.notificationRetards,
+        heureDebutTravail: data?.heure_debut_travail ?? DEFAULT_POINTAGE_SETTINGS.heureDebutTravail,
+        heureFinTravail: data?.heure_fin_travail ?? DEFAULT_POINTAGE_SETTINGS.heureFinTravail,
+        pauseDureeMinutes: data?.pause_duree_minutes ?? DEFAULT_POINTAGE_SETTINGS.pauseDureeMinutes,
+        pauseObligatoire: data?.pause_obligatoire ?? DEFAULT_POINTAGE_SETTINGS.pauseObligatoire,
   }
 }
+
+    export async function updateParametresPointage(entrepriseId, updates = {}) {
+        if (!entrepriseId) throw new Error('Entreprise invalide.')
+
+        const payload = { entreprise_id: entrepriseId }
+        if (Object.prototype.hasOwnProperty.call(updates, 'heureDebutTravail')) payload.heure_debut_travail = updates.heureDebutTravail || null
+        if (Object.prototype.hasOwnProperty.call(updates, 'heureFinTravail')) payload.heure_fin_travail = updates.heureFinTravail || null
+        if (Object.prototype.hasOwnProperty.call(updates, 'pauseDureeMinutes')) payload.pause_duree_minutes = updates.pauseDureeMinutes
+        if (Object.prototype.hasOwnProperty.call(updates, 'pauseObligatoire')) payload.pause_obligatoire = updates.pauseObligatoire
+
+        const { error } = await supabase.from('entreprise_parametres_pointage').upsert(payload, { onConflict: 'entreprise_id' })
+        if (error) {
+              console.error('Pointage: erreur lors de la mise a jour des parametres', error)
+        throw new Error('Impossible de sauvegarder les parametres de pointage.')
+        }
+
+        return true
+    }
 
 export async function createPointageEntry({
   profile,
