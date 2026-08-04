@@ -11,6 +11,10 @@ export const DEFAULT_POINTAGE_SETTINGS = {
   heuresParJour: 8,
   autoriserPointageMobile: true,
   notificationRetards: true,
+  heureDebutTravail: '09:00',
+  heureFinTravail: '18:00',
+  pauseDureeMinutes: 60,
+  pauseObligatoire: true,
 }
 
 export const MODULE_METADATA = {
