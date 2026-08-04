@@ -24,7 +24,7 @@ export default function PointageEmploye({ permissions, profile, sites = [] }) {
     [profile?.site_id, selectedSiteId, siteOptions]
   )
 
-  const handleToggleClock = async () => {
+  const handlePointage = async (action) => {
     if (!canCreate || !profile?.id) {
       setMessage('Vous ne disposez pas des droits pour enregistrer un pointage.')
       return
@@ -59,7 +59,7 @@ export default function PointageEmploye({ permissions, profile, sites = [] }) {
     try {
       const result = await createPointageEntry({
         profile,
-        action: nextAction,
+        action: action,
         latitude: coords.latitude,
         longitude: coords.longitude,
         precisionMetres: coords.precisionMetres,
@@ -109,24 +109,39 @@ export default function PointageEmploye({ permissions, profile, sites = [] }) {
 
           <button
             type="button"
-            disabled={!canCreate || saving}
-            onClick={handleToggleClock}
+            disabled={!canCreate || saving || nextAction !== 'arrivee'}
+            onClick={() => handlePointage('arrivee')}
             style={{
               padding: '0.75rem 1rem',
               border: 'none',
               borderRadius: '8px',
-              background: nextAction === 'depart' ? '#ef4444' : '#0f766e',
+              background: '#0f766e',
               color: 'white',
               fontWeight: 600,
-              cursor: canCreate && !saving ? 'pointer' : 'not-allowed',
-              opacity: canCreate ? 1 : 0.6,
+              cursor: canCreate && !saving && nextAction === 'arrivee' ? 'pointer' : 'not-allowed',
+              opacity: canCreate && nextAction === 'arrivee' ? 1 : 0.6,
             }}
           >
             {saving
-              ? 'Enregistrement...'
-              : nextAction === 'depart'
-                ? 'Enregistrer la sortie'
-                : 'Enregistrer l’entrée'}
+              ? 'Enregistrement...' : 'Enregistrer l’entrée'}
+          </button>
+          <button
+            type="button"
+            disabled={!canCreate || saving || nextAction !== 'depart'}
+            onClick={() => handlePointage('depart')}
+            style={{
+              padding: '0.75rem 1rem',
+              border: 'none',
+              borderRadius: '8px',
+              background: '#ef4444',
+              color: 'white',
+              fontWeight: 600,
+              cursor: canCreate && !saving && nextAction === 'depart' ? 'pointer' : 'not-allowed',
+              opacity: canCreate && nextAction === 'depart' ? 1 : 0.6,
+            }}
+          >
+            {saving
+              ? 'Enregistrement...' : 'Enregistrer la sortie'}
           </button>
         </div>
 
