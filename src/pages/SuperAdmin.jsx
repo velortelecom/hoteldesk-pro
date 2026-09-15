@@ -47,7 +47,7 @@ function Field({ label, children, style }) {
 const inputStyle = { border: '1px solid #D1D5DB', borderRadius: 6, padding: '8px 10px', fontSize: 13, width: '100%', boxSizing: 'border-box' }
 
 export default function SuperAdmin() {
-  const { profile } = useAuth()
+  const { profile, contexteEntreprise, setContexteEntreprise } = useAuth()
   const [entreprises, setEntreprises] = useState([])
   const [modules, setModules] = useState([])
   const [stats, setStats] = useState({ total: 0, actives: 0, par_plan: {} })
@@ -613,6 +613,18 @@ async function createEmploye(entrepriseId) {
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      {/* Assistance client : le Super Admin ouvre le contexte d'une entreprise
+                          au lieu de se voir assigner un entreprise_id. */}
+                      <button
+                        onClick={() => {
+                          const dejaActif = contexteEntreprise === e.id
+                          setContexteEntreprise(dejaActif ? null : e.id)
+                          if (!dejaActif) window.location.hash = 'dashboard'
+                        }}
+                        title={contexteEntreprise === e.id ? 'Quitter le contexte de ce client' : 'Travailler dans le contexte de ce client'}
+                        style={{ padding: '6px 12px', border: '1px solid ' + (contexteEntreprise === e.id ? '#FDE68A' : '#E5E7EB'), background: contexteEntreprise === e.id ? '#FEF3C7' : '#F9FAFB', color: contexteEntreprise === e.id ? '#92400E' : '#374151', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                        {contexteEntreprise === e.id ? 'Contexte actif' : 'Ouvrir le contexte'}
+                      </button>
                       <button onClick={() => { const wasExpanded = expandedEnt === e.id; setExpandedEnt(wasExpanded ? null : e.id); if (!wasExpanded) fetchEntModules(e.id) }} style={{ padding: '6px 12px', border: '1px solid #E5E7EB', background: '#F9FAFB', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
                         {entDetails[e.id] && (
                           <div style={{ borderTop: '1px solid #F3F4F6', marginTop: 10, paddingTop: 10 }}>
