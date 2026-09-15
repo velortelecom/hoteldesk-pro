@@ -56,22 +56,24 @@ export default function Planning() {
   // Load employes
   useEffect(() => {
     const q = supabase.from('profiles').select('id,nom,prenom,couleur,avatar_initiales,departement').eq('actif', true)
+    if (entrepriseId) q.eq('entreprise_id', entrepriseId)
     if (userRole === 'responsable') q.eq('departement', userDept)
     else if (userRole === 'employe') q.eq('id', profile?.id)
     q.then(({ data }) => setEmployes(data || []))
-  }, [])
+  }, [entrepriseId])
 
   // Load tasks for current month
   useEffect(() => {
     const from = startOfMonth(currentMonth).toISOString()
     const to = endOfMonth(currentMonth).toISOString()
-    supabase.from('taches')
+    let q = supabase.from('taches')
       .select('*, assignee:profiles!taches_assigne_a_fkey(id,nom,prenom,couleur,avatar_initiales)')
       .gte('date_echeance', from)
       .lte('date_echeance', to)
       .neq('statut', 'annulee')
-      .then(({ data }) => setTaches(data || []))
-  }, [currentMonth])
+    if (entrepriseId) q = q.eq('entreprise_id', entrepriseId)
+    q.then(({ data }) => setTaches(data || []))
+  }, [currentMonth, entrepriseId])
 
   // Scroll timeline to current hour on day view
   useEffect(() => {
