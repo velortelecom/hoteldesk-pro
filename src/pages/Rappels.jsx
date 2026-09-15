@@ -61,7 +61,7 @@ function getProchainCreneau(hNow) {
 }
 
 export default function Rappels() {
-  const { profile } = useAuth()
+  const { profile, entrepriseId } = useAuth()
   const [rappels, setRappels] = useState([])
   const [tachesNonFaites, setTachesNonFaites] = useState([])
   const [employes, setEmployes] = useState([])
@@ -177,7 +177,7 @@ export default function Rappels() {
   async function save() {
     if (!form.titre.trim() || !form.date_rappel) return
     setSaving(true)
-    await supabase.from('rappels').insert({ ...form, date_rappel: toLocalISO(form.date_rappel), cree_par: profile.id, assigne_a: form.assigne_a || null, entreprise_id: profile.entreprise_id })
+    await supabase.from('rappels').insert({ ...form, date_rappel: toLocalISO(form.date_rappel), cree_par: profile.id, assigne_a: form.assigne_a || null, entreprise_id: entrepriseId })
     await fetchAll()
     setShowModal(false); setForm(empty); setSaving(false)
   }
