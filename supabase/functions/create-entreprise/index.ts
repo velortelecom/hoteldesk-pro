@@ -130,8 +130,30 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (adminEmail) {
-      const { data: existingByEmail } = await supabase.auth.admin.getUserByEmail(adminEmail);
-      if (existingByEmail?.user) {
+      // supabase-js v2 n'expose pas auth.admin.getUserByEmail : l'appel levait
+      // un TypeError non rattrape, qui remontait au navigateur en "Failed to
+      // fetch". Meme cause que le correctif 09db2ce sur create-user.
+      //
+      // Pre-controle via la vue profiles_with_email : message clair sans creer
+      // de compte. Il ne fait pas autorite (une entree auth.users sans profil
+      // n'y apparait pas), donc createUser reste le juge de paix, avec la meme
+      // detection de collision que create-user (regex sur le message d'erreur).
+      //
+      // Difference assumee avec create-user : la-bas l'email peut etre genere,
+      // donc une collision est resolue par un suffixe. Ici l'email est saisi
+      // par le Super Admin : on ne le reecrit jamais en silence, on remonte
+      // admin_email_already_exists.
+      const { data: emailDejaPris, error: emailLookupError } = await supabase
+        .from('profiles_with_email')
+        .select('id')
+        .eq('email', adminEmail)
+        .limit(1);
+
+      if (emailLookupError) {
+        console.error('admin_email_lookup_failed', emailLookupError.message);
+      }
+
+      if (emailDejaPris && emailDejaPris.length > 0) {
         return corsResponse({ success: false, error: 'admin_email_already_exists' }, 409);
       }
 
@@ -147,7 +169,11 @@ Deno.serve(async (req: Request) => {
         },
       });
 
-      if (createUserError || !createdUser.user?.id) {
+      if (createUserError && /already|exists|registered/i.test(createUserError.message || '')) {
+        return corsResponse({ success: false, error: 'admin_email_already_exists' }, 409);
+      }
+
+      if (createUserError || !createdUser?.user?.id) {
         return corsResponse({ success: false, error: 'admin_create_failed' }, 400);
       }
 
