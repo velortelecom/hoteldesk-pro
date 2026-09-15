@@ -119,7 +119,7 @@ function TacheRow({ tache, enfants, profile, membres, expandedParents, setExpand
 }
 
 export default function Taches() {
-  const { profile } = useAuth()
+  const { profile, entrepriseId } = useAuth()
   const [taches, setTaches] = useState([])
   const [membres, setMembres] = useState([])
   const [loading, setLoading] = useState(true)
@@ -226,7 +226,7 @@ export default function Taches() {
     if (editTache) {
       await supabase.from('taches').update(payload).eq('id', editTache.id)
     } else {
-      await supabase.from('taches').insert({ ...payload, cree_par: profile.id, entreprise_id: profile.entreprise_id })
+      await supabase.from('taches').insert({ ...payload, cree_par: profile.id, entreprise_id: entrepriseId })
     }
     setShowForm(false)
     fetchTaches()
