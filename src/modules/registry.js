@@ -80,7 +80,8 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: true,  valider: true  },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true,  valider: true  },
     },
-    dependances: [], plans: ['business', 'premium', 'enterprise'],
+    // PLAN 1 (starter) : module reellement developpe, inclus des l'inscription publique.
+    dependances: [], plans: ['starter', 'business', 'premium', 'enterprise'],
     templates: ['hotel', 'restaurant', 'ehpad', 'pme', 'commerce', 'pharmacie', 'mairie'],
     ordre: 15, categorie: 'rh', couleur: '#6366F1', badge: null, actif: true,
     widgets: { stats: true, alertes: true },

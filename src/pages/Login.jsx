@@ -153,6 +153,17 @@ export default function Login() {
                 {loading ? 'Connexion en cours...' : 'Se connecter'}
               </button>
             </form>
+
+            <div style={{ borderTop: '1px solid #F0F0EE', marginTop: 22, paddingTop: 18, textAlign: 'center' }}>
+              <div style={{ fontSize: 13, color: '#888', marginBottom: 10 }}>Vous n&apos;avez pas encore d&apos;espace ?</div>
+              <button
+                type="button"
+                onClick={() => { window.location.hash = 'inscription' }}
+                style={{ width: '100%', padding: '11px', background: 'none', color: '#185FA5', border: '1.5px solid #185FA5', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Creer mon espace Velor One
+              </button>
+            </div>
           </div>
         )}
 
@@ -229,7 +240,7 @@ export default function Login() {
         )}
 
         <div style={{ textAlign: 'center', marginTop: 20, fontSize: 12, color: '#aaa', lineHeight: 1.6 }}>
-          Vos identifiants vous ont ete fournis par votre administrateur
+          Salarie ? Vos identifiants vous sont fournis par votre administrateur.
         </div>
       </div>
     </div>

@@ -14,6 +14,8 @@ import Rappels from './pages/Rappels'
 import Personnel from './pages/Personnel'
 import Dashboard from './pages/Dashboard'
 import SuperAdmin from './pages/SuperAdmin'
+import Inscription from './pages/Inscription'
+import Offres from './pages/Offres'
 import { ModuleNonAutorise } from './pages/ModuleEnPreparation'
 import { BrandMark } from './branding/Brand'
 
@@ -24,7 +26,7 @@ const CongesModule = lazy(() => import('./modules/conges/index.jsx'))
 const ICONES_SOCLE = {
   dashboard: '🏠', planning: '📅', taches: '✅',
   messagerie: '💬', rappels: '🔔', personnel: '👥',
-  conges: '🏖',
+  conges: '🏖', offres: '🧩',
 }
 
 // Composant de chargement pour Suspense
@@ -111,7 +113,13 @@ function AppInner() {
   }, [page])
 
   if (authLoading) return <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: 16 }}><BrandMark size={64} radius={16} /><div style={{ fontSize: 14, color: '#aaa' }}>Chargement...</div></div>
-  if (!user) return <Login />
+  // Zone publique : seule la page d'inscription est accessible sans compte.
+  if (!user) {
+    if (page === 'inscription') {
+      return <Inscription onRetourConnexion={() => { window.location.hash = 'login' }} />
+    }
+    return <Login />
+  }
 
   const isSuperAdmin = profile?.is_super_admin
   const isAdmin = ['admin', 'responsable'].includes(profile?.role) || isSuperAdmin
@@ -124,7 +132,10 @@ function AppInner() {
   const superAdminItem = isSuperAdmin ? [{ id: 'superadmin', label: 'Super Admin', icon: '🛡' }] : []
   // Ajouter Conges & Absences pour les admins (meme sans module BDD actif)
   const congesItem = isAdmin && !moduleIds.includes('conges') ? [{ id: 'conges', label: 'Congés & Absences', icon: '🏖' }] : []
-  const navItems = [...superAdminItem, ...uniqueSocle, ...moduleNavItems, ...congesItem]
+  // Offres : visible par l'admin d'entreprise uniquement. La page presente les
+  // packs superieurs sans jamais permettre de les activer (demande seulement).
+  const offresItem = profile?.role === 'admin' && !isSuperAdmin ? [{ id: 'offres', label: 'Offres', icon: '🧩' }] : []
+  const navItems = [...superAdminItem, ...uniqueSocle, ...moduleNavItems, ...congesItem, ...offresItem]
   const routeMap = buildRouteMap(loadedModules)
 
   const navigate = (p) => { setPage(p); setMenuOpen(false); setShowUserMenu(false) }
@@ -141,6 +152,14 @@ function AppInner() {
   function renderPage() {
     if (isSuperAdmin && page === 'superadmin') return <SuperAdmin />
     if (!isSuperAdmin && page === 'superadmin') return <Dashboard />
+
+    // Un utilisateur connecte n'a rien a faire sur les pages publiques.
+    if (page === 'inscription' || page === 'login') return <Dashboard />
+
+    // Offres & packs : reserve a l'admin de l'entreprise.
+    if (page === 'offres') {
+      return profile?.role === 'admin' ? <Offres /> : <Dashboard />
+    }
 
     const isSoclePage = SOCLE_MENUS.some(m => m.id === page)
 

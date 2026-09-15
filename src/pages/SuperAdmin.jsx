@@ -95,6 +95,9 @@ export default function SuperAdmin() {
   const [entUsers, setEntUsers] = useState({})
   const [expandedUsersEnt, setExpandedUsersEnt] = useState(null)
   const [userDeleteConfirm, setUserDeleteConfirm] = useState(null)
+  // Demandes de pack superieur deposees par les clients (aucune activation auto)
+  const [demandes, setDemandes] = useState([])
+  const [demandeSaving, setDemandeSaving] = useState(null)
   const [lastActivityByEntreprise, setLastActivityByEntreprise] = useState({})
 
   useEffect(() => {
@@ -104,12 +107,16 @@ export default function SuperAdmin() {
 
   async function fetchData() {
     setLoading(true)
-    const [{ data: ents }, { data: mods }, { data: details }, healthRes] = await Promise.all([
+    const [{ data: ents }, { data: mods }, { data: details }, healthRes, demandesRes] = await Promise.all([
       supabase.from('entreprises').select('*').order('created_at', { ascending: false }),
       supabase.from('modules_catalogue').select('*').order('ordre'),
       supabase.from('super_admin_entreprises').select('*'),
       supabase.rpc('super_admin_platform_health'),
+      supabase.from('demandes_pack').select('*').order('created_at', { ascending: false }),
     ])
+    // demandes_pack peut ne pas encore exister si la migration n'est pas passee :
+    // on degrade silencieusement plutot que de casser tout le back-office.
+    setDemandes(demandesRes?.error ? [] : (demandesRes?.data || []))
     const health = Array.isArray(healthRes?.data) ? (healthRes.data[0] || null) : (healthRes?.data || null)
     let audits = []
 
@@ -353,6 +360,19 @@ export default function SuperAdmin() {
     } catch (err) {
       setMsg({ type: 'error', text: mapSuperAdminError(err, buildDependencyErrorMessage(err)) })
     }
+  }
+
+  // Traitement d'une demande de pack. Ne touche JAMAIS aux modules :
+  // l'activation reelle reste manuelle, via l'edition de l'entreprise, et
+  // seulement quand le module concerne existe vraiment.
+  async function changerStatutDemande(demande, statut) {
+    setDemandeSaving(demande.id)
+    const { error } = await supabase.from('demandes_pack')
+      .update({ statut, traite_par: profile.id, traite_at: new Date().toISOString() })
+      .eq('id', demande.id)
+    setDemandeSaving(null)
+    if (error) { setMsg({ type: 'error', text: 'Erreur : ' + error.message }); return }
+    fetchData()
   }
 
   async function toggleActifEntreprise(ent) {
@@ -615,13 +635,22 @@ async function createEmploye(entrepriseId) {
         <StatCard titre="Sites total" valeur={stats.totalSites} couleur="#F59E0B" />
       </div>
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid #E5E7EB' }}>
-        {['entreprises','utilisateurs','modules','plans','supervision','plateforme','assistance'].map(o => (
-          <button key={o} onClick={() => setOnglet(o)} style={{
-            padding: '8px 18px', border: 'none', borderRadius: '6px 6px 0 0',
-            background: onglet === o ? '#3B82F6' : 'transparent',
-            color: onglet === o ? 'white' : '#6B7280', fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize',
-          }}>{o}</button>
-        ))}
+        {['entreprises','utilisateurs','modules','plans','demandes','supervision','plateforme','assistance'].map(o => {
+          const nbNouvelles = o === 'demandes' ? demandes.filter(d => d.statut === 'nouvelle').length : 0
+          return (
+            <button key={o} onClick={() => setOnglet(o)} style={{
+              padding: '8px 18px', border: 'none', borderRadius: '6px 6px 0 0',
+              background: onglet === o ? '#3B82F6' : 'transparent',
+              color: onglet === o ? 'white' : '#6B7280', fontWeight: 600, cursor: 'pointer', textTransform: 'capitalize',
+              display: 'inline-flex', alignItems: 'center', gap: 7,
+            }}>
+              {o}
+              {nbNouvelles > 0 && (
+                <span style={{ background: '#EF4444', color: '#fff', borderRadius: 10, fontSize: 11, fontWeight: 700, padding: '1px 7px' }}>{nbNouvelles}</span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {onglet === 'entreprises' && (
@@ -665,6 +694,11 @@ async function createEmploye(entrepriseId) {
                           <span style={{ fontWeight: 700, fontSize: 15 }}>{e.nom}</span>
                           <span style={{ background: PLAN_COLORS[e.plan] + '22', color: PLAN_COLORS[e.plan], borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>{e.plan}</span>
                           <span style={{ color: e.actif ? '#10B981' : '#EF4444', fontSize: 12, fontWeight: 600 }}>{e.actif ? 'Actif' : 'Inactif'}</span>
+                          {e.origine === 'inscription_autonome' && (
+                            <span title="Entreprise creee par le client via la page publique /inscription" style={{ background: '#ECFDF5', color: '#065F46', border: '1px solid #A7F3D0', borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>
+                              Inscription autonome
+                            </span>
+                          )}
                         </div>
                         <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
                           {secteurInfo?.label || e.secteur} — {e.max_utilisateurs || '?'} users max
@@ -873,6 +907,81 @@ async function createEmploye(entrepriseId) {
                 <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>Sur ce plan : <strong>{stats.par_plan[p.id] || 0}</strong> entreprise(s)</div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {onglet === 'demandes' && (
+        <div>
+          <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Demandes de pack superieur ({demandes.length})</h2>
+          <p style={{ fontSize: 12.5, color: '#6B7280', marginBottom: 16, lineHeight: 1.6 }}>
+            Un client ne peut pas activer un pack lui-meme : il depose une demande ici.
+            L&apos;activation se fait a la main depuis la fiche entreprise, et uniquement pour un module reellement developpe.
+          </p>
+
+          {demandes.length === 0 && (
+            <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
+              Aucune demande pour le moment.
+            </div>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {demandes.map(d => {
+              const ent = entreprises.find(x => x.id === d.entreprise_id)
+              const couleurStatut = { nouvelle: '#3B82F6', en_cours: '#F59E0B', traitee: '#10B981', refusee: '#6B7280' }[d.statut] || '#6B7280'
+              return (
+                <div key={d.id} style={{ background: '#fff', border: '1px solid #E5E7EB', borderLeft: '3px solid ' + couleurStatut, borderRadius: 12, padding: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                    <div style={{ minWidth: 240, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{ent?.nom || 'Entreprise supprimee'}</span>
+                        <span style={{ background: (PLAN_COLORS[d.pack_demande] || '#6B7280') + '22', color: PLAN_COLORS[d.pack_demande] || '#6B7280', borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>
+                          {d.pack_demande || 'pack'}
+                        </span>
+                        <span style={{ background: couleurStatut + '22', color: couleurStatut, borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>{d.statut}</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+                        Plan actuel : <strong>{ent?.plan || '-'}</strong> &middot; secteur : {ent?.secteur || '-'} &middot; {new Date(d.created_at).toLocaleString('fr-FR')}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                        Contact : {d.contact_email || '-'}{d.contact_telephone ? ' / ' + d.contact_telephone : ''}
+                      </div>
+                      {Array.isArray(d.modules_demandes) && d.modules_demandes.length > 0 && (
+                        <div style={{ fontSize: 12, color: '#374151', marginTop: 6 }}>Modules vises : {d.modules_demandes.join(', ')}</div>
+                      )}
+                      {d.message && (
+                        <div style={{ background: '#F9FAFB', border: '1px solid #F3F4F6', borderRadius: 8, padding: '8px 12px', fontSize: 12.5, color: '#374151', marginTop: 8, whiteSpace: 'pre-wrap' }}>
+                          {d.message}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flexShrink: 0 }}>
+                      {ent && (
+                        <button onClick={() => ouvrirEdition(ent)} style={{ background: '#3B82F6', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 12.5, fontWeight: 600 }}>
+                          Ouvrir l&apos;entreprise
+                        </button>
+                      )}
+                      {d.statut !== 'en_cours' && d.statut !== 'traitee' && (
+                        <button disabled={demandeSaving === d.id} onClick={() => changerStatutDemande(d, 'en_cours')} style={{ background: '#fff', color: '#92400E', border: '1px solid #FDE68A', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 12.5, fontWeight: 600 }}>
+                          Prendre en charge
+                        </button>
+                      )}
+                      {d.statut !== 'traitee' && (
+                        <button disabled={demandeSaving === d.id} onClick={() => changerStatutDemande(d, 'traitee')} style={{ background: '#fff', color: '#065F46', border: '1px solid #A7F3D0', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 12.5, fontWeight: 600 }}>
+                          Marquer traitee
+                        </button>
+                      )}
+                      {d.statut !== 'refusee' && (
+                        <button disabled={demandeSaving === d.id} onClick={() => changerStatutDemande(d, 'refusee')} style={{ background: '#fff', color: '#6B7280', border: '1px solid #E5E7EB', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 12.5, fontWeight: 600 }}>
+                          Ne pas retenir
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

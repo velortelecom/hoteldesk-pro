@@ -8,6 +8,13 @@ import { useEmployeDetail, useDepartements, usePostes } from '../hooks.js';
 import { ROLE_COLORS, NIVEAUX_POSTE } from '../config.js';
 import { updateEmploye, setEmployeDepartements, desactiverEmploye, reactiversEmploye, changerRoleEmploye, supprimerEmploye, reinitialiserMotDePasseEmploye } from '../services.js';
 
+// V1 inscription publique : les onglets Planning / Taches / Conges / Pointages /
+// Documents / Vehicules / Historique de la fiche employe ne sont pas developpes.
+// Les afficher vides donne l'impression d'un produit incomplet a un nouveau
+// client, donc on les masque. Repasser a true module par module, quand le
+// contenu correspondant existe reellement.
+const AFFICHER_MODULES_A_VENIR = false;
+
 const ROLE_LABELS = { admin: 'Admin', responsable: 'Responsable', employe: 'Employé', super_admin: 'Super Admin' };
 const LANGUE_LABELS = { fr: 'Français', en: 'English', es: 'Español', ar: 'Arabe' };
 
@@ -293,10 +300,12 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, pro
           </div>
         )}
 
-        <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #e5e7eb', marginTop: '0.5rem', paddingTop: '1.5rem' }}>
-          <h3 style={{ color: '#111827', fontWeight: 600, marginTop: 0, marginBottom: '1rem' }}>Modules (à venir)</h3>
-          <OngletsAVenir />
-        </div>
+        {AFFICHER_MODULES_A_VENIR && (
+          <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #e5e7eb', marginTop: '0.5rem', paddingTop: '1.5rem' }}>
+            <h3 style={{ color: '#111827', fontWeight: 600, marginTop: 0, marginBottom: '1rem' }}>Modules (à venir)</h3>
+            <OngletsAVenir />
+          </div>
+        )}
       </div>
 
       {creds && (
