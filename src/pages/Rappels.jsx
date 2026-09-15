@@ -88,7 +88,7 @@ export default function Rappels() {
     setTimeout(() => verifierEtEnvoyerRappels(), 2000)
 
     return () => clearInterval(intervalRef.current)
-  }, [])
+  }, [entrepriseId])
 
   async function fetchAll() {
     // Rappels manuels
@@ -104,6 +104,7 @@ export default function Rappels() {
       .eq('statut', 'planifiee')
       .is('tache_parente_id', null) // seulement les taches parentes
       .order('date_echeance', { ascending: true })
+    if (entrepriseId) q = q.eq('entreprise_id', entrepriseId)
 
     // Filtrage par role
     if (userRole === 'employe') {
@@ -140,6 +141,7 @@ export default function Rappels() {
       .select('*')
       .eq('statut', 'planifiee')
       .is('tache_parente_id', null)
+    if (entrepriseId) q = q.eq('entreprise_id', entrepriseId)
 
     if (userRole === 'employe') q = q.eq('assigne_a', profile.id)
     else if (userRole === 'responsable') q = q.or('assigne_a.eq.' + profile.id + ',cree_par.eq.' + profile.id)
