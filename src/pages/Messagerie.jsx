@@ -5,7 +5,7 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
 export default function Messagerie() {
-  const { profile } = useAuth()
+  const { profile, entrepriseId } = useAuth()
   const [contacts, setContacts] = useState([])
   const [selected, setSelected] = useState(null)
   const [messages, setMessages] = useState([])
@@ -13,7 +13,7 @@ export default function Messagerie() {
   const bottomRef = useRef(null)
 
   useEffect(() => {
-    supabase.from('profiles').select('*').neq('id', profile.id).eq('entreprise_id', profile.entreprise_id).then(({ data }) => setContacts(data || []))
+    supabase.from('profiles').select('*').neq('id', profile.id).eq('entreprise_id', entrepriseId).then(({ data }) => setContacts(data || []))
   }, [profile])
 
   useEffect(() => {
@@ -44,7 +44,7 @@ export default function Messagerie() {
 
   async function send() {
     if (!texte.trim() || !selected) return
-    await supabase.from('messages').insert({ expediteur_id: profile.id, destinataire_id: selected.id, contenu: texte.trim(), entreprise_id: profile.entreprise_id })
+    await supabase.from('messages').insert({ expediteur_id: profile.id, destinataire_id: selected.id, contenu: texte.trim(), entreprise_id: entrepriseId })
     setTexte('')
   }
 
