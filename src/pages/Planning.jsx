@@ -36,7 +36,7 @@ function useNow() {
 }
 
 export default function Planning() {
-  const { profile } = useAuth()
+  const { profile, entrepriseId } = useAuth()
   const now = useNow()
   const [taches, setTaches] = useState([])
   const [employes, setEmployes] = useState([])
@@ -309,7 +309,7 @@ export default function Planning() {
       priorite: quickForm.priorite,
       statut: 'a_faire',
       date_echeance: dateStr,
-      entreprise_id: profile?.entreprise_id,
+      entreprise_id: entrepriseId,
       assigne_a: profile?.id,
     })
     setQuickSaving(false)
