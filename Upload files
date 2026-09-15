@@ -1,0 +1,98 @@
+import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { supabase } from '../lib/supabase'
+
+const AuthContext = createContext({})
+
+// Cle de persistance du contexte entreprise choisi par le Super Admin.
+const STORAGE_KEY = 'velor.contexte_entreprise'
+
+function readStoredContexte() {
+  try { return window.localStorage.getItem(STORAGE_KEY) || null } catch { return null }
+}
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null)
+  const [profile, setProfile] = useState(null)
+  const [loading, setLoading] = useState(true)
+
+  // ------------------------------------------------------------------
+  // CONTEXTE ENTREPRISE (architecture Velor One §2 et §9)
+  // Le Super Admin n'est rattache a AUCUNE entreprise : son entreprise_id
+  // est null par design. Il ne faut donc PAS lui en assigner une, mais lui
+  // donner un contexte entreprise explicite, choisi depuis le Centre de
+  // Controle, et trace dans l'UI. Pour tous les autres roles, le contexte
+  // est simplement l'entreprise du profil.
+  // ------------------------------------------------------------------
+  const [contexteEntreprise, setContexteEntrepriseState] = useState(readStoredContexte)
+
+  const isSuperAdmin = !!profile?.is_super_admin
+  const entrepriseId = isSuperAdmin ? contexteEntreprise : (profile?.entreprise_id ?? null)
+
+  // Profil "effectif" transmis aux modules : identique au profil reel, mais
+  // dont entreprise_id porte le contexte actif. Permet aux modules metier de
+  // rester ecrits une seule fois, sans cas particulier Super Admin.
+  const profileEffectif = profile ? { ...profile, entreprise_id: entrepriseId } : null
+
+  const setContexteEntreprise = useCallback((id) => {
+    setContexteEntrepriseState(id || null)
+    try {
+      if (id) window.localStorage.setItem(STORAGE_KEY, id)
+      else window.localStorage.removeItem(STORAGE_KEY)
+    } catch { /* stockage indisponible : contexte valable pour la session */ }
+  }, [])
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+      if (session?.user) fetchProfile(session.user.id)
+      else setLoading(false)
+    })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+      if (session?.user) fetchProfile(session.user.id)
+      else { setProfile(null); setLoading(false) }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  async function fetchProfile(userId) {
+    setLoading(true)
+    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
+    setProfile(data ?? null)
+    setLoading(false)
+  }
+
+  async function signIn(email, password) {
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    return { error }
+  }
+
+  async function signOut() {
+    await supabase.auth.signOut()
+    setProfile(null)
+    setContexteEntreprise(null)
+  }
+
+  return (
+    <AuthContext.Provider value={{
+      user,
+      profile,
+      profileEffectif,
+      loading,
+      signIn,
+      signOut,
+      isSuperAdmin,
+      entrepriseId,
+      contexteEntreprise,
+      setContexteEntreprise,
+    }}>
+      {children}
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth() {
+  return useContext(AuthContext)
+}
