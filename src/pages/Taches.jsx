@@ -135,16 +135,19 @@ export default function Taches() {
     assigne_a: '', recurrence_type: '', recurrence_fin: '', chambre: '',
   })
 
-  useEffect(() => { fetchTaches(); fetchMembres() }, [profile])
+  useEffect(() => { fetchTaches(); fetchMembres() }, [profile, entrepriseId])
 
   async function fetchMembres() {
-    const { data } = await supabase.from('profiles').select('id, prenom, nom, role, departement')
+    let q = supabase.from('profiles').select('id, prenom, nom, role, departement')
+    if (entrepriseId) q = q.eq('entreprise_id', entrepriseId)
+    const { data } = await q
     if (data) setMembres(data)
   }
 
   async function fetchTaches() {
     setLoading(true)
     let query = supabase.from('taches').select('*').order('date_echeance', { ascending: true })
+    if (entrepriseId) query = query.eq('entreprise_id', entrepriseId)
     if (profile?.role === 'employe') {
       const allowedCats = DEPT_CATS[profile.departement] || []
       if (allowedCats.length) query = query.in('categorie', allowedCats)
