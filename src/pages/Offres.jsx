@@ -13,6 +13,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { useModules } from '../hooks/useModules'
 import { PLANS, PLAN_ORDER } from '../lib/modules'
+import { etatFinAbonnement, texteDecompte } from '../lib/abonnement'
 import { getModuleById, MODULES_REGISTRY } from '../modules/registry'
 import {
   PLAN_1_LABEL, PLAN_1_PRIX_MENSUEL, PLAN_1_MAX_UTILISATEURS,
@@ -90,6 +91,11 @@ export default function Offres() {
   })
 
   const rangActuel = PLAN_ORDER.indexOf(planId)
+
+  // Fin d'abonnement proche, et seulement si le renouvellement mensuel n'est
+  // pas actif : dans le cas contraire la date avance toute seule et il n'y a
+  // rien a anticiper.
+  const finProche = etatFinAbonnement(entreprise)
 
   // Une demande ne bloque le bouton que TANT QU'ELLE EST EN COURS. Avant,
   // le test etait `statut !== 'refusee'` : une demande traitee laissait donc
@@ -179,8 +185,42 @@ export default function Offres() {
               {planMaxUsers != null ? ' \u00b7 jusqu\u2019a ' + planMaxUsers + ' utilisateurs' : ' \u00b7 utilisateurs illimites'}
             </div>
           </div>
-          <Pastille bg="#ECFDF5" fg="#065F46">Actif</Pastille>
+          {finProche && finProche.niveau === 'expire'
+            ? <Pastille bg="#FEF2F2" fg="#991B1B">Lecture seule</Pastille>
+            : <Pastille bg="#ECFDF5" fg="#065F46">Actif</Pastille>}
         </div>
+
+        {finProche && (
+          <div style={{
+            marginTop: 14, padding: '10px 12px', borderRadius: 8,
+            display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+            background: finProche.niveau === 'expire' ? '#FEF2F2' : '#FFFBEB',
+            border: '1px solid ' + (finProche.niveau === 'expire' ? '#FECACA' : '#FDE68A'),
+            color: finProche.niveau === 'expire' ? '#991B1B' : '#92400E',
+          }}>
+            <span style={{
+              flexShrink: 0, fontSize: 12, fontWeight: 700, borderRadius: 6, padding: '4px 10px',
+              background: finProche.niveau === 'expire' ? '#991B1B' : '#92400E', color: '#fff',
+            }}>
+              {texteDecompte(finProche)}
+            </span>
+            <span style={{ fontSize: 12.5, lineHeight: 1.6 }}>
+              {finProche.niveau === 'expire' ? (
+                <>
+                  <strong>Votre abonnement a pris fin le {finProche.fin.toLocaleDateString('fr-FR')}.</strong>{' '}
+                  Votre espace est en lecture seule : tout reste consultable, seules les modifications
+                  sont suspendues. Vos donnees sont intactes et reviennent des la reactivation.
+                </>
+              ) : (
+                <>
+                  <strong>Votre abonnement prend fin le {finProche.fin.toLocaleDateString('fr-FR')}.</strong>{' '}
+                  Le renouvellement automatique n&apos;est pas actif : sans reconduction, votre espace
+                  passera en lecture seule a cette date. Contactez Velor One pour le reconduire.
+                </>
+              )}
+            </span>
+          </div>
+        )}
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 10, marginTop: 18 }}>
           {[...PLAN_1_SOCLE, ...modulesAffiches].map(m => (
