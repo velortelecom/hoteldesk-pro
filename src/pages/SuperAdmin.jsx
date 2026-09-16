@@ -21,12 +21,16 @@ import SuperAdminUsersPanel from './SuperAdminUsersPanel'
 import SuperAdminAssistance from './SuperAdminAssistance'
 import SuperAdminEnterpriseStructure from './SuperAdminEnterpriseStructure'
 import SuperAdminPlatformHealth from './SuperAdminPlatformHealth'
+import BlocAbonnement from '../components/BlocAbonnement'
 
 const PLAN_COLORS = { starter: '#6B7280', business: '#3B82F6', premium: '#8B5CF6', enterprise: '#F59E0B' } 
 // Etat d'essai d'une entreprise, a partir de date_fin_abonnement.
 // null = client etabli (pas de date de fin) -> aucun badge.
 function infoEssai(e) {
-  if (!e || !e.date_fin_abonnement) return null
+  if (!e) return null
+  // Recurrence active = client qui paie, ce n'est plus un essai.
+  if (e.abonnement_recurrent) return { texte: 'Abonne - renouvellement mensuel', fond: '#ECFDF5', trait: '#A7F3D0', encre: '#065F46' }
+  if (!e.date_fin_abonnement) return null
   const fin = new Date(e.date_fin_abonnement)
   if (Number.isNaN(fin.getTime())) return null
   const jours = Math.ceil((fin - new Date()) / 86400000)
@@ -386,39 +390,6 @@ export default function SuperAdmin() {
     fetchData()
   }
 
-  // Fin d'essai : c'est date_fin_abonnement qui gouverne la lecture seule,
-  // PAS le plan. Changer une entreprise de starter a business ne debloque
-  // rien tant que cette date reste dans le passe. Ces deux actions sont donc
-  // le seul vrai levier pour lever un compte en lecture seule.
-  async function activerAbonnement(ent) {
-    if (!window.confirm('Activer l\'abonnement de ' + ent.nom + ' ?\n\nLa periode d\'essai est levee : l\'ecriture redevient possible immediatement.')) return
-    const { error } = await supabase.from('entreprises')
-      .update({ date_fin_abonnement: null })
-      .eq('id', ent.id)
-    if (error) { setMsg({ type: 'error', text: 'Erreur : ' + error.message }); return }
-
-    // Une entreprise sans date de fin n'est jamais bloquee : c'est la
-    // convention posee par entreprise_ecriture_ouverte().
-    await supabase.from('demandes_pack')
-      .update({ statut: 'traitee', traite_par: profile.id, traite_at: new Date().toISOString() })
-      .eq('entreprise_id', ent.id)
-      .in('statut', ['nouvelle', 'en_cours'])
-
-    setMsg({ type: 'success', text: 'Abonnement active pour ' + ent.nom + '. Ecriture retablie, demandes en attente cloturees.' })
-    fetchData()
-  }
-
-  async function prolongerEssai(ent, jours) {
-    const fin = new Date(Date.now() + jours * 86400000)
-    if (!window.confirm('Prolonger l\'essai de ' + ent.nom + ' de ' + jours + ' jours ?\n\nNouvelle fin : ' + fin.toLocaleDateString('fr-FR'))) return
-    const { error } = await supabase.from('entreprises')
-      .update({ date_fin_abonnement: fin.toISOString() })
-      .eq('id', ent.id)
-    if (error) { setMsg({ type: 'error', text: 'Erreur : ' + error.message }); return }
-    setMsg({ type: 'success', text: 'Essai prolonge jusqu\'au ' + fin.toLocaleDateString('fr-FR') + '.' })
-    fetchData()
-  }
-
   async function toggleActifEntreprise(ent) {
     const nextState = !ent.actif
     if (!window.confirm(nextState ? 'Confirmer la réactivation de cette entreprise ?' : 'Confirmer la suspension de cette entreprise ?')) {
@@ -748,7 +719,7 @@ async function createEmploye(entrepriseId) {
                             if (!ess) return null
                             return (
                               <span
-                                title={'Fin d\'essai le ' + new Date(e.date_fin_abonnement).toLocaleDateString('fr-FR')}
+                                title={e.date_fin_abonnement ? new Date(e.date_fin_abonnement).toLocaleDateString('fr-FR') : ''}
                                 style={{ background: ess.fond, color: ess.encre, border: '1px solid ' + ess.trait, borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>
                                 {ess.texte}
                               </span>
@@ -761,7 +732,7 @@ async function createEmploye(entrepriseId) {
                         </div>
                         <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 3 }}>
                           Créée le {e.created_at ? new Date(e.created_at).toLocaleDateString('fr-FR') : 'N/A'}
-                          {e.date_fin_abonnement && (" · Fin d'essai le " + new Date(e.date_fin_abonnement).toLocaleDateString('fr-FR'))}
+                          {e.date_fin_abonnement && ((e.abonnement_recurrent ? " · Prochaine echeance le " : " · Fin d'ecriture le ") + new Date(e.date_fin_abonnement).toLocaleDateString('fr-FR'))}
                           {' · '}Dernière activité {lastActivityByEntreprise[e.id] ? new Date(lastActivityByEntreprise[e.id]).toLocaleString('fr-FR') : 'non disponible'}
                         </div>
                       </div>
@@ -771,16 +742,6 @@ async function createEmploye(entrepriseId) {
                         {expandedEnt === e.id ? 'Fermer' : 'Modules'}
                       </button>
                       <button onClick={() => ouvrirEdition(e)} disabled={editLoading} style={{ padding: '6px 12px', border: '1px solid #3B82F6', color: '#3B82F6', background: '#EFF6FF', borderRadius: 6, cursor: editLoading ? 'not-allowed' : 'pointer', fontSize: 12 }}>Modifier</button>
-                      {e.date_fin_abonnement && (
-                        <button onClick={() => activerAbonnement(e)} title="Leve la periode d'essai : l'ecriture redevient possible" style={{ padding: '6px 12px', border: '1px solid #10B981', color: '#065F46', background: '#ECFDF5', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-                          ✓ Activer l&apos;abonnement
-                        </button>
-                      )}
-                      {e.date_fin_abonnement && (
-                        <button onClick={() => prolongerEssai(e, 14)} title="Repousse la fin d'essai de 14 jours" style={{ padding: '6px 12px', border: '1px solid #F59E0B', color: '#92400E', background: '#FFFBEB', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
-                          + 14 j d&apos;essai
-                        </button>
-                      )}
                       <button onClick={() => toggleActifEntreprise(e)} style={{ padding: '6px 12px', border: '1px solid ' + (e.actif ? '#EF4444' : '#10B981'), color: e.actif ? '#EF4444' : '#10B981', background: '#fff', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
                         {e.actif ? 'Desactiver' : 'Reactiver'}
                       </button>
@@ -789,6 +750,7 @@ async function createEmploye(entrepriseId) {
                                          <button onClick={() => { setEmployeModalEnt(e); setEmployeForm({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true }); setEmployeMsg(null); setEmployeSuccessInfo(null); fetchPostesEtDeps(e.id); setShowEmployeModal(true) }} style={{ background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontSize: 12 }}>+ Employe</button>
                       <button onClick={() => setDeleteConfirm(e)} style={{ padding: '6px 12px', border: '1px solid #EF4444', color: '#EF4444', background: '#FEF2F2', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>🗑 Supprimer</button>
                     </div>
+                    <BlocAbonnement ent={e} onFait={fetchData} />
                   </div>
                   {expandedEnt === e.id && (
                     <div style={{ borderTop: '1px solid #E5E7EB', padding: '12px 16px', background: '#F9FAFB' }}>
