@@ -1,5 +1,10 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import {
+  CATEGORIES_TACHE, PRIORITES_TACHE,
+  CATEGORIE_TACHE_DEFAUT, PRIORITE_TACHE_DEFAUT, STATUT_TACHE_DEFAUT,
+  LIBELLES_PRIORITE, libelleCategorie,
+} from '../lib/taches'
 import { useAuth } from '../hooks/useAuth'
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -42,8 +47,11 @@ export default function Planning() {
   const [employes, setEmployes] = useState([])
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [quickCreateDate, setQuickCreateDate] = useState(null)
-  const [quickForm, setQuickForm] = useState({ titre: '', categorie: 'menage', priorite: 'normale' })
+  const [quickForm, setQuickForm] = useState({ titre: '', categorie: CATEGORIE_TACHE_DEFAUT, priorite: PRIORITE_TACHE_DEFAUT })
   const [quickSaving, setQuickSaving] = useState(false)
+  // Une erreur d'insertion doit se voir : avant, `if (!error)` sans `else`
+  // laissait le formulaire ouvert sans rien dire.
+  const [quickErreur, setQuickErreur] = useState('')
   const [selectedDay, setSelectedDay] = useState(new Date())
   const [vue, setVue] = useState('mois') // 'mois' | 'jour'
   const [filtreEmp, setFiltreEmp] = useState('tous')
@@ -180,8 +188,20 @@ export default function Planning() {
                   borderRadius: 8, padding: '4px 6px', cursor: 'pointer', background: isSelected ? '#EEF5FF' : isTodayDay ? '#FFF8EE' : '#fff',
                   opacity: isCurrentMonth ? 1 : 0.4, transition: 'all 0.1s'
                 }}>
-                <div style={{ fontSize: 12, fontWeight: isTodayDay ? 700 : 500, color: isTodayDay ? '#EF9F27' : '#333', marginBottom: 2 }}>
-                  {format(day, 'd')}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                  <span style={{ fontSize: 12, fontWeight: isTodayDay ? 700 : 500, color: isTodayDay ? '#EF9F27' : '#333' }}>
+                    {format(day, 'd')}
+                  </span>
+                  {/* Le formulaire de creation rapide existait deja mais rien
+                      ne l'ouvrait : setQuickCreateDate n'etait appele qu'avec
+                      null. Voici sa porte d'entree. */}
+                  <button
+                    type="button"
+                    title={'Ajouter une tache le ' + format(day, 'd MMMM', { locale: fr })}
+                    onClick={(ev) => { ev.stopPropagation(); setQuickErreur(''); setQuickCreateDate(day) }}
+                    style={{ border: 'none', background: 'none', color: '#9CA3AF', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 2px' }}>
+                    +
+                  </button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   {dayTasks.slice(0, 3).map(t => {
@@ -302,22 +322,43 @@ export default function Planning() {
     e.preventDefault()
     if (!quickForm.titre.trim()) return
     setQuickSaving(true)
+    setQuickErreur('')
+
+    if (!profile?.entreprise_id) {
+      setQuickSaving(false)
+      setQuickErreur("Votre compte n'est rattache a aucune entreprise.")
+      return
+    }
+
     const dateStr = format(quickCreateDate, 'yyyy-MM-dd') + 'T09:00:00'
-    const { error } = await supabase.from('taches').insert({
+    const { data, error } = await supabase.from('taches').insert({
       titre: quickForm.titre.trim(),
       categorie: quickForm.categorie,
       priorite: quickForm.priorite,
-      statut: 'a_faire',
+      // 'a_faire' n'existe pas dans la contrainte CHECK de la table : la
+      // base refusait chaque insertion, en silence.
+      statut: STATUT_TACHE_DEFAUT,
       date_echeance: dateStr,
-      entreprise_id: profile?.entreprise_id,
+      entreprise_id: profile.entreprise_id,
       assigne_a: profile?.id,
-    })
+      cree_par: profile?.id,
+    }).select('id')
+
     setQuickSaving(false)
-    if (!error) {
-      setQuickCreateDate(null)
-      setQuickForm({ titre: '', categorie: 'menage', priorite: 'normale' })
-      fetchTaches()
+
+    if (error) {
+      setQuickErreur(error.message || 'Creation impossible.')
+      return
     }
+    if (!data || data.length === 0) {
+      setQuickErreur("Aucune ligne creee. La RLS a filtre l'insertion sans lever d'erreur.")
+      return
+    }
+
+    setQuickCreateDate(null)
+    setQuickErreur('')
+    setQuickForm({ titre: '', categorie: CATEGORIE_TACHE_DEFAUT, priorite: PRIORITE_TACHE_DEFAUT })
+    fetchTaches()
   }
 
   return (
@@ -331,6 +372,14 @@ export default function Planning() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Porte d'entree principale : creer une tache pour le jour
+              selectionne, sans quitter le planning. */}
+          <button
+            type="button"
+            onClick={() => { setQuickErreur(''); setQuickCreateDate(selectedDay || new Date()) }}
+            style={{ padding: '5px 12px', border: 'none', borderRadius: 8, background: '#185FA5', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            + Tache
+          </button>
           {/* Vue toggle */}
           <div style={{ display: 'flex', border: '1px solid #d1d5db', borderRadius: 8, overflow: 'hidden' }}>
             {[['mois','&#128197; Mois'],['jour','&#9201; Jour 24h']].map(([v,l]) => (
@@ -387,14 +436,19 @@ export default function Planning() {
                 style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 13, outline: 'none', marginBottom: 10, boxSizing: 'border-box' }} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
                 <select value={quickForm.categorie} onChange={e => setQuickForm(f => ({ ...f, categorie: e.target.value }))} style={{ padding: '8px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12, background: '#fff' }}>
-                  {['menage','maintenance','accueil','admin','urgence','restauration','securite'].map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                  {CATEGORIES_TACHE.map(c => <option key={c} value={c}>{libelleCategorie(c)}</option>)}
                 </select>
                 <select value={quickForm.priorite} onChange={e => setQuickForm(f => ({ ...f, priorite: e.target.value }))} style={{ padding: '8px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12, background: '#fff' }}>
-                  <option value="basse">Basse</option><option value="normale">Normale</option><option value="haute">Haute</option><option value="urgente">Urgente</option>
+                  {PRIORITES_TACHE.map(p => <option key={p} value={p}>{LIBELLES_PRIORITE[p]}</option>)}
                 </select>
               </div>
+              {quickErreur && (
+                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', borderRadius: 8, padding: '8px 10px', fontSize: 12, lineHeight: 1.5, marginBottom: 12 }}>
+                  {quickErreur}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button type="button" onClick={() => setQuickCreateDate(null)} style={{ padding: '8px 16px', border: '0.5px solid #d0cfc8', borderRadius: 8, background: 'none', cursor: 'pointer', fontSize: 13 }}>Annuler</button>
+                <button type="button" onClick={() => { setQuickCreateDate(null); setQuickErreur('') }} style={{ padding: '8px 16px', border: '0.5px solid #d0cfc8', borderRadius: 8, background: 'none', cursor: 'pointer', fontSize: 13 }}>Annuler</button>
                 <button type="submit" disabled={quickSaving || !quickForm.titre.trim()} style={{ padding: '8px 16px', background: '#185FA5', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer', opacity: (quickSaving || !quickForm.titre.trim()) ? .6 : 1, fontWeight: 600 }}>
                   {quickSaving ? 'Creation...' : 'Creer la tache'}
                 </button>
