@@ -102,13 +102,14 @@ function valider(body: Record<string, unknown>) {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: buildCorsHeaders() });
-  if (req.method !== 'POST') return jsonResponse({ success: false, error: 'method_not_allowed', message: 'Methode non autorisee.' }, 405);
+  if (req.method === 'OPTIONS') return new Response(null, { headers: buildCorsHeaders(req) });
+  const rep = (body: unknown, status = 200) => jsonResponse(body, status, req);
+  if (req.method !== 'POST') return rep({ success: false, error: 'method_not_allowed', message: 'Methode non autorisee.' }, 405);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !serviceRoleKey) {
-    return jsonResponse({ success: false, error: 'server_misconfigured', message: 'Service indisponible. Reessayez plus tard.' }, 500);
+    return rep({ success: false, error: 'server_misconfigured', message: 'Service indisponible. Reessayez plus tard.' }, 500);
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
@@ -125,7 +126,7 @@ Deno.serve(async (req: Request) => {
   const payload = await readJsonBody(req);
   if (!payload || typeof payload !== 'object') {
     await tracerTentative(null, false, 'invalid_json');
-    return jsonResponse({ success: false, error: 'invalid_json', message: 'Requete invalide.' }, 400);
+    return rep({ success: false, error: 'invalid_json', message: 'Requete invalide.' }, 400);
   }
 
   const body = payload as Record<string, unknown>;
@@ -140,7 +141,7 @@ Deno.serve(async (req: Request) => {
   const { erreurs, valeurs } = valider(body);
   if (erreurs.length > 0) {
     await tracerTentative(valeurs.email || null, false, 'validation');
-    return jsonResponse({ success: false, error: 'validation_failed', message: 'Certains champs sont invalides.', erreurs }, 400);
+    return rep({ success: false, error: 'validation_failed', message: 'Certains champs sont invalides.', erreurs }, 400);
   }
 
   const { nomEntreprise, secteur, adminPrenom, adminNom, email, password, telephone, nombreEmployes } = valeurs;
@@ -157,7 +158,7 @@ Deno.serve(async (req: Request) => {
 
     if ((succes24h ?? 0) >= ANTI_ABUS.maxSuccesParIp24h) {
       await tracerTentative(email, false, 'rate_limit_ip_24h');
-      return jsonResponse({ success: false, error: 'rate_limited', message: "Trop d'inscriptions depuis ce reseau. Contactez Velor One pour creer d'autres espaces." }, 429);
+      return rep({ success: false, error: 'rate_limited', message: "Trop d'inscriptions depuis ce reseau. Contactez Velor One pour creer d'autres espaces." }, 429);
     }
 
     const { count: tentatives1h } = await supabase
@@ -167,7 +168,7 @@ Deno.serve(async (req: Request) => {
 
     if ((tentatives1h ?? 0) >= ANTI_ABUS.maxTentativesParIp1h) {
       await tracerTentative(email, false, 'rate_limit_ip_1h');
-      return jsonResponse({ success: false, error: 'rate_limited', message: 'Trop de tentatives. Reessayez dans une heure.' }, 429);
+      return rep({ success: false, error: 'rate_limited', message: 'Trop de tentatives. Reessayez dans une heure.' }, 429);
     }
   }
 
@@ -178,7 +179,7 @@ Deno.serve(async (req: Request) => {
 
   if ((tentativesEmail ?? 0) >= ANTI_ABUS.maxTentativesParEmail1h) {
     await tracerTentative(email, false, 'rate_limit_email_1h');
-    return jsonResponse({ success: false, error: 'rate_limited', message: 'Trop de tentatives pour cette adresse. Reessayez dans une heure.' }, 429);
+    return rep({ success: false, error: 'rate_limited', message: 'Trop de tentatives pour cette adresse. Reessayez dans une heure.' }, 429);
   }
 
   // --- Email deja utilise ? -------------------------------------------
@@ -190,7 +191,7 @@ Deno.serve(async (req: Request) => {
   if (errRecherche) console.error('verification_email_failed', errRecherche.message);
   if (dejaPris && dejaPris.length > 0) {
     await tracerTentative(email, false, 'email_exists');
-    return jsonResponse({
+    return rep({
       success: false, error: 'email_already_exists',
       message: 'Un compte existe deja avec cette adresse email.',
       erreurs: [{ champ: 'email', message: 'Adresse deja utilisee.' }],
@@ -213,7 +214,7 @@ Deno.serve(async (req: Request) => {
       const brut = (errUser?.message || '').toLowerCase();
       if (brut.includes('already') || brut.includes('registered')) {
         await tracerTentative(email, false, 'email_exists');
-        return jsonResponse({
+        return rep({
           success: false, error: 'email_already_exists',
           message: 'Un compte existe deja avec cette adresse email.',
           erreurs: [{ champ: 'email', message: 'Adresse deja utilisee.' }],
@@ -293,7 +294,7 @@ Deno.serve(async (req: Request) => {
 
     await tracerTentative(email, true, null);
 
-    return jsonResponse({
+    return rep({
       success: true,
       entreprise: entreprise || { id: entrepriseId, nom: nomEntreprise, plan: PLAN_1_ID },
       admin: { id: adminUserId, email },
@@ -334,7 +335,7 @@ Deno.serve(async (req: Request) => {
     await tracerTentative(email, false, (rollbackComplet ? '' : 'ROLLBACK_INCOMPLET ') + motif.slice(0, 180));
 
     // Jamais d'erreur SQL brute dans l'interface.
-    return jsonResponse({
+    return rep({
       success: false,
       error: 'signup_failed',
       message: "La creation de votre espace n'a pas pu aboutir. Aucune donnee n'a ete conservee. Reessayez ou contactez Velor One.",

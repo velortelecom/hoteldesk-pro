@@ -22,7 +22,18 @@ import SuperAdminAssistance from './SuperAdminAssistance'
 import SuperAdminEnterpriseStructure from './SuperAdminEnterpriseStructure'
 import SuperAdminPlatformHealth from './SuperAdminPlatformHealth'
 
-const PLAN_COLORS = { starter: '#6B7280', business: '#3B82F6', premium: '#8B5CF6', enterprise: '#F59E0B' }
+const PLAN_COLORS = { starter: '#6B7280', business: '#3B82F6', premium: '#8B5CF6', enterprise: '#F59E0B' } 
+// Etat d'essai d'une entreprise, a partir de date_fin_abonnement.
+// null = client etabli (pas de date de fin) -> aucun badge.
+function infoEssai(e) {
+  if (!e || !e.date_fin_abonnement) return null
+  const fin = new Date(e.date_fin_abonnement)
+  if (Number.isNaN(fin.getTime())) return null
+  const jours = Math.ceil((fin - new Date()) / 86400000)
+  if (jours <= 0) return { texte: 'Essai termine - lecture seule', fond: '#FEF2F2', trait: '#FECACA', encre: '#991B1B' }
+  if (jours <= 3) return { texte: 'Essai - J-' + jours + ', a rappeler', fond: '#FFFBEB', trait: '#FDE68A', encre: '#92400E' }
+  return { texte: 'Essai - ' + jours + ' j restants', fond: '#EFF6FF', trait: '#BFDBFE', encre: '#1E40AF' }
+}
 const PLAN_MODULES = {
   starter: ['organisation','conges'],
   business: ['organisation','conges','documents','rapports'],
@@ -698,7 +709,18 @@ async function createEmploye(entrepriseId) {
                             <span title="Entreprise creee par le client via la page publique /inscription" style={{ background: '#ECFDF5', color: '#065F46', border: '1px solid #A7F3D0', borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>
                               Inscription autonome
                             </span>
-                          )}
+                          )} 
+                          {(() => {
+                            const ess = infoEssai(e)
+                            if (!ess) return null
+                            return (
+                              <span
+                                title={'Fin d\'essai le ' + new Date(e.date_fin_abonnement).toLocaleDateString('fr-FR')}
+                                style={{ background: ess.fond, color: ess.encre, border: '1px solid ' + ess.trait, borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>
+                                {ess.texte}
+                              </span>
+                            )
+                          })()}
                         </div>
                         <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>
                           {secteurInfo?.label || e.secteur} — {e.max_utilisateurs || '?'} users max
@@ -706,6 +728,7 @@ async function createEmploye(entrepriseId) {
                         </div>
                         <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 3 }}>
                           Créée le {e.created_at ? new Date(e.created_at).toLocaleDateString('fr-FR') : 'N/A'}
+                          {e.date_fin_abonnement && (' · Fin d'essai le ' + new Date(e.date_fin_abonnement).toLocaleDateString('fr-FR'))}
                           {' · '}Dernière activité {lastActivityByEntreprise[e.id] ? new Date(lastActivityByEntreprise[e.id]).toLocaleString('fr-FR') : 'non disponible'}
                         </div>
                       </div>
