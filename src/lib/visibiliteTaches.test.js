@@ -38,9 +38,12 @@ describe('assignation a un departement', () => {
     expect(tacheVisiblePar(tache, employe)).toBe(false)
   })
 
-  test('assignee a quelqu un ET visant un departement : le departement decide', () => {
+  test('assignee a quelqu un ET visant un departement : le destinataire decide', () => {
+    // Regle demandee : des qu une personne est designee, elle est seule a
+    // la voir. Le departement ne rouvre pas la tache a ses collegues.
     const tache = { assigne_a: AUTRE, cree_par: AUTRE, departement: 'menage' }
-    expect(tacheVisiblePar(tache, employe)).toBe(true)
+    expect(tacheVisiblePar(tache, employe)).toBe(false)
+    expect(tacheVisiblePar({ ...tache, assigne_a: MOI }, employe)).toBe(true)
   })
 })
 
