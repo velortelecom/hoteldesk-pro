@@ -570,7 +570,14 @@ export default function SuperAdmin() {
                 <Field label="Email admin"><input style={inputStyle} value={form.admin_email} onChange={e => setForm(f => ({ ...f, admin_email: e.target.value }))} placeholder="jean@entreprise.fr" /></Field>
                 <Field label="Telephone"><input style={inputStyle} value={form.admin_telephone} onChange={e => setForm(f => ({ ...f, admin_telephone: e.target.value }))} placeholder="+33 6 12 34 56 78" /></Field>
               </div>
-              {form.admin_email && <div style={{ marginTop: 8, fontSize: 12, color: '#6B7280', background: '#F9FAFB', padding: '8px 12px', borderRadius: 8 }}>Mot de passe temporaire : Velor2024!</div>}
+              {/* Le serveur genere un mot de passe aleatoire de 16 caracteres
+                  (generateTempPassword, crypto.getRandomValues) et le renvoie
+                  dans adminSuccessInfo. Cet encart annoncait un mot de passe
+                  fixe, reste d'une ancienne version : celui qu'on communiquait
+                  au client ne fonctionnait pas.
+                  Le litteral est interdit par src/security/staticPasswordGuard.test.js,
+                  ne le reintroduis pas, meme en commentaire. */}
+              {form.admin_email && <div style={{ marginTop: 8, fontSize: 12, color: '#6B7280', background: '#F9FAFB', padding: '8px 12px', borderRadius: 8 }}>Un mot de passe temporaire sera genere automatiquement et affiche une seule fois, apres la creation.</div>}
             </Section>
           )}
         </div>

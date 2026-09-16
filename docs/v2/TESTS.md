@@ -1,0 +1,49 @@
+# Tests
+
+## Commandes exécutées
+
+```bash
+npm ci
+npm test -- --watchAll=false --runInBand
+npm run build
+npm run validate:app
+npm run qa:functions-health
+npm run qa:db-health
+npm run qa:backend-health
+node scripts/verify-create-user-chef-role.mjs
+node scripts/e2e-enterprise-creation-isolation.mjs
+npm run qa:full
+npm run validate:mission
+npm run validate:mission:ci
+```
+
+## Résultat courant
+
+- tests historiques : OK
+- suites unitaires actuelles : 13/13 vertes
+- total tests actuels : 43 verts
+- nouveaux tests de fondation : routeur, permissions, helpers entreprise
+- verification QA edge function : create-user avec role chef_equipe
+- verification droits frontend chef_equipe : classification manager + régressions de portée
+- smoke E2E: create-entreprise (x2) + verification isolation multi-entreprise
+- healthcheck runtime edge functions: create-entreprise/create-user/create-pointage
+- healthcheck invariants DB: contrainte roles profiles, module pointage, RPC atomique entreprise
+- healthcheck backend agrégé: qa:functions-health + qa:db-health
+- pre-check environnement: les scripts QA signalent explicitement les variables manquantes
+- hygiene secrets: les sorties QA masquent les mots de passe temporaires par defaut
+- validation install propre: exécution `npm ci` après suppression de `node_modules`
+
+## Fichiers de test clés
+
+- `src/app/router/routeConfig.test.js`
+- `src/lib/permissions.test.js`
+- `src/services/enterprise.test.js`
+- `src/pages/superAdminEnterpriseCreation.test.js`
+- `src/pages/superAdminControlUtils.test.js`
+- `src/pages/superAdminAudit.test.js`
+- `src/pages/rappels.fk.test.js`
+- `src/modules/pointage/services.test.js`
+- `src/services/superadmin/offersService.test.js`
+- `src/services/superadmin/supportService.test.js`
+- `src/services/superadmin/settingsService.test.js`
+- `src/services/superadmin/assistanceService.test.js`
