@@ -76,7 +76,7 @@ function Field({ label, children, style }) {
 const inputStyle = { border: '1px solid #D1D5DB', borderRadius: 6, padding: '8px 10px', fontSize: 13, width: '100%', boxSizing: 'border-box' }
 
 export default function SuperAdmin() {
-  const { profile } = useAuth()
+  const { profile, contexteEntreprise, setContexteEntreprise } = useAuth()
   const [entreprises, setEntreprises] = useState([])
   const [modules, setModules] = useState([])
   const [stats, setStats] = useState({ total: 0, actives: 0, totalUsers: 0, totalSites: 0, par_plan: {} })
@@ -818,6 +818,18 @@ async function createEmploye(entrepriseId) {
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       <button onClick={() => { const wasExpanded = expandedEnt === e.id; setExpandedEnt(wasExpanded ? null : e.id); if (!wasExpanded) fetchEntModules(e.id) }} style={{ padding: '6px 12px', border: '1px solid #E5E7EB', background: '#F9FAFB', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
                         {expandedEnt === e.id ? 'Fermer' : 'Modules'}
+                      </button>
+                      {/* Assistance client : ouvrir le contexte d'une entreprise
+                          fait basculer tous les modules metier sur ses donnees.
+                          Un bandeau le rappelle en permanence en haut de l'ecran. */}
+                      <button
+                        onClick={() => {
+                          const dejaActif = contexteEntreprise === e.id
+                          setContexteEntreprise(dejaActif ? null : e.id)
+                        }}
+                        title={contexteEntreprise === e.id ? 'Quitter le contexte de ce client' : 'Travailler dans le contexte de ce client'}
+                        style={{ padding: '6px 12px', border: '1px solid ' + (contexteEntreprise === e.id ? '#FDE68A' : '#E5E7EB'), background: contexteEntreprise === e.id ? '#FEF3C7' : '#F9FAFB', color: contexteEntreprise === e.id ? '#92400E' : '#374151', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                        {contexteEntreprise === e.id ? 'Contexte actif' : 'Ouvrir le contexte'}
                       </button>
                       <button onClick={() => ouvrirEdition(e)} disabled={editLoading} style={{ padding: '6px 12px', border: '1px solid #3B82F6', color: '#3B82F6', background: '#EFF6FF', borderRadius: 6, cursor: editLoading ? 'not-allowed' : 'pointer', fontSize: 12 }}>Modifier</button>
                       <button onClick={() => toggleActifEntreprise(e)} style={{ padding: '6px 12px', border: '1px solid ' + (e.actif ? '#EF4444' : '#10B981'), color: e.actif ? '#EF4444' : '#10B981', background: '#fff', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>

@@ -66,7 +66,7 @@ export default function App() {
 }
 
 function AppInner() {
-  const { user, profile, loading: authLoading, signOut } = useAuth()
+  const { user, profile, loading: authLoading, signOut, isSuperAdmin, entrepriseId, setContexteEntreprise } = useAuth()
   const { modulesActifs, catalogue } = useModules()
   const [page, setPage] = useState(() => normalizePageHash())
   const [menuOpen, setMenuOpen] = useState(false)
@@ -75,11 +75,15 @@ function AppInner() {
   const [showUserMenu, setShowUserMenu] = useState(false)
 
   useEffect(() => {
-    if (profile?.entreprise_id) {
-      supabase.from('entreprises').select('nom').eq('id', profile.entreprise_id).single()
+    if (entrepriseId) {
+      supabase.from('entreprises').select('nom').eq('id', entrepriseId).single()
         .then(({ data }) => { if (data?.nom) setNomEntreprise(data.nom) })
+    } else {
+      // Contexte quitte : sans ce retour, l'en-tete garderait le nom du
+      // dernier client consulte.
+      setNomEntreprise('Velor One')
     }
-  }, [profile?.entreprise_id])
+  }, [entrepriseId])
 
   // Auto-corriger le prenom si c'est 'Nouveau' (profil par defaut du trigger)
   useEffect(() => {
@@ -121,7 +125,6 @@ function AppInner() {
     return <Login />
   }
 
-  const isSuperAdmin = profile?.is_super_admin
   const isAdmin = ['admin', 'responsable'].includes(profile?.role) || isSuperAdmin
   const loadedModules = buildLoadedModules(modulesActifs, profile)
   // Navigation: socle toujours present + modules charges
@@ -249,6 +252,25 @@ function AppInner() {
           </div>
         </div>
       </header>
+
+      {/* Bandeau de tracabilite : un Super Admin qui consulte les donnees d'un
+          client doit le voir en permanence, et pouvoir en sortir en un clic. */}
+      {isSuperAdmin && entrepriseId && (
+        <div style={{ background: '#FEF3C7', borderBottom: '1px solid #FDE68A', color: '#92400E', fontSize: 12, padding: '6px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
+          <span>Contexte client actif - vous consultez les donnees de <strong>{nomEntreprise}</strong> en tant que Super Admin.</span>
+          <button onClick={() => setContexteEntreprise(null)} style={{ background: '#fff', border: '1px solid #FDE68A', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontSize: 12, color: '#92400E', fontWeight: 600, flexShrink: 0 }}>
+            Quitter le contexte
+          </button>
+        </div>
+      )}
+      {isSuperAdmin && !entrepriseId && (
+        <div style={{ background: '#EEF2FF', borderBottom: '1px solid #E0E7FF', color: '#3730A3', fontSize: 12, padding: '6px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
+          <span>Aucun contexte client actif - les modules metier restent vides tant qu'une entreprise n'est pas ouverte.</span>
+          <button onClick={() => navigate('superadmin')} style={{ background: '#fff', border: '1px solid #E0E7FF', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontSize: 12, color: '#3730A3', fontWeight: 600, flexShrink: 0 }}>
+            Choisir une entreprise
+          </button>
+        </div>
+      )}
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Sidebar */}
