@@ -426,11 +426,39 @@ export default function SuperAdmin() {
   }
 
   async function toggleActifEntreprise(ent) {
-    const nextState = !ent.actif
-    if (!window.confirm(nextState ? 'Confirmer la réactivation de cette entreprise ?' : 'Confirmer la suspension de cette entreprise ?')) {
+    const reactivation = !ent.actif
+
+    // Confirmation uniquement pour la suspension : c'est elle qui coupe un
+    // client. Reactiver ne casse rien, et un window.confirm qui ne s'affiche
+    // pas donne un bouton qui "ne fait rien" -- c'est exactement ce qui nous
+    // a coute une soiree sur le bouton d'activation d'abonnement.
+    if (!reactivation && !window.confirm('Suspendre ' + ent.nom + ' ?\n\nSon espace passera en lecture seule pour tous ses utilisateurs.')) {
       return
     }
-    await supabase.from('entreprises').update({ actif: !ent.actif }).eq('id', ent.id)
+
+    setMsg(null)
+    const { data, error } = await supabase
+      .from('entreprises')
+      .update({ actif: reactivation })
+      .eq('id', ent.id)
+      .select('id, nom, actif')
+
+    if (error) {
+      setMsg({ type: 'error', text: (reactivation ? 'Reactivation refusee : ' : 'Suspension refusee : ') + error.message })
+      return
+    }
+    // Zero ligne sans erreur : la RLS a filtre la mise a jour en silence.
+    if (!data || data.length === 0) {
+      setMsg({ type: 'error', text: "Aucune ligne modifiee. La RLS a filtre la mise a jour sans lever d'erreur -- verifie que ton compte est bien Super Admin." })
+      return
+    }
+
+    setMsg({
+      type: 'success',
+      text: reactivation
+        ? data[0].nom + ' est reactivee.'
+        : data[0].nom + ' est suspendue : son espace est en lecture seule.',
+    })
     fetchData()
   }
 
