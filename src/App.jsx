@@ -205,6 +205,10 @@ function AppInner() {
       case 'messages':
       case 'messagerie': return profile?.entreprise_id ? <Messagerie /> : <Dashboard />
       case 'rappels': return <Rappels />
+      // L'onglet Equipe a ete retire du socle : c'etait un doublon, sa page
+      // ne faisait que rediriger vers Organisation & RH. La route survit
+      // pour que les anciens liens et signets #personnel ou #equipe
+      // continuent de retomber au bon endroit.
       case 'personnel':
       case 'equipe': return <Personnel />
       default:

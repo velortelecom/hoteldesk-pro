@@ -25,7 +25,6 @@ export const SOCLE_MENUS = [
   { id: 'taches',     label: 'Taches',    nom: 'Taches',    path: '/taches',   icone: '✅' },
   { id: 'messagerie', label: 'Messages',  nom: 'Messages',  path: '/messages', icone: '💬' },
   { id: 'rappels',    label: 'Rappels',   nom: 'Rappels',   path: '/rappels',  icone: '🔔' },
-  { id: 'personnel',  label: 'Equipe',    nom: 'Equipe',    path: '/equipe',   icone: '👥' },
 ]
 
 // Mapping module_id -> route frontend
