@@ -7,7 +7,7 @@ import { useAuth } from './useAuth'
 import { planAllows, SOCLE_MENUS, MODULE_ROUTES } from '../lib/modules'
 
 export function useModules() {
-  const { profile, entrepriseId } = useAuth()
+  const { profile } = useAuth()
   const [modulesActifs, setModulesActifs] = useState([])
   const [catalogue, setCatalogue] = useState([])
   const [loading, setLoading] = useState(true)
@@ -24,9 +24,8 @@ export function useModules() {
       .order('ordre')
     if (cat) setCatalogue(cat)
 
-    // Pas de contexte entreprise actif (ex : Super Admin n'ayant pas encore
-    // ouvert le contexte d'un client) : aucun module metier a charger.
-    if (!entrepriseId) {
+    // Si pas d'entreprise liee : aucun module supplementaire
+    if (!profile?.entreprise_id) {
       setModulesActifs([])
       setEntreprise(null)
       setLoading(false)
@@ -37,7 +36,7 @@ export function useModules() {
     const { data: ent } = await supabase
       .from('entreprises')
       .select('*')
-      .eq('id', entrepriseId)
+      .eq('id', profile.entreprise_id)
       .single()
     if (ent) setEntreprise(ent)
 
@@ -45,12 +44,12 @@ export function useModules() {
     const { data: mods, error } = await supabase
       .from('entreprise_modules')
       .select('*, module:modules_catalogue(*)')
-      .eq('entreprise_id', entrepriseId)
+      .eq('entreprise_id', profile.entreprise_id)
       .eq('actif', true)
     if (!error && mods) setModulesActifs(mods)
 
     setLoading(false)
-  }, [entrepriseId, profile?.is_super_admin])
+  }, [profile?.entreprise_id, profile?.is_super_admin])
 
   useEffect(() => {
     if (profile !== undefined) fetchModules()

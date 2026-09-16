@@ -14,6 +14,8 @@ import Rappels from './pages/Rappels'
 import Personnel from './pages/Personnel'
 import Dashboard from './pages/Dashboard'
 import SuperAdmin from './pages/SuperAdmin'
+import Inscription from './pages/Inscription'
+import Offres from './pages/Offres'
 import { ModuleNonAutorise } from './pages/ModuleEnPreparation'
 import { BrandMark } from './branding/Brand'
 
@@ -24,7 +26,7 @@ const CongesModule = lazy(() => import('./modules/conges/index.jsx'))
 const ICONES_SOCLE = {
   dashboard: '🏠', planning: '📅', taches: '✅',
   messagerie: '💬', rappels: '🔔', personnel: '👥',
-  conges: '🏖',
+  conges: '🏖', offres: '🧩',
 }
 
 // Composant de chargement pour Suspense
@@ -46,6 +48,15 @@ function MobileStyles() {
   return <style>{MOBILE_STYLE}</style>
 }
 
+function normalizePageHash(hash = window.location.hash) {
+  const cleaned = hash
+    .replace(/^#\/?/, '')
+    .replace(/^\//, '')
+    .trim()
+
+  return cleaned || 'dashboard'
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -55,25 +66,20 @@ export default function App() {
 }
 
 function AppInner() {
-  const { user, profile, profileEffectif, loading: authLoading, signOut, isSuperAdmin, entrepriseId, setContexteEntreprise } = useAuth()
+  const { user, profile, loading: authLoading, signOut } = useAuth()
   const { modulesActifs, catalogue } = useModules()
-  const [page, setPage] = useState(() => {
-    const hash = window.location.hash.replace('#', '')
-    return hash || 'dashboard'
-  })
+  const [page, setPage] = useState(() => normalizePageHash())
   const [menuOpen, setMenuOpen] = useState(false)
   const [toasts, setToasts] = useState([])
   const [nomEntreprise, setNomEntreprise] = useState('Velor One')
   const [showUserMenu, setShowUserMenu] = useState(false)
 
   useEffect(() => {
-    if (entrepriseId) {
-      supabase.from('entreprises').select('nom').eq('id', entrepriseId).single()
+    if (profile?.entreprise_id) {
+      supabase.from('entreprises').select('nom').eq('id', profile.entreprise_id).single()
         .then(({ data }) => { if (data?.nom) setNomEntreprise(data.nom) })
-    } else {
-      setNomEntreprise('Velor One')
     }
-  }, [entrepriseId])
+  }, [profile?.entreprise_id])
 
   // Auto-corriger le prenom si c'est 'Nouveau' (profil par defaut du trigger)
   useEffect(() => {
@@ -95,7 +101,7 @@ function AppInner() {
   // Hash navigation sync
   useEffect(() => {
     const onHash = () => {
-      const h = window.location.hash.replace('#', '')
+      const h = normalizePageHash()
       if (h) setPage(h)
     }
     window.addEventListener('hashchange', onHash)
@@ -107,8 +113,15 @@ function AppInner() {
   }, [page])
 
   if (authLoading) return <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: 16 }}><BrandMark size={64} radius={16} /><div style={{ fontSize: 14, color: '#aaa' }}>Chargement...</div></div>
-  if (!user) return <Login />
+  // Zone publique : seule la page d'inscription est accessible sans compte.
+  if (!user) {
+    if (page === 'inscription') {
+      return <Inscription onRetourConnexion={() => { window.location.hash = 'login' }} />
+    }
+    return <Login />
+  }
 
+  const isSuperAdmin = profile?.is_super_admin
   const isAdmin = ['admin', 'responsable'].includes(profile?.role) || isSuperAdmin
   const loadedModules = buildLoadedModules(modulesActifs, profile)
   // Navigation: socle toujours present + modules charges
@@ -119,7 +132,10 @@ function AppInner() {
   const superAdminItem = isSuperAdmin ? [{ id: 'superadmin', label: 'Super Admin', icon: '🛡' }] : []
   // Ajouter Conges & Absences pour les admins (meme sans module BDD actif)
   const congesItem = isAdmin && !moduleIds.includes('conges') ? [{ id: 'conges', label: 'Congés & Absences', icon: '🏖' }] : []
-  const navItems = [...superAdminItem, ...uniqueSocle, ...moduleNavItems, ...congesItem]
+  // Offres : visible par l'admin d'entreprise uniquement. La page presente les
+  // packs superieurs sans jamais permettre de les activer (demande seulement).
+  const offresItem = profile?.role === 'admin' && !isSuperAdmin ? [{ id: 'offres', label: 'Offres', icon: '🧩' }] : []
+  const navItems = [...superAdminItem, ...uniqueSocle, ...moduleNavItems, ...congesItem, ...offresItem]
   const routeMap = buildRouteMap(loadedModules)
 
   const navigate = (p) => { setPage(p); setMenuOpen(false); setShowUserMenu(false) }
@@ -137,6 +153,14 @@ function AppInner() {
     if (isSuperAdmin && page === 'superadmin') return <SuperAdmin />
     if (!isSuperAdmin && page === 'superadmin') return <Dashboard />
 
+    // Un utilisateur connecte n'a rien a faire sur les pages publiques.
+    if (page === 'inscription' || page === 'login') return <Dashboard />
+
+    // Offres & packs : reserve a l'admin de l'entreprise.
+    if (page === 'offres') {
+      return profile?.role === 'admin' ? <Offres /> : <Dashboard />
+    }
+
     const isSoclePage = SOCLE_MENUS.some(m => m.id === page)
 
     // Pages conges : accessible aux admins directement
@@ -144,7 +168,7 @@ function AppInner() {
       const permsConges = { voir: true, creer: true, modifier: isAdmin, supprimer: isAdmin, administrer: isAdmin }
       return (
         <Suspense fallback={<LoadingModule />}>
-          <CongesModule permissions={permsConges} profile={profileEffectif} />
+          <CongesModule permissions={permsConges} profile={profile} />
         </Suspense>
       )
     }
@@ -159,7 +183,7 @@ function AppInner() {
       case 'planning': return <Planning />
       case 'taches': return <Taches />
       case 'messages':
-      case 'messagerie': return entrepriseId ? <Messagerie /> : <Dashboard />
+      case 'messagerie': return profile?.entreprise_id ? <Messagerie /> : <Dashboard />
       case 'rappels': return <Rappels />
       case 'personnel':
       case 'equipe': return <Personnel />
@@ -169,7 +193,7 @@ function AppInner() {
           const Comp = entry.composant || entry
           return (
             <Suspense fallback={<LoadingModule />}>
-              <Comp permissions={entry.permissions} profile={profileEffectif} />
+              <Comp permissions={entry.permissions} profile={profile} />
             </Suspense>
           )
         }
@@ -225,24 +249,6 @@ function AppInner() {
           </div>
         </div>
       </header>
-
-      {/* Bandeau de tracabilite : le Super Admin travaille dans le contexte d'un client. */}
-      {isSuperAdmin && entrepriseId && (
-        <div style={{ background: '#FEF3C7', borderBottom: '1px solid #FDE68A', color: '#92400E', fontSize: 12, padding: '6px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
-          <span>Contexte client actif - vous consultez les donnees de <strong>{nomEntreprise}</strong> en tant que Super Admin.</span>
-          <button onClick={() => setContexteEntreprise(null)} style={{ background: '#fff', border: '1px solid #FDE68A', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontSize: 12, color: '#92400E', fontWeight: 600, flexShrink: 0 }}>
-            Quitter le contexte
-          </button>
-        </div>
-      )}
-      {isSuperAdmin && !entrepriseId && (
-        <div style={{ background: '#EEF2FF', borderBottom: '1px solid #E0E7FF', color: '#3730A3', fontSize: 12, padding: '6px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0 }}>
-          <span>Aucun contexte client actif - les modules metier restent vides tant qu'une entreprise n'est pas ouverte.</span>
-          <button onClick={() => navigate('superadmin')} style={{ background: '#fff', border: '1px solid #E0E7FF', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontSize: 12, color: '#3730A3', fontWeight: 600, flexShrink: 0 }}>
-            Choisir une entreprise
-          </button>
-        </div>
-      )}
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         {/* Sidebar */}

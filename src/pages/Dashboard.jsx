@@ -18,7 +18,7 @@ const COULEURS_CAT = {
 }
 
 export default function Dashboard() {
-  const { profile, entrepriseId } = useAuth()
+  const { profile } = useAuth()
   const isAdmin = profile?.role === 'admin' || profile?.role === 'responsable'
 
   const [stats, setStats]       = useState({ total:0, planifiee:0, en_cours:0, terminee:0, annulee:0 })
@@ -33,7 +33,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchAll()
-  }, [entrepriseId])
+  }, [])
 
   async function fetchAll() {
     setLoading(true)
@@ -42,9 +42,7 @@ export default function Dashboard() {
   }
 
   async function fetchStats() {
-    let q = supabase.from('taches').select('statut, priorite, categorie')
-    if (entrepriseId) q = q.eq('entreprise_id', entrepriseId)
-    const { data, error } = await q
+    const { data, error } = await supabase.from('taches').select('statut, priorite, categorie')
     if (error || !data) return
     const s = { total: data.length, planifiee:0, en_cours:0, terminee:0, annulee:0 }
     data.forEach(t => { if (s[t.statut] !== undefined) s[t.statut]++ })
@@ -61,20 +59,16 @@ export default function Dashboard() {
 
   async function fetchEquipe() {
     if (!isAdmin) return
-    let q = supabase.from('profiles').select('id, nom, prenom, role, departement').order('nom')
-    if (entrepriseId) q = q.eq('entreprise_id', entrepriseId)
-    const { data } = await q
+    const { data } = await supabase.from('profiles').select('id, nom, prenom, role, departement').order('nom')
     setEquipe(data || [])
   }
 
   async function fetchRecentes() {
-    let q = supabase
+    const { data } = await supabase
       .from('taches')
       .select('id, titre, statut, priorite, categorie, created_at')
       .order('created_at', { ascending: false })
       .limit(5)
-    if (entrepriseId) q = q.eq('entreprise_id', entrepriseId)
-    const { data } = await q
     setRecentes(data || [])
   }
 

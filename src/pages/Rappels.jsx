@@ -61,7 +61,7 @@ function getProchainCreneau(hNow) {
 }
 
 export default function Rappels() {
-  const { profile, entrepriseId } = useAuth()
+  const { profile } = useAuth()
   const [rappels, setRappels] = useState([])
   const [tachesNonFaites, setTachesNonFaites] = useState([])
   const [employes, setEmployes] = useState([])
@@ -88,7 +88,7 @@ export default function Rappels() {
     setTimeout(() => verifierEtEnvoyerRappels(), 2000)
 
     return () => clearInterval(intervalRef.current)
-  }, [entrepriseId])
+  }, [])
 
   async function fetchAll() {
     // Rappels manuels
@@ -104,7 +104,6 @@ export default function Rappels() {
       .eq('statut', 'planifiee')
       .is('tache_parente_id', null) // seulement les taches parentes
       .order('date_echeance', { ascending: true })
-    if (entrepriseId) q = q.eq('entreprise_id', entrepriseId)
 
     // Filtrage par role
     if (userRole === 'employe') {
@@ -141,7 +140,6 @@ export default function Rappels() {
       .select('*')
       .eq('statut', 'planifiee')
       .is('tache_parente_id', null)
-    if (entrepriseId) q = q.eq('entreprise_id', entrepriseId)
 
     if (userRole === 'employe') q = q.eq('assigne_a', profile.id)
     else if (userRole === 'responsable') q = q.or('assigne_a.eq.' + profile.id + ',cree_par.eq.' + profile.id)
@@ -178,10 +176,33 @@ export default function Rappels() {
 
   async function save() {
     if (!form.titre.trim() || !form.date_rappel) return
+    // Guard: profile must exist in DB. Prevents rappels_cree_par_fkey violation
+    // that occurs when the user's profile was deleted while their Auth session
+    // was still active (e.g. deleted by a Super Admin).
+    if (!profile?.id) {
+      setShowModal(false)
+      return
+    }
     setSaving(true)
-    await supabase.from('rappels').insert({ ...form, date_rappel: toLocalISO(form.date_rappel), cree_par: profile.id, assigne_a: form.assigne_a || null, entreprise_id: entrepriseId })
-    await fetchAll()
-    setShowModal(false); setForm(empty); setSaving(false)
+    try {
+      const { error } = await supabase
+        .from('rappels')
+        .insert({
+          ...form,
+          date_rappel: toLocalISO(form.date_rappel),
+          cree_par: profile.id,
+          assigne_a: form.assigne_a || null,
+          entreprise_id: profile.entreprise_id,
+        })
+      if (error) throw error
+      await fetchAll()
+      setShowModal(false)
+      setForm(empty)
+    } catch (err) {
+      alert('Erreur lors de la création du rappel : ' + (err.message || 'Erreur inconnue'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function deleteRappel(id) {

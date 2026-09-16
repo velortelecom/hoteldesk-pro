@@ -119,7 +119,7 @@ function TacheRow({ tache, enfants, profile, membres, expandedParents, setExpand
 }
 
 export default function Taches() {
-  const { profile, entrepriseId } = useAuth()
+  const { profile } = useAuth()
   const [taches, setTaches] = useState([])
   const [membres, setMembres] = useState([])
   const [loading, setLoading] = useState(true)
@@ -135,19 +135,16 @@ export default function Taches() {
     assigne_a: '', recurrence_type: '', recurrence_fin: '', chambre: '',
   })
 
-  useEffect(() => { fetchTaches(); fetchMembres() }, [profile, entrepriseId])
+  useEffect(() => { fetchTaches(); fetchMembres() }, [profile])
 
   async function fetchMembres() {
-    let q = supabase.from('profiles').select('id, prenom, nom, role, departement')
-    if (entrepriseId) q = q.eq('entreprise_id', entrepriseId)
-    const { data } = await q
+    const { data } = await supabase.from('profiles').select('id, prenom, nom, role, departement')
     if (data) setMembres(data)
   }
 
   async function fetchTaches() {
     setLoading(true)
     let query = supabase.from('taches').select('*').order('date_echeance', { ascending: true })
-    if (entrepriseId) query = query.eq('entreprise_id', entrepriseId)
     if (profile?.role === 'employe') {
       const allowedCats = DEPT_CATS[profile.departement] || []
       if (allowedCats.length) query = query.in('categorie', allowedCats)
@@ -229,7 +226,7 @@ export default function Taches() {
     if (editTache) {
       await supabase.from('taches').update(payload).eq('id', editTache.id)
     } else {
-      await supabase.from('taches').insert({ ...payload, cree_par: profile.id, entreprise_id: entrepriseId })
+      await supabase.from('taches').insert({ ...payload, cree_par: profile.id, entreprise_id: profile.entreprise_id })
     }
     setShowForm(false)
     fetchTaches()

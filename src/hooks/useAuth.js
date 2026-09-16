@@ -1,40 +1,12 @@
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext({})
-
-// Cle de persistance du contexte entreprise choisi par le Super Admin.
-const STORAGE_KEY = 'velor.contexte_entreprise'
-
-function readStoredContexte() {
-  try { return window.localStorage.getItem(STORAGE_KEY) || null } catch { return null }
-}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
-
-  // CONTEXTE ENTREPRISE (architecture Velor One, sections 2 et 9)
-  // Le Super Admin n'est rattache a AUCUNE entreprise : son entreprise_id
-  // est null par design. On ne lui en assigne donc PAS une, on lui donne un
-  // contexte entreprise explicite, choisi depuis le Centre de Controle.
-  const [contexteEntreprise, setContexteEntrepriseState] = useState(readStoredContexte)
-
-  const isSuperAdmin = !!profile?.is_super_admin
-  const entrepriseId = isSuperAdmin ? contexteEntreprise : (profile?.entreprise_id ?? null)
-
-  // Profil "effectif" transmis aux modules : identique au profil reel, mais
-  // dont entreprise_id porte le contexte actif.
-  const profileEffectif = profile ? { ...profile, entreprise_id: entrepriseId } : null
-
-  const setContexteEntreprise = useCallback((id) => {
-    setContexteEntrepriseState(id || null)
-    try {
-      if (id) window.localStorage.setItem(STORAGE_KEY, id)
-      else window.localStorage.removeItem(STORAGE_KEY)
-    } catch { /* stockage indisponible : contexte valable pour la session */ }
-  }, [])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -67,22 +39,10 @@ export function AuthProvider({ children }) {
   async function signOut() {
     await supabase.auth.signOut()
     setProfile(null)
-    setContexteEntreprise(null)
   }
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      profile,
-      profileEffectif,
-      loading,
-      signIn,
-      signOut,
-      isSuperAdmin,
-      entrepriseId,
-      contexteEntreprise,
-      setContexteEntreprise,
-    }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   )
