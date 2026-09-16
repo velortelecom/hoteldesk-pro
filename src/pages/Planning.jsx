@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { seProduitLe, estRepetition } from '../lib/recurrence'
 import {
   CATEGORIES_TACHE, PRIORITES_TACHE,
   CATEGORIE_TACHE_DEFAUT, PRIORITE_TACHE_DEFAUT, STATUT_TACHE_DEFAUT,
@@ -49,6 +50,7 @@ export default function Planning() {
   const [quickCreateDate, setQuickCreateDate] = useState(null)
   const [quickForm, setQuickForm] = useState({ titre: '', categorie: CATEGORIE_TACHE_DEFAUT, priorite: PRIORITE_TACHE_DEFAUT })
   const [quickSaving, setQuickSaving] = useState(false)
+  const [heureSurvolee, setHeureSurvolee] = useState(null)
   // Une erreur d'insertion doit se voir : avant, `if (!error)` sans `else`
   // laissait le formulaire ouvert sans rien dire.
   const [quickErreur, setQuickErreur] = useState('')
@@ -104,7 +106,9 @@ export default function Planning() {
       if (!t.date_echeance) return false
       if (!filterTask(t)) return false
       if (filtreEmp !== 'tous' && t.assignee?.id !== filtreEmp) return false
-      return isSameDay(parseISO(t.date_echeance), day)
+      // Une tache recurrente doit apparaitre a chacune de ses occurrences,
+      // pas seulement le jour de sa creation.
+      return seProduitLe(t, day)
     })
   }
 
@@ -113,7 +117,7 @@ export default function Planning() {
       if (!t.date_echeance) return false
       if (!filterTask(t)) return false
       if (filtreEmp !== 'tous' && t.assignee?.id !== filtreEmp) return false
-      if (!isSameDay(parseISO(t.date_echeance), day)) return false
+      if (!seProduitLe(t, day)) return false
       // Use heure_debut if available, else fallback to date_echeance hour
       if (t.heure_debut) {
         const [hh] = t.heure_debut.split(':').map(Number)
@@ -188,20 +192,8 @@ export default function Planning() {
                   borderRadius: 8, padding: '4px 6px', cursor: 'pointer', background: isSelected ? '#EEF5FF' : isTodayDay ? '#FFF8EE' : '#fff',
                   opacity: isCurrentMonth ? 1 : 0.4, transition: 'all 0.1s'
                 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                  <span style={{ fontSize: 12, fontWeight: isTodayDay ? 700 : 500, color: isTodayDay ? '#EF9F27' : '#333' }}>
-                    {format(day, 'd')}
-                  </span>
-                  {/* Le formulaire de creation rapide existait deja mais rien
-                      ne l'ouvrait : setQuickCreateDate n'etait appele qu'avec
-                      null. Voici sa porte d'entree. */}
-                  <button
-                    type="button"
-                    title={'Ajouter une tache le ' + format(day, 'd MMMM', { locale: fr })}
-                    onClick={(ev) => { ev.stopPropagation(); setQuickErreur(''); setQuickCreateDate(day) }}
-                    style={{ border: 'none', background: 'none', color: '#9CA3AF', cursor: 'pointer', fontSize: 14, lineHeight: 1, padding: '0 2px' }}>
-                    +
-                  </button>
+                <div style={{ fontSize: 12, fontWeight: isTodayDay ? 700 : 500, color: isTodayDay ? '#EF9F27' : '#333', marginBottom: 2 }}>
+                  {format(day, 'd')}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   {dayTasks.slice(0, 3).map(t => {
@@ -265,11 +257,24 @@ export default function Planning() {
           {HEURES_24.map(h => {
             const tasks = getTasksForHour(selectedDay, h)
             const isCurrentHourRow = h === currentHour
+            const survolee = heureSurvolee === h
             return (
-              <div key={h} style={{
+              <div key={h}
+                // Le creneau lui-meme est le bouton : on clique l'heure ou on
+                // veut poser la tache, elle s'y cree. Plus de "+" a chercher.
+                onClick={() => {
+                  const quand = new Date(selectedDay)
+                  quand.setHours(h, 0, 0, 0)
+                  setQuickErreur('')
+                  setQuickCreateDate(quand)
+                }}
+                onMouseEnter={() => setHeureSurvolee(h)}
+                onMouseLeave={() => setHeureSurvolee(null)}
+                title={'Ajouter une tache a ' + String(h).padStart(2, '0') + ':00'}
+                style={{
                 display: 'flex', minHeight: 56, borderBottom: '1px solid #f0efe8',
-                background: isCurrentHourRow ? '#FFFBF0' : h % 2 === 0 ? '#fff' : '#fafaf8',
-                position: 'relative'
+                background: survolee ? '#EEF5FF' : isCurrentHourRow ? '#FFFBF0' : h % 2 === 0 ? '#fff' : '#fafaf8',
+                position: 'relative', cursor: 'pointer', transition: 'background 0.1s'
               }}>
                 {/* Hour label */}
                 <div style={{
@@ -291,16 +296,22 @@ export default function Planning() {
                 )}
                 {/* Tasks */}
                 <div style={{ flex: 1, padding: '4px 8px', display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'flex-start' }}>
+                  {survolee && tasks.length === 0 && (
+                    <span style={{ fontSize: 11, color: '#93A3C4', fontStyle: 'italic' }}>
+                      + Ajouter une tache a {String(h).padStart(2, '0')}:00
+                    </span>
+                  )}
                   {tasks.map(t => {
                     const col = CAT_COLORS[t.categorie] || CAT_COLORS.admin
                     const emp = t.assignee
                     return (
-                      <div key={t.id} style={{
+                      <div key={t.id} onClick={(ev) => ev.stopPropagation()} style={{
                         background: col.bg, color: col.text, borderLeft: '3px solid ' + col.border,
                         fontSize: 11, padding: '3px 8px', borderRadius: 5, maxWidth: 220, cursor: 'default',
                         boxShadow: '0 1px 3px rgba(0,0,0,0.07)'
                       }}>
                         <div style={{ fontWeight: 600, marginBottom: 1 }}>
+                          {estRepetition(t, selectedDay) && <span title="Tache recurrente" style={{ opacity: 0.7 }}>&#8635; </span>}
                           {t.heure_debut ? t.heure_debut.slice(0,5) : String(h).padStart(2,'0') + ':00'}
                           {t.heure_fin ? ` - ${t.heure_fin.slice(0,5)}` : ''} &mdash; {t.titre}
                         </div>
@@ -330,7 +341,10 @@ export default function Planning() {
       return
     }
 
-    const dateStr = format(quickCreateDate, 'yyyy-MM-dd') + 'T09:00:00'
+    // L'heure vient du creneau clique. Elle valait 09:00 en dur : une tache
+    // posee a 15h atterrissait le matin.
+    const heure = format(quickCreateDate, 'HH:mm:ss')
+    const dateStr = format(quickCreateDate, 'yyyy-MM-dd') + 'T' + heure
     const { data, error } = await supabase.from('taches').insert({
       titre: quickForm.titre.trim(),
       categorie: quickForm.categorie,
@@ -339,6 +353,7 @@ export default function Planning() {
       // base refusait chaque insertion, en silence.
       statut: STATUT_TACHE_DEFAUT,
       date_echeance: dateStr,
+      heure_debut: format(quickCreateDate, 'HH:mm'),
       entreprise_id: profile.entreprise_id,
       assigne_a: profile?.id,
       cree_par: profile?.id,
@@ -430,7 +445,9 @@ export default function Planning() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 400 }}>
             <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4 }}>Nouvelle tache</div>
-            <div style={{ fontSize: 12, color: '#aaa', marginBottom: 16 }}>{format(quickCreateDate, 'EEEE d MMMM yyyy', { locale: fr })}</div>
+            <div style={{ fontSize: 12, color: '#aaa', marginBottom: 16 }}>
+              {format(quickCreateDate, 'EEEE d MMMM yyyy', { locale: fr })} &agrave; {format(quickCreateDate, 'HH:mm')}
+            </div>
             <form onSubmit={createQuickTache}>
               <input autoFocus value={quickForm.titre} onChange={e => setQuickForm(f => ({ ...f, titre: e.target.value }))} placeholder="Titre de la tache *"
                 style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 13, outline: 'none', marginBottom: 10, boxSizing: 'border-box' }} />
