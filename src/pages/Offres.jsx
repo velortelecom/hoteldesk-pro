@@ -11,7 +11,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { getModuleById } from '../modules/registry'
+import { useModules } from '../hooks/useModules'
+import { PLANS, PLAN_ORDER } from '../lib/modules'
+import { getModuleById, MODULES_REGISTRY } from '../modules/registry'
 import {
   PLAN_1_LABEL, PLAN_1_PRIX_MENSUEL, PLAN_1_MAX_UTILISATEURS,
   PLAN_1_SOCLE, PLAN_1_MODULES_DETAIL, PACKS_SUPERIEURS, STATUT_SUR_DEMANDE,
@@ -37,6 +39,12 @@ function Pastille({ children, bg, fg }) {
 export default function Offres() {
   const { profile, user } = useAuth()
 
+  // Le bloc "VOTRE PLAN" affichait PLAN_1_LABEL / 29 EUR / 10 utilisateurs en
+  // dur : quel que soit le pack accorde par le Super Admin, le client lisait
+  // toujours Plan 1. Ces valeurs viennent maintenant de sa vraie ligne
+  // entreprises, et la liste des modules de ses modules reellement actifs.
+  const { entreprise, getActiveModuleIds, loading: chargementModules } = useModules()
+
   // useAuth n'expose que { user, profile, loading, signIn, signOut }.
   // Cette page lisait un entrepriseId qui n'existait pas : il valait
   // toujours undefined, la garde d'envoi retournait sans rien dire et le
@@ -51,6 +59,29 @@ export default function Offres() {
   const [retour, setRetour] = useState(null)
 
   const estAdmin = profile?.role === 'admin' || profile?.is_super_admin
+
+  const planId = entreprise?.plan || 'starter'
+  const planInfo = PLANS[planId] || null
+  // Plan 1 garde son nom commercial ; les autres prennent celui du catalogue.
+  const planLabel = planId === 'starter' ? PLAN_1_LABEL : (planInfo?.nom || planId)
+  const planPrix = entreprise?.prix_mensuel != null ? entreprise.prix_mensuel : (planInfo?.prix != null ? planInfo.prix : PLAN_1_PRIX_MENSUEL)
+  const planMaxUsers = entreprise?.max_utilisateurs != null ? entreprise.max_utilisateurs : (planInfo?.max_utilisateurs != null ? planInfo.max_utilisateurs : PLAN_1_MAX_UTILISATEURS)
+
+  // Modules reellement actifs, presentes avec le libelle du registre. On
+  // retombe sur la liste Plan 1 tant que les modules n'ont pas fini de
+  // charger, pour ne pas faire clignoter un encart vide.
+  const idsActifs = getActiveModuleIds()
+  const modulesAffiches = chargementModules
+    ? PLAN_1_MODULES_DETAIL
+    : idsActifs
+        .map(id => MODULES_REGISTRY.find(m => m.id === id))
+        .filter(Boolean)
+        .map(m => ({ id: m.id, label: m.nom, icone: m.icone, detail: m.description }))
+
+  // Un client en Premium n'a pas a se voir proposer le Pack Business.
+  const packsProposes = PACKS_SUPERIEURS.filter(
+    pack => PLAN_ORDER.indexOf(pack.id) > PLAN_ORDER.indexOf(planId)
+  )
 
   const charger = useCallback(async () => {
     if (!entrepriseId) { setDemandes([]); setLoading(false); return }
@@ -128,16 +159,17 @@ export default function Offres() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#185FA5', letterSpacing: '0.06em' }}>VOTRE PLAN</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginTop: 2 }}>{PLAN_1_LABEL}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginTop: 2 }}>{planLabel}</div>
             <div style={{ fontSize: 12, color: '#6B7280' }}>
-              {PLAN_1_PRIX_MENSUEL} &euro; / mois &middot; jusqu&apos;a {PLAN_1_MAX_UTILISATEURS} utilisateurs
+              {planPrix != null ? planPrix + ' \u20ac / mois' : 'Tarif sur mesure'}
+              {planMaxUsers != null ? ' \u00b7 jusqu\u2019a ' + planMaxUsers + ' utilisateurs' : ' \u00b7 utilisateurs illimites'}
             </div>
           </div>
           <Pastille bg="#ECFDF5" fg="#065F46">Actif</Pastille>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 10, marginTop: 18 }}>
-          {[...PLAN_1_SOCLE, ...PLAN_1_MODULES_DETAIL].map(m => (
+          {[...PLAN_1_SOCLE, ...modulesAffiches].map(m => (
             <div key={m.id} style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
               <span style={{ fontSize: 15, lineHeight: '18px' }}>{m.icone}</span>
               <div>
@@ -150,6 +182,9 @@ export default function Offres() {
       </div>
 
       {/* PACKS SUPERIEURS */}
+      {/* Un client deja au pack le plus haut ne doit pas voir un titre suivi du vide. */}
+      {packsProposes.length > 0 && (
+      <>
       <h2 style={{ fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Packs superieurs</h2>
       <p style={{ fontSize: 12.5, color: '#6B7280', marginBottom: 14, lineHeight: 1.6 }}>
         Ces modules sont en cours de developpement chez Velor One. Ils ne sont pas activables en ligne :
@@ -158,7 +193,7 @@ export default function Offres() {
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
-        {PACKS_SUPERIEURS.map(pack => {
+        {packsProposes.map(pack => {
           const demande = demandeParPack[pack.id]
           const st = demande ? (STATUT_LABEL[demande.statut] || STATUT_LABEL.nouvelle) : null
           return (
@@ -211,6 +246,8 @@ export default function Offres() {
           )
         })}
       </div>
+      </>
+      )}
 
       {/* HISTORIQUE */}
       {demandes.length > 0 && (
