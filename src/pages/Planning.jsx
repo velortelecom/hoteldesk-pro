@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { seProduitLe, estRepetition, RECURRENCES } from '../lib/recurrence'
-import { construireEcheance } from '../lib/taches'
+import { construireEcheance, occupeCreneau, finAvantDebut } from '../lib/taches'
 import {
   CATEGORIES_TACHE, PRIORITES_TACHE,
   CATEGORIE_TACHE_DEFAUT, PRIORITE_TACHE_DEFAUT, STATUT_TACHE_DEFAUT,
@@ -149,12 +149,12 @@ export default function Planning() {
       if (!filterTask(t)) return false
       if (filtreEmp !== 'tous' && t.assignee?.id !== filtreEmp) return false
       if (!occurrenceVisible(t, day)) return false
-      // Use heure_debut if available, else fallback to date_echeance hour
-      if (t.heure_debut) {
-        const [hh] = t.heure_debut.split(':').map(Number)
-        return hh === hour
-      }
-      return parseISO(t.date_echeance).getHours() === hour
+      // Une tache de 14h a 16h occupe les deux creneaux, comme dans un
+      // agenda. Sans heure_debut, on retombe sur l'heure de l'echeance.
+      const debut = t.heure_debut
+        ? t.heure_debut.slice(0, 5)
+        : format(parseISO(t.date_echeance), 'HH:mm')
+      return occupeCreneau(debut, t.heure_fin ? t.heure_fin.slice(0, 5) : null, hour) !== null
     })
   }
 
@@ -335,6 +335,20 @@ export default function Planning() {
                   {tasks.map(t => {
                     const col = CAT_COLORS[t.categorie] || CAT_COLORS.admin
                     const emp = t.assignee
+                    const debutT = t.heure_debut ? t.heure_debut.slice(0, 5) : format(parseISO(t.date_echeance), 'HH:mm')
+                    const place = occupeCreneau(debutT, t.heure_fin ? t.heure_fin.slice(0, 5) : null, h)
+
+                    // Creneau traverse : un bandeau qui prolonge visuellement la
+                    // tache, sans repeter son titre a chaque heure.
+                    if (place === 'suite') {
+                      return (
+                        <div key={t.id} onClick={(ev) => ev.stopPropagation()} style={{
+                          background: col.bg, borderLeft: '3px solid ' + col.border, opacity: 0.55,
+                          borderRadius: 5, width: '100%', minHeight: 20, cursor: 'default',
+                        }} title={t.titre + ' (jusqu\'a ' + (t.heure_fin || '').slice(0, 5) + ')'} />
+                      )
+                    }
+
                     return (
                       <div key={t.id} onClick={(ev) => ev.stopPropagation()} style={{
                         background: col.bg, color: col.text, borderLeft: '3px solid ' + col.border,
@@ -369,6 +383,13 @@ export default function Planning() {
     if (!profile?.entreprise_id) {
       setQuickSaving(false)
       setQuickErreur("Votre compte n'est rattache a aucune entreprise.")
+      return
+    }
+
+    const heureDebut = format(quickCreateDate, 'HH:mm')
+    if (finAvantDebut(heureDebut, quickForm.heure_fin)) {
+      setQuickSaving(false)
+      setQuickErreur('La tache ne peut pas se terminer avant ' + heureDebut + ', son heure de debut.')
       return
     }
 
@@ -512,8 +533,19 @@ export default function Planning() {
                 </label>
                 <label style={{ fontSize: 11, color: '#888' }}>
                   Heure de fin
-                  <input type="time" value={quickForm.heure_fin} onChange={e => setQuickForm(f => ({ ...f, heure_fin: e.target.value }))}
-                    style={{ width: '100%', marginTop: 3, padding: '7px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12, background: '#fff', boxSizing: 'border-box' }} />
+                  <input type="time" value={quickForm.heure_fin}
+                    min={format(quickCreateDate, 'HH:mm')}
+                    onChange={e => setQuickForm(f => ({ ...f, heure_fin: e.target.value }))}
+                    style={{
+                      width: '100%', marginTop: 3, padding: '7px 10px', borderRadius: 8, fontSize: 12,
+                      background: '#fff', boxSizing: 'border-box',
+                      border: '0.5px solid ' + (finAvantDebut(format(quickCreateDate, 'HH:mm'), quickForm.heure_fin) ? '#EF4444' : '#d0cfc8'),
+                    }} />
+                  {finAvantDebut(format(quickCreateDate, 'HH:mm'), quickForm.heure_fin) && (
+                    <span style={{ display: 'block', marginTop: 3, fontSize: 10.5, color: '#EF4444' }}>
+                      Apres {format(quickCreateDate, 'HH:mm')}
+                    </span>
+                  )}
                 </label>
               </div>
 
