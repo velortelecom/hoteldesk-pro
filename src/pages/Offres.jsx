@@ -16,7 +16,7 @@ import { PLANS, PLAN_ORDER } from '../lib/modules'
 import { getModuleById, MODULES_REGISTRY } from '../modules/registry'
 import {
   PLAN_1_LABEL, PLAN_1_PRIX_MENSUEL, PLAN_1_MAX_UTILISATEURS,
-  PLAN_1_SOCLE, PLAN_1_MODULES_DETAIL, PACKS_SUPERIEURS, STATUT_SUR_DEMANDE,
+  PLAN_1_SOCLE, PLAN_1_MODULES, PLAN_1_MODULES_DETAIL, PACKS_SUPERIEURS, STATUT_SUR_DEMANDE,
 } from '../lib/plan1'
 
 const STATUT_LABEL = {
@@ -78,10 +78,29 @@ export default function Offres() {
         .filter(Boolean)
         .map(m => ({ id: m.id, label: m.nom, icone: m.icone, detail: m.description }))
 
-  // Un client en Premium n'a pas a se voir proposer le Pack Business.
-  const packsProposes = PACKS_SUPERIEURS.filter(
-    pack => PLAN_ORDER.indexOf(pack.id) > PLAN_ORDER.indexOf(planId)
-  )
+  // Toutes les formules, pas seulement celles au-dessus : un client doit
+  // pouvoir demander a REDESCENDRE. Sans ca, la seule sortie possible etait
+  // de nous ecrire en dehors de l'outil.
+  const formules = PLAN_ORDER.map((id) => {
+    const pack = PACKS_SUPERIEURS.find(p => p.id === id)
+    if (pack) return pack
+    // Plan 1 n'est pas dans PACKS_SUPERIEURS : il est la formule de depart.
+    return {
+      id,
+      nom: PLAN_1_LABEL,
+      couleur: (PLANS[id] || {}).couleur || '#6B7280',
+      resume: 'La formule de base : organisation, conges et le socle complet',
+      modules: PLAN_1_MODULES,
+    }
+  })
+
+  const rangActuel = PLAN_ORDER.indexOf(planId)
+
+  // Une demande ne bloque le bouton que TANT QU'ELLE EST EN COURS. Avant,
+  // le test etait `statut !== 'refusee'` : une demande traitee laissait donc
+  // le bouton grise definitivement, et le client ne pouvait plus jamais rien
+  // demander pour ce pack.
+  const enAttente = (demande) => !!demande && (demande.statut === 'nouvelle' || demande.statut === 'en_cours')
 
   const charger = useCallback(async () => {
     if (!entrepriseId) { setDemandes([]); setLoading(false); return }
@@ -181,28 +200,31 @@ export default function Offres() {
         </div>
       </div>
 
-      {/* PACKS SUPERIEURS */}
-      {/* Un client deja au pack le plus haut ne doit pas voir un titre suivi du vide. */}
-      {packsProposes.length > 0 && (
-      <>
-      <h2 style={{ fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Packs superieurs</h2>
+      {/* TOUTES LES FORMULES */}
+      <h2 style={{ fontSize: 15, fontWeight: 700, color: '#374151', marginBottom: 10 }}>Les formules</h2>
       <p style={{ fontSize: 12.5, color: '#6B7280', marginBottom: 14, lineHeight: 1.6 }}>
-        Ces modules sont en cours de developpement chez Velor One. Ils ne sont pas activables en ligne :
-        votre demande nous parvient, nous vous recontactons, et l&apos;activation se fait manuellement une fois
-        le module disponible.
+        Aucun changement de formule ne se fait en ligne : votre demande nous parvient, nous vous
+        recontactons, et la modification est appliquee a la main. Vous pouvez demander une formule
+        superieure comme revenir a une formule inferieure.
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
-        {packsProposes.map(pack => {
+        {formules.map(pack => {
           const demande = demandeParPack[pack.id]
           const st = demande ? (STATUT_LABEL[demande.statut] || STATUT_LABEL.nouvelle) : null
+          const estActuelle = pack.id === planId
+          const rang = PLAN_ORDER.indexOf(pack.id)
+          const descend = rang < rangActuel
+          const attente = enAttente(demande)
           return (
-            <div key={pack.id} style={{ ...carte, borderLeft: '3px solid ' + pack.couleur }}>
+            <div key={pack.id} style={{ ...carte, borderLeft: '3px solid ' + pack.couleur, background: estActuelle ? '#F8FAFC' : '#fff' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
                 <div style={{ minWidth: 220, flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{pack.nom}</span>
-                    <Pastille bg="#F3F4F6" fg="#6B7280">{STATUT_SUR_DEMANDE}</Pastille>
+                    {estActuelle
+                      ? <Pastille bg="#ECFDF5" fg="#065F46">Votre formule</Pastille>
+                      : <Pastille bg="#F3F4F6" fg="#6B7280">{STATUT_SUR_DEMANDE}</Pastille>}
                   </div>
                   <div style={{ fontSize: 12.5, color: '#6B7280', marginTop: 3 }}>{pack.resume}</div>
 
@@ -225,29 +247,35 @@ export default function Offres() {
 
                 <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
                   {st && <Pastille bg={st.bg} fg={st.fg}>{st.texte}</Pastille>}
-                  <button
-                    type="button"
-                    onClick={() => ouvrirDemande(pack)}
-                    disabled={!estAdmin || loading || (demande && demande.statut !== 'refusee')}
-                    title={!estAdmin ? "Seul l'administrateur de l'entreprise peut faire cette demande" : undefined}
-                    style={{
-                      border: 'none', borderRadius: 8, padding: '9px 16px', fontSize: 13, fontWeight: 600,
-                      cursor: (!estAdmin || (demande && demande.statut !== 'refusee')) ? 'not-allowed' : 'pointer',
-                      background: (!estAdmin || (demande && demande.statut !== 'refusee')) ? '#E5E7EB' : '#185FA5',
-                      color: (!estAdmin || (demande && demande.statut !== 'refusee')) ? '#9CA3AF' : '#fff',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {demande && demande.statut !== 'refusee' ? 'Demande en cours' : 'Contacter Velor One'}
-                  </button>
+                  {!estActuelle && (() => {
+                    const inactif = !estAdmin || loading || attente
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => ouvrirDemande(pack)}
+                        disabled={inactif}
+                        title={!estAdmin
+                          ? "Seul l'administrateur de l'entreprise peut faire cette demande"
+                          : attente ? 'Une demande est deja en cours de traitement pour cette formule' : undefined}
+                        style={{
+                          border: descend ? '1px solid #D1D5DB' : 'none',
+                          borderRadius: 8, padding: '9px 16px', fontSize: 13, fontWeight: 600,
+                          cursor: inactif ? 'not-allowed' : 'pointer',
+                          background: inactif ? '#E5E7EB' : (descend ? '#fff' : '#185FA5'),
+                          color: inactif ? '#9CA3AF' : (descend ? '#374151' : '#fff'),
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {attente ? 'Demande en cours' : (descend ? 'Revenir a cette formule' : 'Demander cette formule')}
+                      </button>
+                    )
+                  })()}
                 </div>
               </div>
             </div>
           )
         })}
       </div>
-      </>
-      )}
 
       {/* HISTORIQUE */}
       {demandes.length > 0 && (
@@ -257,7 +285,7 @@ export default function Offres() {
           </h3>
           {demandes.map(d => {
             const st = STATUT_LABEL[d.statut] || STATUT_LABEL.nouvelle
-            const pack = PACKS_SUPERIEURS.find(p => p.id === d.pack_demande)
+            const pack = formules.find(p => p.id === d.pack_demande)
             return (
               <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', padding: '10px 0', borderTop: '1px solid #F3F4F6' }}>
                 <div>
@@ -281,10 +309,15 @@ export default function Offres() {
           style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, zIndex: 400 }}
         >
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 460 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>Demander le {packOuvert.nom}</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>
+              {PLAN_ORDER.indexOf(packOuvert.id) < rangActuel
+                ? 'Revenir au ' + packOuvert.nom
+                : 'Demander le ' + packOuvert.nom}
+            </div>
             <div style={{ fontSize: 12.5, color: '#6B7280', marginTop: 6, lineHeight: 1.6 }}>
-              Votre demande est transmise a Velor One avec le nom de votre entreprise. Aucun module n&apos;est
-              active automatiquement et aucun paiement n&apos;est demande a ce stade.
+              {PLAN_ORDER.indexOf(packOuvert.id) < rangActuel
+                ? "Votre demande est transmise a Velor One. Rien n'est modifie automatiquement : nous vous recontactons pour convenir de la date et des consequences sur vos modules. Vos donnees ne sont pas supprimees."
+                : "Votre demande est transmise a Velor One avec le nom de votre entreprise. Aucun module n'est active automatiquement et aucun paiement n'est demande a ce stade."}
             </div>
 
             <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', margin: '16px 0 6px' }}>
