@@ -62,7 +62,8 @@ export default function Offres() {
 
   const planId = entreprise?.plan || 'starter'
   const planInfo = PLANS[planId] || null
-  // Plan 1 garde son nom commercial ; les autres prennent celui du catalogue.
+  // La formule de base garde son nom commercial (Pack Starter) ; les autres
+  // prennent celui du catalogue PLANS.
   const planLabel = planId === 'starter' ? PLAN_1_LABEL : (planInfo?.nom || planId)
   const planPrix = entreprise?.prix_mensuel != null ? entreprise.prix_mensuel : (planInfo?.prix != null ? planInfo.prix : PLAN_1_PRIX_MENSUEL)
   const planMaxUsers = entreprise?.max_utilisateurs != null ? entreprise.max_utilisateurs : (planInfo?.max_utilisateurs != null ? planInfo.max_utilisateurs : PLAN_1_MAX_UTILISATEURS)
@@ -211,7 +212,6 @@ export default function Offres() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
         {formules.map(pack => {
           const demande = demandeParPack[pack.id]
-          const st = demande ? (STATUT_LABEL[demande.statut] || STATUT_LABEL.nouvelle) : null
           const estActuelle = pack.id === planId
           const rang = PLAN_ORDER.indexOf(pack.id)
           const descend = rang < rangActuel
@@ -246,7 +246,6 @@ export default function Offres() {
                 </div>
 
                 <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
-                  {st && <Pastille bg={st.bg} fg={st.fg}>{st.texte}</Pastille>}
                   {!estActuelle && (() => {
                     const inactif = !estAdmin || loading || attente
                     return (
