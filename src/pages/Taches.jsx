@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { construireEcheance } from '../lib/taches'
 import { useAuth } from '../hooks/useAuth'
 import { format, isToday, isTomorrow, isYesterday, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -215,7 +216,7 @@ export default function Taches() {
       categorie: form.categorie,
       priorite: form.priorite,
       statut: form.statut,
-      date_echeance: form.date_echeance || null,
+      date_echeance: construireEcheance(form.date_echeance, form.heure_debut),
       heure_debut: form.heure_debut || null,
       heure_fin: form.heure_fin || null,
       assigne_a: form.assigne_a || null,

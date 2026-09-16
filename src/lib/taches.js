@@ -30,3 +30,24 @@ export const LIBELLES_PRIORITE = { haute: 'Haute', moyenne: 'Moyenne', basse: 'B
 export function libelleCategorie(id) {
   return id ? id.charAt(0).toUpperCase() + id.slice(1) : ''
 }
+
+// =====================================================================
+// Echeance : une date d'ecran est une heure LOCALE
+//
+// Les pages envoyaient la valeur brute du champ date : '2026-09-17'.
+// PostgREST travaille en UTC, Postgres a donc stocke minuit UTC, et le
+// navigateur l'a reaffiche a 02:00 en heure de Paris. Deux heures de
+// decalage sur chaque tache, et davantage selon la saison.
+//
+// On construit l'instant a partir de l'heure locale : new Date() sans
+// suffixe Z interprete la chaine dans le fuseau du navigateur, et
+// toISOString() rend l'instant UTC correspondant. La tache saisie a 14h
+// se relit a 14h, ici comme ailleurs.
+// =====================================================================
+export function construireEcheance(date, heure) {
+  if (!date) return null
+  const h = (heure && /^\d{2}:\d{2}/.test(heure)) ? heure.slice(0, 5) : '00:00'
+  const local = new Date(date + 'T' + h + ':00')
+  if (Number.isNaN(local.getTime())) return null
+  return local.toISOString()
+}
