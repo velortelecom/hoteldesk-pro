@@ -103,7 +103,8 @@ export default function SuperAdminUsersPanel({ supabase, profile, entreprises = 
     setMsg(null)
     try {
       const { data, error } = await supabase.functions.invoke(name, { body })
-      if (error) throw error
+      // invoke() ne rend que "non-2xx status code" : le motif est dans le corps.
+      if (error) throw new Error(await messageErreurEdge(error, 'Action refusee.'))
       if (data && data.success === false) throw new Error(data.error || 'Action refusée')
       setMsg({ type: 'success', text: successText })
       await fetchUsers()

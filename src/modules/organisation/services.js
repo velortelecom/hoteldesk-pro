@@ -5,6 +5,7 @@
 // ============================================================
 
 import { supabase } from '../../lib/supabase.js';
+import { messageErreurEdge } from '../../lib/edgeErreur.js';
 
 // ============================================================
 // DÉPARTEMENTS
@@ -162,15 +163,15 @@ export async function updateEmploye(id, payload) {
 // Désactivation logique — jamais suppression physique
 export async function desactiverEmploye(id) {
   const { data, error } = await supabase.functions.invoke('toggle-user-actif', { body: { user_id: id, actif: false } });
-  if (error) throw error;
-  if (data && data.success === false) throw new Error(data.error || 'Erreur lors de la desactivation');
+  if (error) throw new Error(await messageErreurEdge(error, 'Desactivation impossible.'));
+  if (data && data.success === false) throw new Error(data.error || 'Desactivation impossible.');
   return data;
 }
 
 export async function reactiversEmploye(id) {
   const { data, error } = await supabase.functions.invoke('toggle-user-actif', { body: { user_id: id, actif: true } });
-  if (error) throw error;
-  if (data && data.success === false) throw new Error(data.error || 'Erreur lors de la reactivation');
+  if (error) throw new Error(await messageErreurEdge(error, 'Reactivation impossible.'));
+  if (data && data.success === false) throw new Error(data.error || 'Reactivation impossible.');
   return data;
 }
 
@@ -194,15 +195,17 @@ export async function creerEmploye(entrepriseId, payload) {
     actif: payload.actif !== false,
   };
   const { data, error } = await supabase.functions.invoke('create-user', { body });
-  if (error) throw error;
-  if (data && data.success === false) throw new Error(data.error || 'Erreur lors de la creation du compte');
+  if (error) throw new Error(await messageErreurEdge(error, 'Creation impossible.'));
+  if (data && data.success === false) throw new Error(data.error || 'Creation impossible.');
   return data;
 }
 
 export async function supprimerEmploye(employeId) {
   const { data, error } = await supabase.functions.invoke('delete-user', { body: { user_id: employeId } });
-  if (error) throw error;
-  if (data && data.success === false) throw new Error(data.error || 'Erreur lors de la suppression');
+  // invoke() ne rend que "non-2xx status code" : le motif reel est dans le
+  // corps de la reponse, qu'on va chercher.
+  if (error) throw new Error(await messageErreurEdge(error, 'Suppression impossible.'));
+  if (data && data.success === false) throw new Error(data.error || 'Suppression impossible.');
   return data;
 }
 

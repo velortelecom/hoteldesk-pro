@@ -24,6 +24,7 @@ import SuperAdminEnterpriseStructure from './SuperAdminEnterpriseStructure'
 import SuperAdminPlatformHealth from './SuperAdminPlatformHealth'
 import BlocAbonnement from '../components/BlocAbonnement'
 import SelecteurMenus from '../components/SelecteurMenus'
+import { messageErreurEdge } from '../lib/edgeErreur'
 import { definirMenusAutorises } from '../modules/organisation/services'
 
 const PLAN_COLORS = { starter: '#6B7280', business: '#3B82F6', premium: '#8B5CF6', enterprise: '#F59E0B' } 
@@ -704,6 +705,7 @@ async function creerCompteMembre(entrepriseId, formData, role) {
       actif: formData.actif !== false,
     }
     const { data, error } = await supabase.functions.invoke('create-user', { body: payload })
+    if (error) throw new Error(await messageErreurEdge(error, 'Creation impossible.'))
     if (error) throw error
     if (data && data.success === false) throw new Error(data.error || 'Erreur lors de la creation du compte')
     return data
