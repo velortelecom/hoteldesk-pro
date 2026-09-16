@@ -280,3 +280,15 @@ export async function getStatsOrganisation(entrepriseId) {
     totalPostes: postes.count || 0,
   };
 }
+
+// Liste blanche des onglets visibles par une personne.
+// Passe par une RPC SECURITY DEFINER : elle verifie que l'appelant est
+// Super Admin, ou administrateur de la MEME entreprise que la cible, et
+// refuse de restreindre un Super Admin.
+export async function definirMenusAutorises(profileId, menus) {
+  const { error } = await supabase.rpc('definir_menus_autorises', {
+    p_profile_id: profileId,
+    p_menus: (menus && menus.length > 0) ? menus : null,
+  });
+  if (error) throw error;
+}

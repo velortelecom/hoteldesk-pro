@@ -2,6 +2,7 @@
 // Velor One - V4 : Plugin System + React.lazy/Suspense + loader.js
 import { useState, useEffect, Suspense, lazy } from 'react'
 import { AuthProvider, useAuth } from './hooks/useAuth'
+import { filtrerMenus, pageParDefaut, pageAutorisee } from './lib/menus'
 import { useModules } from './hooks/useModules'
 import { buildLoadedModules, buildNavItems, buildRouteMap, canAccessRoute } from './modules/loader.js'
 import { SOCLE_MENUS } from './lib/modules'
@@ -138,7 +139,13 @@ function AppInner() {
   // Offres : visible par l'admin d'entreprise uniquement. La page presente les
   // packs superieurs sans jamais permettre de les activer (demande seulement).
   const offresItem = profile?.role === 'admin' && !isSuperAdmin ? [{ id: 'offres', label: 'Offres', icon: '🧩' }] : []
-  const navItems = [...superAdminItem, ...uniqueSocle, ...moduleNavItems, ...congesItem, ...offresItem]
+  const navItemsComplets = [...superAdminItem, ...uniqueSocle, ...moduleNavItems, ...congesItem, ...offresItem]
+
+  // Liste blanche par personne, posee depuis la fiche employe. On filtre la
+  // navigation DEJA calculee : une liste ne peut que retirer des onglets,
+  // jamais en accorder un que l'entreprise ou le role n'autorise pas.
+  const menusAutorises = profile?.menus_autorises
+  const navItems = filtrerMenus(navItemsComplets, menusAutorises)
   const routeMap = buildRouteMap(loadedModules)
 
   const navigate = (p) => { setPage(p); setMenuOpen(false); setShowUserMenu(false) }
@@ -153,6 +160,16 @@ function AppInner() {
   const initiales = profile?.avatar_initiales || (prenomDisplay[0] + (profile?.nom?.[0] || '')).toUpperCase()
 
   function renderPage() {
+    // Une page retiree a cette personne ne doit pas rester joignable par
+    // l'URL ou par un onglet garde en memoire.
+    if (!pageAutorisee(page, navItemsComplets, menusAutorises)) {
+      const repli = pageParDefaut(navItemsComplets, menusAutorises)
+      return repli === 'dashboard' ? <Dashboard /> : renderPageId(repli)
+    }
+    return renderPageId(page)
+  }
+
+  function renderPageId(page) {
     if (isSuperAdmin && page === 'superadmin') return <SuperAdmin />
     if (!isSuperAdmin && page === 'superadmin') return <Dashboard />
 
