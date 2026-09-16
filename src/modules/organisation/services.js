@@ -6,6 +6,7 @@
 
 import { supabase } from '../../lib/supabase.js';
 import { messageErreurEdge } from '../../lib/edgeErreur.js';
+import { normaliserPayloadProfil } from '../../lib/profilPayload.js';
 
 // ============================================================
 // DÉPARTEMENTS
@@ -150,9 +151,12 @@ export async function getEmployeById(id) {
 }
 
 export async function updateEmploye(id, payload) {
+  // Les champs de formulaire vides valent "" : invalide pour une colonne
+  // date ou uuid. On normalise ici plutot que dans chaque ecran, pour que
+  // tous les appelants en beneficient.
   const { data, error } = await supabase
     .from('profiles')
-    .update(payload)
+    .update(normaliserPayloadProfil(payload))
     .eq('id', id)
     .select()
     .single();
