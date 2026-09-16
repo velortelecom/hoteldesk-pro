@@ -1,19 +1,22 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { readJsonBody } from '../_shared/http.ts';
+import { buildCorsHeaders, jsonResponse, readJsonBody } from '../_shared/http.ts';
 import { recordAuditEvent } from '../_shared/audit.ts';
 import { generateTempPassword } from '../_shared/user_admin.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': Deno.env.get('ALLOWED_ORIGIN') ?? '*',
-  'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-function corsResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
+// CORS : une seule origine par reponse.
+//
+// Cette copie locale renvoyait la valeur BRUTE d'ALLOWED_ORIGIN. Or ce
+// reglage contient une liste separee par des virgules (une entree par
+// domaine et par preview), et un navigateur n'accepte qu'UNE origine dans
+// l'en-tete Access-Control-Allow-Origin. Il recevait donc la liste entiere,
+// ne reconnaissait rien, et bloquait l'appel avant l'envoi -- une erreur
+// reseau cote client, sans que la fonction soit jamais atteinte.
+//
+// _shared/http.ts choisit la bonne origine dans la liste, en fonction de la
+// requete. C'est pour ca qu'il existe, et que create-user marchait pendant
+// que celle-ci echouait.
+function corsResponse(req: Request, body: unknown, status = 200) {
+  return jsonResponse(body, status, req);
 }
 
 function normalizeSlug(value: string) {
@@ -42,22 +45,22 @@ function toErrorCode(error: unknown) {
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
-  if (req.method !== 'POST') return corsResponse({ success: false, error: 'method_not_allowed' }, 405);
+  if (req.method === 'OPTIONS') return new Response(null, { headers: buildCorsHeaders(req) });
+  if (req.method !== 'POST') return corsResponse(req, { success: false, error: 'method_not_allowed' }, 405);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!supabaseUrl || !serviceRoleKey) return corsResponse({ success: false, error: 'server_misconfigured' }, 500);
+  if (!supabaseUrl || !serviceRoleKey) return corsResponse(req, { success: false, error: 'server_misconfigured' }, 500);
 
   const supabase = createClient(supabaseUrl, serviceRoleKey);
   const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
-  if (!jwt) return corsResponse({ success: false, error: 'missing_token' }, 401);
+  if (!jwt) return corsResponse(req, { success: false, error: 'missing_token' }, 401);
 
   const { data: userData, error: userError } = await supabase.auth.getUser(jwt);
-  if (userError || !userData?.user) return corsResponse({ success: false, error: 'invalid_token' }, 401);
+  if (userError || !userData?.user) return corsResponse(req, { success: false, error: 'invalid_token' }, 401);
 
   const payload = await readJsonBody(req);
-  if (!payload) return corsResponse({ success: false, error: 'invalid_json' }, 400);
+  if (!payload) return corsResponse(req, { success: false, error: 'invalid_json' }, 400);
 
   const entrepriseInput = payload.entreprise || {};
   const nom = String(entrepriseInput.nom ?? '').trim();
@@ -112,8 +115,8 @@ Deno.serve(async (req: Request) => {
   const adminNom = adminInput?.nom ? String(adminInput.nom).trim() : nom;
   const adminTelephone = adminInput?.telephone ? String(adminInput.telephone).trim() : null;
 
-  if (!nom) return corsResponse({ success: false, error: 'missing_nom' }, 400);
-  if (!slug) return corsResponse({ success: false, error: 'invalid_slug' }, 400);
+  if (!nom) return corsResponse(req, { success: false, error: 'missing_nom' }, 400);
+  if (!slug) return corsResponse(req, { success: false, error: 'invalid_slug' }, 400);
 
   const { data: callerProfile, error: callerProfileError } = await supabase
     .from('profiles')
@@ -122,7 +125,7 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
 
   if (callerProfileError || !callerProfile?.is_super_admin) {
-    return corsResponse({ success: false, error: 'forbidden' }, 403);
+    return corsResponse(req, { success: false, error: 'forbidden' }, 403);
   }
 
   let adminUserId: string | null = null;
@@ -154,7 +157,7 @@ Deno.serve(async (req: Request) => {
       }
 
       if (emailDejaPris && emailDejaPris.length > 0) {
-        return corsResponse({ success: false, error: 'admin_email_already_exists' }, 409);
+        return corsResponse(req, { success: false, error: 'admin_email_already_exists' }, 409);
       }
 
       adminPassword = generateTempPassword(16);
@@ -170,11 +173,11 @@ Deno.serve(async (req: Request) => {
       });
 
       if (createUserError && /already|exists|registered/i.test(createUserError.message || '')) {
-        return corsResponse({ success: false, error: 'admin_email_already_exists' }, 409);
+        return corsResponse(req, { success: false, error: 'admin_email_already_exists' }, 409);
       }
 
       if (createUserError || !createdUser?.user?.id) {
-        return corsResponse({ success: false, error: 'admin_create_failed' }, 400);
+        return corsResponse(req, { success: false, error: 'admin_create_failed' }, 400);
       }
 
       adminUserId = createdUser.user.id;
@@ -206,7 +209,7 @@ Deno.serve(async (req: Request) => {
       if (adminUserId) await supabase.auth.admin.deleteUser(adminUserId);
       const code = toErrorCode(rpcError);
       const status = code === 'entreprise_slug_exists' || code === 'entreprise_name_exists' ? 409 : 400;
-      return corsResponse({ success: false, error: code }, status);
+      return corsResponse(req, { success: false, error: code }, status);
     }
 
     const result = (rpcData && typeof rpcData === 'object' && !Array.isArray(rpcData))
@@ -216,7 +219,7 @@ Deno.serve(async (req: Request) => {
     const entrepriseId = String(result.entreprise_id || '').trim();
     if (!entrepriseId) {
       if (adminUserId) await supabase.auth.admin.deleteUser(adminUserId);
-      return corsResponse({ success: false, error: 'enterprise_create_failed' }, 500);
+      return corsResponse(req, { success: false, error: 'enterprise_create_failed' }, 500);
     }
 
     const { data: entreprise } = await supabase
@@ -245,7 +248,7 @@ Deno.serve(async (req: Request) => {
       user_agent: req.headers.get('user-agent'),
     });
 
-    return corsResponse({
+    return corsResponse(req, {
       success: true,
       entreprise: entreprise || { id: entrepriseId, nom, slug },
       health: healthRow,
@@ -261,6 +264,6 @@ Deno.serve(async (req: Request) => {
     if (adminUserId) {
       await supabase.auth.admin.deleteUser(adminUserId);
     }
-    return corsResponse({ success: false, error: toErrorCode(error) }, 500);
+    return corsResponse(req, { success: false, error: toErrorCode(error) }, 500);
   }
 });
