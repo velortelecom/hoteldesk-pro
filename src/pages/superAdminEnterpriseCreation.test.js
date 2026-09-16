@@ -95,6 +95,17 @@ describe('superAdminEnterpriseCreation', () => {
 
   test('aucun etat partiel', () => {
     const message = mapEnterpriseCreationError(new Error('Failed to send a request to the Edge Function'))
-    expect(message).toBe('Impossible de creer l administrateur. La creation a ete annulee.')
+    expect(message).toBe('Le serveur n a pas repondu. Rien n a ete cree, vous pouvez reessayer.')
+  })
+
+  test('chaque cause a sa phrase : on doit savoir quoi corriger', () => {
+    expect(mapEnterpriseCreationError(new Error('admin_email_already_exists')))
+      .toBe('Cet email est deja utilise par un compte existant. Choisissez-en un autre.')
+    expect(mapEnterpriseCreationError(new Error('admin_create_failed')))
+      .toBe('Impossible de creer l administrateur. La creation a ete annulee.')
+    // Trois messages distincts, sinon le tri n'a servi a rien.
+    const messages = ['admin_email_already_exists', 'admin_create_failed', 'network error']
+      .map(code => mapEnterpriseCreationError(new Error(code)))
+    expect(new Set(messages).size).toBe(3)
   })
 })

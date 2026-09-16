@@ -60,11 +60,17 @@ export function mapEnterpriseCreationError(error) {
   if (raw.includes('entreprise_slug_exists') || raw.includes('entreprise_name_exists') || raw.includes('duplicate key')) {
     return 'Une entreprise avec ce nom existe deja.'
   }
-  if (raw.includes('admin_create_failed') || raw.includes('admin_profile_create_failed') || raw.includes('admin_email_already_exists')) {
+  // Trois causes distinctes donnaient la meme phrase : on ne savait pas
+  // laquelle corriger. Un email deja pris se regle en changeant l'email ;
+  // une panne reseau se regle en reessayant. Ce n'est pas le meme geste.
+  if (raw.includes('admin_email_already_exists')) {
+    return 'Cet email est deja utilise par un compte existant. Choisissez-en un autre.'
+  }
+  if (raw.includes('admin_create_failed') || raw.includes('admin_profile_create_failed')) {
     return 'Impossible de creer l administrateur. La creation a ete annulee.'
   }
   if (raw.includes('failed to send a request to the edge function') || raw.includes('functionsfet') || raw.includes('network')) {
-    return 'Impossible de creer l administrateur. La creation a ete annulee.'
+    return 'Le serveur n a pas repondu. Rien n a ete cree, vous pouvez reessayer.'
   }
   if (raw.includes('forbidden') || raw.includes('authentication_required') || raw.includes('invalid_token')) {
     return 'Action non autorisee pour ce compte.'
