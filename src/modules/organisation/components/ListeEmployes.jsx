@@ -5,6 +5,10 @@
 import React, { useState } from 'react';
 import { useEmployes, useDepartements, usePostes } from '../hooks.js';
 import { ROLE_COLORS } from '../config.js';
+import { SOCLE_MENUS } from '../../../lib/modules';
+import { getModuleById } from '../../registry';
+import { useModules } from '../../../hooks/useModules';
+import { definirMenusAutorises } from '../services.js';
 
 const ROLE_LABELS = {
   admin: 'Admin',
@@ -67,6 +71,16 @@ export default function ListeEmployes({ entrepriseId, permissions, profile, onVi
 
   const handleCreer = async (payload) => {
     const result = await creer(payload);
+    // La liste blanche se pose apres coup : create-user ne la connait pas,
+    // et on evite ainsi de redeployer l'edge function.
+    if (result?.user_id && payload.menus_autorises && payload.menus_autorises.length > 0) {
+      try {
+        await definirMenusAutorises(result.user_id, payload.menus_autorises);
+      } catch (err) {
+        // Le compte existe : on ne le perd pas pour un reglage d'affichage.
+        alert("Employe cree, mais les onglets visibles n'ont pas pu etre enregistres : " + err.message);
+      }
+    }
     setShowCreate(false);
     setCreds({ action: 'created', prenom: payload.prenom, nom: payload.nom, role: payload.role, email: result.email, temp_password: result.temp_password });
     return result;
@@ -398,6 +412,22 @@ function ModalCreation({ departements, postes, isSuperAdmin, onClose, onCreer })
     prenom: '', nom: '', telephone: '', email: '', langue: 'fr',
     role: 'employe', poste_id: '', poste_secondaire_id: '', actif: true,
   });
+  // Liste blanche des onglets. Vide = aucune restriction : la personne voit
+  // ce que son role et les modules de l'entreprise lui donnent.
+  const [menusChoisis, setMenusChoisis] = useState([]);
+  const { getActiveModuleIds } = useModules();
+
+  const optionsMenus = [
+    ...SOCLE_MENUS.map(m => ({ id: m.id, label: m.label || m.nom })),
+    ...getActiveModuleIds()
+      .map(id => getModuleById(id))
+      .filter(Boolean)
+      .map(m => ({ id: m.id, label: m.nom })),
+  ].filter((m, i, tous) => tous.findIndex(x => x.id === m.id) === i);
+
+  const toggleMenu = (id) => {
+    setMenusChoisis(prev => prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]);
+  };
   const [selectedDepts, setSelectedDepts] = useState([]);
   const [saving, setSaving] = useState(false);
   const [erreur, setErreur] = useState(null);
@@ -411,7 +441,7 @@ function ModalCreation({ departements, postes, isSuperAdmin, onClose, onCreer })
     setSaving(true);
     setErreur(null);
     try {
-      await onCreer({ ...form, departement_ids: selectedDepts });
+      await onCreer({ ...form, departement_ids: selectedDepts, menus_autorises: menusChoisis });
     } catch (err) {
       setErreur(err.message);
     } finally {
@@ -470,6 +500,39 @@ function ModalCreation({ departements, postes, isSuperAdmin, onClose, onCreer })
               );
             })}
           </div>
+        </div>
+        <div style={{ marginBottom: '1rem' }}>
+          <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#374151', marginBottom: '0.25rem' }}>
+            Onglets visibles
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem', lineHeight: 1.5 }}>
+            {menusChoisis.length === 0
+              ? 'Aucune coche : la personne voit tout ce que son role et votre offre autorisent.'
+              : 'Seuls les ' + menusChoisis.length + ' onglet(s) coche(s) lui seront visibles.'}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
+            {optionsMenus.map(m => {
+              const choisi = menusChoisis.includes(m.id);
+              return (
+                <label key={m.id} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '0.375rem', cursor: 'pointer',
+                  fontSize: '0.75rem', padding: '0.25rem 0.625rem', borderRadius: '999px',
+                  border: '1px solid ' + (choisi ? '#6366f1' : '#e5e7eb'),
+                  background: choisi ? '#eef2ff' : '#fff',
+                  color: choisi ? '#3730a3' : '#6b7280',
+                }}>
+                  <input type="checkbox" checked={choisi} onChange={() => toggleMenu(m.id)} style={{ margin: 0 }} />
+                  {m.label}
+                </label>
+              );
+            })}
+          </div>
+          {menusChoisis.length > 0 && (
+            <button type="button" onClick={() => setMenusChoisis([])}
+              style={{ marginTop: '0.5rem', border: 'none', background: 'none', color: '#6366f1', cursor: 'pointer', fontSize: '0.75rem', padding: 0 }}>
+              Tout rendre visible
+            </button>
+          )}
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', marginBottom: '1.25rem', cursor: 'pointer' }}>
           <input type="checkbox" checked={form.actif} onChange={e => setForm(f => ({ ...f, actif: e.target.checked }))} />
