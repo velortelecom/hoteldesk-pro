@@ -113,6 +113,9 @@ export default function SuperAdmin() {
     const [entSites, setEntSites] = useState({})
   const [deleteConfirm, setDeleteConfirm] = useState(null)
   const [entUsers, setEntUsers] = useState({})
+  // Un echec de lecture ne doit pas se lire comme "zero utilisateur" :
+  // les comptes existent en base, c'est la lecture qui a ete refusee.
+  const [entUsersErreur, setEntUsersErreur] = useState({})
   const [expandedUsersEnt, setExpandedUsersEnt] = useState(null)
   const [userDeleteConfirm, setUserDeleteConfirm] = useState(null)
   // Demandes de pack superieur deposees par les clients (aucune activation auto)
@@ -171,13 +174,10 @@ export default function SuperAdmin() {
         par_plan,
       })
       // Auto-chargement utilisateurs de chaque entreprise
-      ents.forEach(ent => {
-        supabase.from('profiles_with_email').select('id, prenom, nom, role, email').eq('entreprise_id', ent.id).eq('is_super_admin', false).order('role').then(({ data }) => {
-          const admins = (data || []).filter(u => u.role === 'admin')
-          const employes = (data || []).filter(u => u.role !== 'admin')
-          setEntUsers(prev => ({ ...prev, [ent.id]: { admins, employes } }))
-        })
-      })
+      // Meme lecture que fetchEntUsers, donc meme traitement des erreurs :
+      // deux copies qui divergent, c'est un bug qui n'apparait qu'a un seul
+      // endroit sur deux.
+      ents.forEach(ent => { fetchEntUsers(ent.id) })
     }
     if (mods) setModules(mods)
     if (details) {
@@ -204,12 +204,28 @@ export default function SuperAdmin() {
   }
 
   async function fetchEntUsers(entId) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('profiles_with_email')
       .select('id, prenom, nom, role, email')
       .eq('entreprise_id', entId)
       .eq('is_super_admin', false)
       .order('role')
+
+    // Sans ce test, une lecture refusee donnait data = null, donc une liste
+    // vide, donc "Aucun admin" -- alors que les comptes sont bien en base.
+    // On ne peut pas corriger ce qu'on ne voit pas.
+    if (error) {
+      setEntUsersErreur(prev => ({ ...prev, [entId]: error.message || 'lecture refusee' }))
+      setEntUsers(prev => ({ ...prev, [entId]: { admins: [], employes: [] } }))
+      return
+    }
+
+    setEntUsersErreur(prev => {
+      if (!prev[entId]) return prev
+      const suite = { ...prev }
+      delete suite[entId]
+      return suite
+    })
     const admins = (data || []).filter(u => u.role === 'admin')
     const employes = (data || []).filter(u => u.role !== 'admin')
     setEntUsers(prev => ({ ...prev, [entId]: { admins, employes } }))
@@ -971,7 +987,11 @@ async function createEmploye(entrepriseId) {
                         <button onClick={() => { setEmployeModalEnt(e); setEmployeForm({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true }); setEmployeMsg(null); setEmployeSuccessInfo(null); setEmployeMenus([]); fetchPostesEtDeps(e.id); fetchEntModules(e.id); setShowEmployeModal(true) }} style={{ background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>+ Employé</button>
                       </div>
                     </div>
-                    {!entUsers[e.id] ? (
+                    {entUsersErreur[e.id] ? (
+                      <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', borderRadius: 8, padding: '9px 12px', fontSize: 12 }}>
+                        <strong>Lecture impossible.</strong> Les comptes de cette entreprise n'ont pas pu etre lus &mdash; ils existent peut-etre malgre tout. Motif : {entUsersErreur[e.id]}
+                      </div>
+                    ) : !entUsers[e.id] ? (
                       <div style={{ color: '#9CA3AF', fontSize: 12, fontStyle: 'italic' }}>Chargement...</div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
