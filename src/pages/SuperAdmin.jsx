@@ -365,7 +365,12 @@ export default function SuperAdmin() {
 
       const payload = buildEnterpriseCreationPayload(form, entData)
       const { data, error } = await supabase.functions.invoke('create-entreprise', { body: payload })
-      if (error) throw error
+      // La fonction repond en 400/403/409 quand elle refuse : invoke() ne rend
+      // alors qu'un "non-2xx status code", et le code reel (admin_create_failed,
+      // admin_email_already_exists...) reste dans le CORPS de la reponse.
+      // Sans cette lecture, trier les messages en aval ne sert a rien : on
+      // trierait une phrase qui ne contient aucun code.
+      if (error) throw new Error(await messageErreurEdge(error, 'enterprise_create_failed'))
       if (!data?.success) throw new Error(data?.error || 'enterprise_create_failed')
 
       const next = applyEnterpriseCreationToState(
