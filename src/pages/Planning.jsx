@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
-import { seProduitLe, estRepetition } from '../lib/recurrence'
+import { seProduitLe, estRepetition, RECURRENCES } from '../lib/recurrence'
+import { construireEcheance } from '../lib/taches'
 import {
   CATEGORIES_TACHE, PRIORITES_TACHE,
   CATEGORIE_TACHE_DEFAUT, PRIORITE_TACHE_DEFAUT, STATUT_TACHE_DEFAUT,
@@ -48,7 +49,12 @@ export default function Planning() {
   const [employes, setEmployes] = useState([])
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [quickCreateDate, setQuickCreateDate] = useState(null)
-  const [quickForm, setQuickForm] = useState({ titre: '', categorie: CATEGORIE_TACHE_DEFAUT, priorite: PRIORITE_TACHE_DEFAUT })
+  const QUICK_VIDE = {
+    titre: '', description: '',
+    categorie: CATEGORIE_TACHE_DEFAUT, priorite: PRIORITE_TACHE_DEFAUT,
+    heure_fin: '', assigne_a: '', recurrence_type: '', recurrence_fin: '',
+  }
+  const [quickForm, setQuickForm] = useState(QUICK_VIDE)
   const [quickSaving, setQuickSaving] = useState(false)
   const [heureSurvolee, setHeureSurvolee] = useState(null)
   // Une erreur d'insertion doit se voir : avant, `if (!error)` sans `else`
@@ -342,9 +348,12 @@ export default function Planning() {
     }
 
     // L'heure vient du creneau clique. Elle valait 09:00 en dur : une tache
-    // posee a 15h atterrissait le matin.
-    const heure = format(quickCreateDate, 'HH:mm:ss')
-    const dateStr = format(quickCreateDate, 'yyyy-MM-dd') + 'T' + heure
+    // posee a 15h atterrissait le matin. Et la chaine etait envoyee sans
+    // fuseau, donc relue avec deux heures de decalage.
+    const dateStr = construireEcheance(
+      format(quickCreateDate, 'yyyy-MM-dd'),
+      format(quickCreateDate, 'HH:mm'),
+    )
     const { data, error } = await supabase.from('taches').insert({
       titre: quickForm.titre.trim(),
       categorie: quickForm.categorie,
@@ -354,8 +363,13 @@ export default function Planning() {
       statut: STATUT_TACHE_DEFAUT,
       date_echeance: dateStr,
       heure_debut: format(quickCreateDate, 'HH:mm'),
+      heure_fin: quickForm.heure_fin || null,
+      description: quickForm.description.trim() || null,
+      recurrence_type: quickForm.recurrence_type || null,
+      recurrence_fin: quickForm.recurrence_fin || null,
       entreprise_id: profile.entreprise_id,
-      assigne_a: profile?.id,
+      // Non assignee explicitement : la tache revient a son auteur.
+      assigne_a: quickForm.assigne_a || profile?.id,
       cree_par: profile?.id,
     }).select('id')
 
@@ -372,7 +386,7 @@ export default function Planning() {
 
     setQuickCreateDate(null)
     setQuickErreur('')
-    setQuickForm({ titre: '', categorie: CATEGORIE_TACHE_DEFAUT, priorite: PRIORITE_TACHE_DEFAUT })
+    setQuickForm(QUICK_VIDE)
     fetchTaches()
   }
 
@@ -459,6 +473,46 @@ export default function Planning() {
                   {PRIORITES_TACHE.map(p => <option key={p} value={p}>{LIBELLES_PRIORITE[p]}</option>)}
                 </select>
               </div>
+
+              {/* Memes choix que la creation complete, en plus compact :
+                  a qui, jusqu'a quelle heure, et la recurrence. */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                <label style={{ fontSize: 11, color: '#888' }}>
+                  Assigner a
+                  <select value={quickForm.assigne_a} onChange={e => setQuickForm(f => ({ ...f, assigne_a: e.target.value }))}
+                    style={{ width: '100%', marginTop: 3, padding: '8px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12, background: '#fff', boxSizing: 'border-box' }}>
+                    <option value="">Moi</option>
+                    {employes.map(emp => <option key={emp.id} value={emp.id}>{emp.prenom} {emp.nom}</option>)}
+                  </select>
+                </label>
+                <label style={{ fontSize: 11, color: '#888' }}>
+                  Heure de fin
+                  <input type="time" value={quickForm.heure_fin} onChange={e => setQuickForm(f => ({ ...f, heure_fin: e.target.value }))}
+                    style={{ width: '100%', marginTop: 3, padding: '7px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12, background: '#fff', boxSizing: 'border-box' }} />
+                </label>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                <label style={{ fontSize: 11, color: '#888' }}>
+                  Recurrence
+                  <select value={quickForm.recurrence_type} onChange={e => setQuickForm(f => ({ ...f, recurrence_type: e.target.value, recurrence_fin: e.target.value ? f.recurrence_fin : '' }))}
+                    style={{ width: '100%', marginTop: 3, padding: '8px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12, background: '#fff', boxSizing: 'border-box' }}>
+                    <option value="">Aucune</option>
+                    {RECURRENCES.map(r => <option key={r} value={r}>{r.charAt(0).toUpperCase() + r.slice(1)}</option>)}
+                  </select>
+                </label>
+                {quickForm.recurrence_type && (
+                  <label style={{ fontSize: 11, color: '#888' }}>
+                    Fin de recurrence
+                    <input type="date" value={quickForm.recurrence_fin} onChange={e => setQuickForm(f => ({ ...f, recurrence_fin: e.target.value }))}
+                      style={{ width: '100%', marginTop: 3, padding: '7px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12, background: '#fff', boxSizing: 'border-box' }} />
+                  </label>
+                )}
+              </div>
+
+              <textarea value={quickForm.description} onChange={e => setQuickForm(f => ({ ...f, description: e.target.value }))}
+                rows={2} maxLength={500} placeholder="Description (facultatif)"
+                style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12.5, outline: 'none', marginBottom: 14, boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }} />
               {quickErreur && (
                 <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', borderRadius: 8, padding: '8px 10px', fontSize: 12, lineHeight: 1.5, marginBottom: 12 }}>
                   {quickErreur}
