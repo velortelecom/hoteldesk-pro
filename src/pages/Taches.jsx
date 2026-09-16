@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { construireEcheance } from '../lib/taches'
+import { construireEcheance, CATEGORIES_TACHE, CATEGORIE_TACHE_DEFAUT } from '../lib/taches'
+import { useMesDepartements } from '../hooks/useMesDepartements'
+import { useDepartements } from '../modules/organisation/hooks.js'
+import { filtrerTachesVisibles } from '../lib/visibiliteTaches'
 import { useAuth } from '../hooks/useAuth'
 import { format, isToday, isTomorrow, isYesterday, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -17,13 +20,6 @@ const RECURRENCES = ['quotidienne', 'hebdomadaire', 'mensuelle', 'annuelle']
 const PRIO_COLORS = { haute: '#E24B4A', moyenne: '#EF9F27', basse: '#639922' }
 const STATUT_LABELS = { planifiee: 'Planifiee', en_cours: 'En cours', terminee: 'Terminee', annulee: 'Ann.' }
 const STATUT_COLORS = { planifiee: '#3B82F6', en_cours: '#F59E0B', terminee: '#10B981', annulee: '#6B7280' }
-const DEPT_CATS = {
-  menage: ['menage'],
-  maintenance: ['maintenance'],
-  accueil: ['accueil', 'admin'],
-  admin: ['admin'],
-  direction: ['menage', 'maintenance', 'accueil', 'admin', 'urgence'],
-}
 
 function TacheRow({ tache, enfants, profile, membres, expandedParents, setExpandedParents, onEdit, onDelete, onStatutChange }) {
   const isParent = tache.recurrence_type && !tache.tache_parente_id
@@ -58,7 +54,7 @@ function TacheRow({ tache, enfants, profile, membres, expandedParents, setExpand
         <span style={{ background: STATUT_COLORS[t.statut] + '22', color: STATUT_COLORS[t.statut], borderRadius: 12, padding: '2px 8px', fontSize: 11, fontWeight: 600 }}>
           {STATUT_LABELS[t.statut]}
         </span>
-        <span style={{ fontSize: 12, color: '#6B7280' }}>{t.categorie}</span>
+        <span style={{ fontSize: 12, color: '#6B7280' }}>{t.departement || 'Tout le monde'}</span>
         {t.date_echeance && (
           <span style={{ fontSize: 12, color: isToday(parseISO(t.date_echeance)) ? '#EF4444' : '#6B7280' }}>
             {format(parseISO(t.date_echeance), 'dd MMM', { locale: fr })}
@@ -131,7 +127,7 @@ export default function Taches() {
   const [filtreCat, setFiltreCat] = useState('toutes')
   const [filtrePrio, setFiltrePrio] = useState('toutes')
   const [form, setForm] = useState({
-    titre: '', description: '', categorie: 'menage', priorite: 'moyenne',
+    titre: '', description: '', departement: '', priorite: 'moyenne',
     statut: 'planifiee', date_echeance: '', heure_debut: '', heure_fin: '',
     assigne_a: '', recurrence_type: '', recurrence_fin: '', chambre: '',
   })
@@ -145,41 +141,50 @@ export default function Taches() {
 
   async function fetchTaches() {
     setLoading(true)
-    let query = supabase.from('taches').select('*').order('date_echeance', { ascending: true })
-    if (profile?.role === 'employe') {
-      const allowedCats = DEPT_CATS[profile.departement] || []
-      if (allowedCats.length) query = query.in('categorie', allowedCats)
-      else query = query.eq('assigne_a', profile.id)
-    }
+    // Plus de filtrage par categorie cote serveur : la visibilite se decide
+    // par assignation et par departement, avec la meme regle que le
+    // planning (voir src/lib/visibiliteTaches.js). La RLS continue de
+    // garantir l'isolation entre entreprises.
+    const query = supabase.from('taches').select('*').order('date_echeance', { ascending: true })
     const { data } = await query
     if (data) setTaches(data)
     setLoading(false)
   }
 
-  const parents = taches.filter(t => !t.tache_parente_id)
+  const { codesDepartements } = useMesDepartements()
+  const { departements } = useDepartements(profile?.entreprise_id)
+
+  const tachesVisibles = filtrerTachesVisibles(taches, {
+    id: profile?.id,
+    role: profile?.role,
+    isSuperAdmin: profile?.is_super_admin,
+    codesDepartements,
+  })
+
+  const parents = tachesVisibles.filter(t => !t.tache_parente_id)
   const enfantsMap = {}
-  taches.filter(t => t.tache_parente_id).forEach(t => {
+  tachesVisibles.filter(t => t.tache_parente_id).forEach(t => {
     if (!enfantsMap[t.tache_parente_id]) enfantsMap[t.tache_parente_id] = []
     enfantsMap[t.tache_parente_id].push(t)
   })
 
   const filtered = parents.filter(t => {
     if (filtreStatut !== 'tous' && t.statut !== filtreStatut) return false
-    if (filtreCat !== 'toutes' && t.categorie !== filtreCat) return false
+    if (filtreCat !== 'toutes' && t.departement !== filtreCat) return false
     if (filtrePrio !== 'toutes' && t.priorite !== filtrePrio) return false
     return true
   })
 
   function openCreate() {
     setEditTache(null)
-    setForm({ titre: '', description: '', categorie: 'menage', priorite: 'moyenne', statut: 'planifiee', date_echeance: '', heure_debut: '', heure_fin: '', assigne_a: '', recurrence_type: '', recurrence_fin: '', chambre: '' })
+    setForm({ titre: '', description: '', departement: '', priorite: 'moyenne', statut: 'planifiee', date_echeance: '', heure_debut: '', heure_fin: '', assigne_a: '', recurrence_type: '', recurrence_fin: '', chambre: '' })
     setShowForm(true)
   }
 
   function openEdit(t) {
     setEditTache(t)
     setForm({
-      titre: t.titre || '', description: t.description || '', categorie: t.categorie || 'menage',
+      titre: t.titre || '', description: t.description || '', departement: t.departement || '',
       priorite: t.priorite || 'moyenne', statut: t.statut || 'planifiee',
       date_echeance: t.date_echeance ? t.date_echeance.slice(0, 10) : '',
       heure_debut: t.heure_debut ? t.heure_debut.slice(0, 5) : '',
@@ -213,7 +218,10 @@ export default function Taches() {
     const payload = {
       titre: form.titre,
       description: form.description || null,
-      categorie: form.categorie,
+      departement: form.departement || null,
+      // categorie est NOT NULL avec une contrainte CHECK : on continue de la
+      // remplir pour la base, l'ecran ne s'en sert plus.
+      categorie: CATEGORIES_TACHE.indexOf(form.departement) !== -1 ? form.departement : CATEGORIE_TACHE_DEFAUT,
       priorite: form.priorite,
       statut: form.statut,
       date_echeance: construireEcheance(form.date_echeance, form.heure_debut),
@@ -254,8 +262,10 @@ export default function Taches() {
           {STATUTS.map(s => <option key={s} value={s}>{STATUT_LABELS[s]}</option>)}
         </select>
         <select value={filtreCat} onChange={e => setFiltreCat(e.target.value)} style={{ borderRadius: 6, border: '1px solid #d1d5db', padding: '6px 10px' }}>
-          <option value='toutes'>Toutes categories</option>
-          {CATS.map(c => <option key={c} value={c}>{c}</option>)}
+          <option value='toutes'>Tous departements</option>
+          {(departements || []).filter(d => d.actif !== false).map(d => (
+            <option key={d.id} value={d.code}>{d.nom}</option>
+          ))}
         </select>
         <select value={filtrePrio} onChange={e => setFiltrePrio(e.target.value)} style={{ borderRadius: 6, border: '1px solid #d1d5db', padding: '6px 10px' }}>
           <option value='toutes'>Toutes priorites</option>
@@ -301,9 +311,12 @@ export default function Taches() {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
               <div>
-                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Categorie</label>
-                <select value={form.categorie} onChange={e => setForm(f => ({ ...f, categorie: e.target.value }))} style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px' }}>
-                  {CATS.map(c => <option key={c} value={c}>{c}</option>)}
+                <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Departement</label>
+                <select value={form.departement} onChange={e => setForm(f => ({ ...f, departement: e.target.value }))} style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px' }}>
+                  <option value=''>Tout le monde</option>
+                  {(departements || []).filter(d => d.actif !== false).map(d => (
+                    <option key={d.id} value={d.code}>{d.nom}</option>
+                  ))}
                 </select>
               </div>
               <div>

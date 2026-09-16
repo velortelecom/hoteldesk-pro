@@ -5,9 +5,12 @@ import { construireEcheance, occupeCreneau, finAvantDebut } from '../lib/taches'
 import {
   CATEGORIES_TACHE, PRIORITES_TACHE,
   CATEGORIE_TACHE_DEFAUT, PRIORITE_TACHE_DEFAUT, STATUT_TACHE_DEFAUT,
-  LIBELLES_PRIORITE, libelleCategorie,
+  LIBELLES_PRIORITE,
 } from '../lib/taches'
 import { useAuth } from '../hooks/useAuth'
+import { useMesDepartements } from '../hooks/useMesDepartements'
+import { useDepartements } from '../modules/organisation/hooks.js'
+import { tacheVisiblePar } from '../lib/visibiliteTaches'
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   addDays, addMonths, subMonths, isToday, isSameMonth, isSameDay,
@@ -23,13 +26,6 @@ const CAT_COLORS = {
   urgence: { bg: '#F5E6FB', text: '#5B0B7C', border: '#9b59b6' }
 }
 
-const DEPT_CATS_PLANNING = {
-  menage: ['menage'],
-  maintenance: ['maintenance'],
-  reception: ['accueil'],
-  restauration: ['admin'],
-  direction: ['menage', 'maintenance', 'accueil', 'admin', 'urgence']
-}
 
 const HEURES_24 = Array.from({ length: 24 }, (_, i) => i) // 0..23
 
@@ -51,12 +47,14 @@ export default function Planning() {
   const [quickCreateDate, setQuickCreateDate] = useState(null)
   const QUICK_VIDE = {
     titre: '', description: '',
-    categorie: CATEGORIE_TACHE_DEFAUT, priorite: PRIORITE_TACHE_DEFAUT,
+    departement: '', priorite: PRIORITE_TACHE_DEFAUT,
     heure_fin: '', assigne_a: '', recurrence_type: '', recurrence_fin: '',
   }
   const [quickForm, setQuickForm] = useState(QUICK_VIDE)
   const [quickSaving, setQuickSaving] = useState(false)
   const [heureSurvolee, setHeureSurvolee] = useState(null)
+  const { codesDepartements } = useMesDepartements()
+  const { departements } = useDepartements(profile?.entreprise_id)
   // Une erreur d'insertion doit se voir : avant, `if (!error)` sans `else`
   // laissait le formulaire ouvert sans rien dire.
   const [quickErreur, setQuickErreur] = useState('')
@@ -67,7 +65,6 @@ export default function Planning() {
 
   const userRole = profile?.role || 'employe'
   const userDept = profile?.departement || ''
-  const catsVisibles = userRole === 'admin' ? null : (DEPT_CATS_PLANNING[userDept] || [])
 
   // Load employes
   useEffect(() => {
@@ -99,12 +96,14 @@ export default function Planning() {
   }, [vue, selectedDay])
 
   function filterTask(t) {
-    if (userRole === 'employe') return t.assigne_a === profile?.id
-    if (userRole === 'responsable') {
-      return (catsVisibles && catsVisibles.includes(t.categorie)) ||
-             t.assigne_a === profile?.id || t.cree_par === profile?.id
-    }
-    return true // admin sees all
+    // Une seule regle pour tous : assignee a moi, creee par moi, visant un
+    // de mes departements, ou ne visant personne. Voir visibiliteTaches.js.
+    return tacheVisiblePar(t, {
+      id: profile?.id,
+      role: userRole,
+      isSuperAdmin: profile?.is_super_admin,
+      codesDepartements,
+    })
   }
 
   // La base materialise deja les occurrences recurrentes en lignes filles
@@ -402,7 +401,15 @@ export default function Planning() {
     )
     const { data, error } = await supabase.from('taches').insert({
       titre: quickForm.titre.trim(),
-      categorie: quickForm.categorie,
+      // taches.departement est du texte et vaut departements.code.
+      departement: quickForm.departement || null,
+      // categorie est NOT NULL avec une contrainte CHECK : on la remplit
+      // encore, avec le code du departement quand il fait partie des
+      // valeurs acceptees, sinon la valeur par defaut. L'ecran ne s'en sert
+      // plus, mais la base l'exige.
+      categorie: CATEGORIES_TACHE.indexOf(quickForm.departement) !== -1
+        ? quickForm.departement
+        : CATEGORIE_TACHE_DEFAUT,
       priorite: quickForm.priorite,
       // 'a_faire' n'existe pas dans la contrainte CHECK de la table : la
       // base refusait chaque insertion, en silence.
@@ -512,8 +519,11 @@ export default function Planning() {
               <input autoFocus value={quickForm.titre} onChange={e => setQuickForm(f => ({ ...f, titre: e.target.value }))} placeholder="Titre de la tache *"
                 style={{ width: '100%', padding: '9px 12px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 13, outline: 'none', marginBottom: 10, boxSizing: 'border-box' }} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
-                <select value={quickForm.categorie} onChange={e => setQuickForm(f => ({ ...f, categorie: e.target.value }))} style={{ padding: '8px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12, background: '#fff' }}>
-                  {CATEGORIES_TACHE.map(c => <option key={c} value={c}>{libelleCategorie(c)}</option>)}
+                <select value={quickForm.departement} onChange={e => setQuickForm(f => ({ ...f, departement: e.target.value }))} style={{ padding: '8px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12, background: '#fff' }}>
+                  <option value="">Tout le monde</option>
+                  {(departements || []).filter(d => d.actif !== false).map(d => (
+                    <option key={d.id} value={d.code}>{d.nom}</option>
+                  ))}
                 </select>
                 <select value={quickForm.priorite} onChange={e => setQuickForm(f => ({ ...f, priorite: e.target.value }))} style={{ padding: '8px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12, background: '#fff' }}>
                   {PRIORITES_TACHE.map(p => <option key={p} value={p}>{LIBELLES_PRIORITE[p]}</option>)}
