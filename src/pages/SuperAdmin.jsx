@@ -9,7 +9,8 @@ import { MODULES_REGISTRY } from '../modules/registry'
 import { SECTEURS_METIERS, SECTEURS_OPTIONS, getDepartementsBySecteur, getPostesBySecteur, getModulesRecommandes } from '../lib/secteurs'
 import { BrandMark, APP_URL } from '../branding/Brand'
 import { buildCreationSlug, buildEditionForm } from './superAdminUtils'
-import { buildEntrepriseUpdatePayload, mapSuperAdminError } from './superAdminControlUtils'
+import { buildEntrepriseUpdatePayload, diffModulesEntreprise, mapSuperAdminError } from './superAdminControlUtils'
+import { MODULES_DEVELOPPES } from '../lib/modulesDeveloppes'
 import {
   applyEnterpriseCreationToState,
   buildEnterpriseCreationPayload,
@@ -41,7 +42,7 @@ function infoEssai(e) {
 const PLAN_MODULES = {
   starter: ['organisation','conges'],
   business: ['organisation','conges','documents','rapports'],
-  premium: ['organisation','conges','documents','rapports','vehicules','stochhks','qualite','statistiques','planning_avance'],
+  premium: ['organisation','conges','documents','rapports','vehicules','stocks','qualite','statistiques','planning_avance'],
   enterprise: null,
 }
 
@@ -111,6 +112,8 @@ export default function SuperAdmin() {
   const [expandedUsersEnt, setExpandedUsersEnt] = useState(null)
   const [userDeleteConfirm, setUserDeleteConfirm] = useState(null)
   // Demandes de pack superieur deposees par les clients (aucune activation auto)
+  // Apercu avant d'aligner les modules sur le pack : {ent, entData, diff}
+  const [apercuModules, setApercuModules] = useState(null)
   const [demandes, setDemandes] = useState([])
   // Un echec de lecture n'est pas une absence de demande. Sans cet etat,
   // l'onglet affichait "Aucune demande pour le moment" dans les deux cas.
@@ -323,6 +326,25 @@ export default function SuperAdmin() {
         const { error } = await supabase.from('entreprises').update(entData).eq('id', editEntreprise.id)
         if (error) throw error
 
+        // Le plan n'est qu'une etiquette : ce que voit le client vient de
+        // entreprise_modules. On regarde si les deux se sont desynchronises
+        // et, si oui, on montre AVANT d'ecrire quoi que ce soit.
+        const actuels = (entModules[editEntreprise.id] || [])
+          .filter(r => r.actif).map(r => r.module_id)
+        const diff = diffModulesEntreprise({
+          souhaites: form.modules_selectionnes || [],
+          actuels,
+          developpes: MODULES_DEVELOPPES,
+        })
+
+        if (!diff.aucunChangement || diff.reportes.length > 0) {
+          setShowForm(false)
+          setSaving(false)
+          await fetchData()
+          setApercuModules({ ent: editEntreprise, diff })
+          return
+        }
+
         setMsg({
           type: 'success',
           text: buildEnterpriseCreationSuccessMessage({
@@ -407,6 +429,41 @@ export default function SuperAdmin() {
     }
     await supabase.from('entreprises').update({ actif: !ent.actif }).eq('id', ent.id)
     fetchData()
+  }
+
+  // Applique l'alignement montre dans l'apercu. Rien ici n'est decide :
+  // tout a ete calcule et affiche avant.
+  async function appliquerAlignementModules() {
+    if (!apercuModules) return
+    const { ent, diff } = apercuModules
+    setDemandeSaving('modules')
+
+    const lignes = [
+      ...diff.aActiver.map(id => ({ entreprise_id: ent.id, module_id: id, actif: true, activated_at: new Date().toISOString() })),
+      ...diff.aRetirer.map(id => ({ entreprise_id: ent.id, module_id: id, actif: false, activated_at: new Date().toISOString() })),
+    ]
+
+    if (lignes.length > 0) {
+      const { error } = await supabase.from('entreprise_modules')
+        .upsert(lignes, { onConflict: 'entreprise_id,module_id' })
+      if (error) {
+        setDemandeSaving(null)
+        setMsg({ type: 'error', text: 'Modules non modifies : ' + error.message })
+        setApercuModules(null)
+        return
+      }
+    }
+
+    setDemandeSaving(null)
+    setApercuModules(null)
+    setMsg({
+      type: 'success',
+      text: 'Modules alignes sur le pack de ' + ent.nom + ' : '
+        + diff.aActiver.length + ' active(s), ' + diff.aRetirer.length + ' retire(s).'
+        + ' Le client voit le changement a son prochain chargement de page.',
+    })
+    await fetchEntModules(ent.id)
+    await fetchData()
   }
 
   async function toggleModuleEntreprise(entId, modId, actuel) {
@@ -1072,6 +1129,73 @@ async function createEmploye(entrepriseId) {
             </div>
           </div>
         )}
+        {apercuModules && (() => {
+          const { ent, diff } = apercuModules
+          const nomModule = (id) => (MODULES_REGISTRY.find(m => m.id === id) || {}).nom || id
+          const bloc = { borderRadius: 8, padding: '10px 12px', fontSize: 13, lineHeight: 1.6, marginTop: 10 }
+          return (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+              <div style={{ background: '#fff', borderRadius: 12, padding: 26, maxWidth: 520, width: '100%' }}>
+                <h3 style={{ fontWeight: 700, fontSize: 17, color: '#111827', margin: 0 }}>
+                  Aligner les modules de {ent.nom} ?
+                </h3>
+                <p style={{ color: '#6B7280', fontSize: 13, lineHeight: 1.6, marginTop: 8 }}>
+                  Le pack a bien ete enregistre. Mais ce que voit le client depend des modules
+                  actives, pas du pack. Voici ce qui changerait pour lui.
+                </p>
+
+                {diff.aActiver.length > 0 && (
+                  <div style={{ ...bloc, background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#065F46' }}>
+                    <strong>A activer</strong><br />
+                    {diff.aActiver.map(nomModule).join(', ')}
+                  </div>
+                )}
+
+                {diff.aRetirer.length > 0 && (
+                  <div style={{ ...bloc, background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B' }}>
+                    <strong>A retirer</strong><br />
+                    {diff.aRetirer.map(nomModule).join(', ')}
+                    <div style={{ fontSize: 12, marginTop: 6 }}>
+                      Le client perdra ces menus. Ses donnees ne sont pas supprimees.
+                    </div>
+                  </div>
+                )}
+
+                {diff.reportes.length > 0 && (
+                  <div style={{ ...bloc, background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E' }}>
+                    <strong>Compris dans le pack, mais pas encore developpes</strong><br />
+                    {diff.reportes.map(nomModule).join(', ')}
+                    <div style={{ fontSize: 12, marginTop: 6 }}>
+                      Non actives : le client verrait un menu vide. A activer a la main quand ils seront prets.
+                    </div>
+                  </div>
+                )}
+
+                {diff.aucunChangement && (
+                  <div style={{ ...bloc, background: '#F9FAFB', border: '1px solid #E5E7EB', color: '#374151' }}>
+                    Aucun module a changer : les modules actifs correspondent deja au pack.
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => { setApercuModules(null); setMsg({ type: 'success', text: 'Pack enregistre. Modules inchanges.' }) }}
+                    style={{ padding: '9px 18px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', fontSize: 13 }}>
+                    Ne pas toucher aux modules
+                  </button>
+                  {!diff.aucunChangement && (
+                    <button
+                      onClick={appliquerAlignementModules}
+                      disabled={demandeSaving === 'modules'}
+                      style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: demandeSaving === 'modules' ? '#93A3C4' : '#1E40AF', color: '#fff', cursor: demandeSaving === 'modules' ? 'default' : 'pointer', fontWeight: 600, fontSize: 13 }}>
+                      {demandeSaving === 'modules' ? 'Application...' : 'Appliquer'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })()}
         {deleteConfirm && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', borderRadius: 12, padding: 32, maxWidth: 420, width: '90%', textAlign: 'center' }}>

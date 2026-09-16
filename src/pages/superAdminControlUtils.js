@@ -131,3 +131,39 @@ export function buildAssistanceSessionDraft({ entrepriseId, reason, durationMinu
     active: true,
   }
 }
+
+// =====================================================================
+// Changement de pack -> modules de l'entreprise
+//
+// Le plan de l'entreprise n'est qu'une etiquette et un prix : ce que voit
+// le client vient de entreprise_modules (useModules lit les lignes
+// actif = true). Changer le plan sans toucher a cette table ne changeait
+// donc rien du tout cote client.
+//
+// Cette fonction ne decide rien toute seule : elle calcule ce qui
+// changerait, l'ecran le montre, et rien n'est ecrit sans confirmation.
+//
+//   souhaites   les modules du pack vise
+//   actuels     les module_id actuellement actifs pour l'entreprise
+//   developpes  les modules qui existent vraiment (MODULES_DEVELOPPES)
+//
+// Un module du pack qui n'est pas encore developpe n'est PAS active : il
+// ressort dans `reportes`, pour etre annonce au client comme "a venir"
+// plutot que de lui ouvrir un menu vide.
+// =====================================================================
+export function diffModulesEntreprise({ souhaites = [], actuels = [], developpes = [] } = {}) {
+  const dev = new Set(developpes)
+  const veut = new Set(souhaites)
+  const a = new Set(actuels)
+
+  const aActiver = [...veut].filter((id) => dev.has(id) && !a.has(id)).sort()
+  const aRetirer = [...a].filter((id) => !veut.has(id)).sort()
+  const reportes = [...veut].filter((id) => !dev.has(id)).sort()
+
+  return {
+    aActiver,
+    aRetirer,
+    reportes,
+    aucunChangement: aActiver.length === 0 && aRetirer.length === 0,
+  }
+}

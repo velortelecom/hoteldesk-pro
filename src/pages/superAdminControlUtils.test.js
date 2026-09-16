@@ -4,6 +4,7 @@ import {
   buildEntrepriseUpdatePayload,
   buildModuleWritePolicyWarning,
   buildSupervisionKpis,
+  diffModulesEntreprise,
   filterSuperAdminUsers,
 } from './superAdminControlUtils'
 
@@ -95,5 +96,64 @@ describe('superAdminControlUtils', () => {
     expect(draft.reason).toBe('Aide opérationnelle')
     expect(draft.active).toBe(true)
     expect(() => buildAssistanceSessionDraft({ entrepriseId: '', reason: '' })).toThrow('missing_assistance_fields')
+  })
+})
+
+describe('diffModulesEntreprise', () => {
+  const developpes = ['organisation', 'pointage', 'conges']
+
+  test('monter de pack active ce qui existe et reporte le reste', () => {
+    const d = diffModulesEntreprise({
+      souhaites: ['organisation', 'conges', 'pointage', 'documents', 'rapports'],
+      actuels: ['organisation', 'conges'],
+      developpes,
+    })
+    expect(d.aActiver).toEqual(['pointage'])
+    expect(d.aRetirer).toEqual([])
+    expect(d.reportes).toEqual(['documents', 'rapports'])
+    expect(d.aucunChangement).toBe(false)
+  })
+
+  test('descendre de pack retire ce qui sort du pack', () => {
+    const d = diffModulesEntreprise({
+      souhaites: ['organisation', 'conges'],
+      actuels: ['organisation', 'conges', 'pointage'],
+      developpes,
+    })
+    expect(d.aActiver).toEqual([])
+    expect(d.aRetirer).toEqual(['pointage'])
+  })
+
+  test('un module non developpe deja actif est retire s il sort du pack', () => {
+    const d = diffModulesEntreprise({
+      souhaites: ['organisation'],
+      actuels: ['organisation', 'documents'],
+      developpes,
+    })
+    expect(d.aRetirer).toEqual(['documents'])
+  })
+
+  test('un module non developpe du pack n est jamais active', () => {
+    const d = diffModulesEntreprise({
+      souhaites: ['organisation', 'vehicules'],
+      actuels: ['organisation'],
+      developpes,
+    })
+    expect(d.aActiver).toEqual([])
+    expect(d.reportes).toEqual(['vehicules'])
+    expect(d.aucunChangement).toBe(true)
+  })
+
+  test('sans changement, on le dit', () => {
+    const d = diffModulesEntreprise({
+      souhaites: ['organisation', 'conges'],
+      actuels: ['conges', 'organisation'],
+      developpes,
+    })
+    expect(d.aucunChangement).toBe(true)
+  })
+
+  test('appel sans argument ne casse pas', () => {
+    expect(diffModulesEntreprise().aucunChangement).toBe(true)
   })
 })
