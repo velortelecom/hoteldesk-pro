@@ -35,7 +35,14 @@ function Pastille({ children, bg, fg }) {
 }
 
 export default function Offres() {
-  const { profile, user, entrepriseId } = useAuth()
+  const { profile, user } = useAuth()
+
+  // useAuth n'expose que { user, profile, loading, signIn, signOut }.
+  // Cette page lisait un entrepriseId qui n'existait pas : il valait
+  // toujours undefined, la garde d'envoi retournait sans rien dire et le
+  // bouton "Envoyer la demande" ne faisait rien. L'entreprise se lit sur le
+  // profil, ce qui correspond exactement a get_my_entreprise_id() cote RLS.
+  const entrepriseId = profile?.entreprise_id || null
   const [demandes, setDemandes] = useState([])
   const [loading, setLoading] = useState(true)
   const [packOuvert, setPackOuvert] = useState(null)
@@ -66,7 +73,13 @@ export default function Offres() {
   }
 
   async function envoyerDemande() {
-    if (!packOuvert || !entrepriseId || !profile?.id) return
+    if (!packOuvert) return
+    // Plus de retour silencieux : si quelque chose manque, on le dit.
+    if (!entrepriseId || !profile?.id) {
+      setRetour({ type: 'error', texte: "Votre compte n'est rattache a aucune entreprise. Reconnectez-vous, et si cela persiste contactez Velor One." })
+      setPackOuvert(null)
+      return
+    }
     setEnvoi(true)
     setRetour(null)
     const { error } = await supabase.from('demandes_pack').insert({
