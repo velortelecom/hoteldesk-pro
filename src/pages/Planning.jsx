@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { seProduitLe, estRepetition, RECURRENCES } from '../lib/recurrence'
 import { construireEcheance } from '../lib/taches'
@@ -107,14 +107,39 @@ export default function Planning() {
     return true // admin sees all
   }
 
+  // La base materialise deja les occurrences recurrentes en lignes filles
+  // (trigger_recurrence -> generer_occurrences_recurrentes, colonne
+  // tache_parente_id). Deplier le parent PAR-DESSUS ces lignes affichait la
+  // meme tache deux fois. On indexe donc ce que la base a deja produit, et
+  // on ne deplie le parent que sur les jours qu'elle n'a pas couverts --
+  // ce qui garde la recurrence visible au-dela de l'horizon genere, sans
+  // jamais faire doublon.
+  const occurrencesEnBase = useMemo(() => {
+    const index = new Set()
+    taches.forEach(t => {
+      if (t.tache_parente_id && t.date_echeance) {
+        index.add(t.tache_parente_id + '|' + format(parseISO(t.date_echeance), 'yyyy-MM-dd'))
+      }
+    })
+    return index
+  }, [taches])
+
+  function occurrenceVisible(t, day) {
+    if (!seProduitLe(t, day)) return false
+    // Sa propre echeance : c'est la ligne elle-meme, on l'affiche toujours.
+    if (!estRepetition(t, day)) return true
+    return !occurrencesEnBase.has(t.id + '|' + format(day, 'yyyy-MM-dd'))
+  }
+
   function getTasksForDay(day) {
     return taches.filter(t => {
       if (!t.date_echeance) return false
       if (!filterTask(t)) return false
       if (filtreEmp !== 'tous' && t.assignee?.id !== filtreEmp) return false
       // Une tache recurrente doit apparaitre a chacune de ses occurrences,
-      // pas seulement le jour de sa creation.
-      return seProduitLe(t, day)
+      // pas seulement le jour de sa creation -- sans doubler celles que la
+      // base a deja materialisees.
+      return occurrenceVisible(t, day)
     })
   }
 
@@ -123,7 +148,7 @@ export default function Planning() {
       if (!t.date_echeance) return false
       if (!filterTask(t)) return false
       if (filtreEmp !== 'tous' && t.assignee?.id !== filtreEmp) return false
-      if (!seProduitLe(t, day)) return false
+      if (!occurrenceVisible(t, day)) return false
       // Use heure_debut if available, else fallback to date_echeance hour
       if (t.heure_debut) {
         const [hh] = t.heure_debut.split(':').map(Number)
