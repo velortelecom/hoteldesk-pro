@@ -386,6 +386,39 @@ export default function SuperAdmin() {
     fetchData()
   }
 
+  // Fin d'essai : c'est date_fin_abonnement qui gouverne la lecture seule,
+  // PAS le plan. Changer une entreprise de starter a business ne debloque
+  // rien tant que cette date reste dans le passe. Ces deux actions sont donc
+  // le seul vrai levier pour lever un compte en lecture seule.
+  async function activerAbonnement(ent) {
+    if (!window.confirm('Activer l\'abonnement de ' + ent.nom + ' ?\n\nLa periode d\'essai est levee : l\'ecriture redevient possible immediatement.')) return
+    const { error } = await supabase.from('entreprises')
+      .update({ date_fin_abonnement: null })
+      .eq('id', ent.id)
+    if (error) { setMsg({ type: 'error', text: 'Erreur : ' + error.message }); return }
+
+    // Une entreprise sans date de fin n'est jamais bloquee : c'est la
+    // convention posee par entreprise_ecriture_ouverte().
+    await supabase.from('demandes_pack')
+      .update({ statut: 'traitee', traite_par: profile.id, traite_at: new Date().toISOString() })
+      .eq('entreprise_id', ent.id)
+      .in('statut', ['nouvelle', 'en_cours'])
+
+    setMsg({ type: 'success', text: 'Abonnement active pour ' + ent.nom + '. Ecriture retablie, demandes en attente cloturees.' })
+    fetchData()
+  }
+
+  async function prolongerEssai(ent, jours) {
+    const fin = new Date(Date.now() + jours * 86400000)
+    if (!window.confirm('Prolonger l\'essai de ' + ent.nom + ' de ' + jours + ' jours ?\n\nNouvelle fin : ' + fin.toLocaleDateString('fr-FR'))) return
+    const { error } = await supabase.from('entreprises')
+      .update({ date_fin_abonnement: fin.toISOString() })
+      .eq('id', ent.id)
+    if (error) { setMsg({ type: 'error', text: 'Erreur : ' + error.message }); return }
+    setMsg({ type: 'success', text: 'Essai prolonge jusqu\'au ' + fin.toLocaleDateString('fr-FR') + '.' })
+    fetchData()
+  }
+
   async function toggleActifEntreprise(ent) {
     const nextState = !ent.actif
     if (!window.confirm(nextState ? 'Confirmer la réactivation de cette entreprise ?' : 'Confirmer la suspension de cette entreprise ?')) {
@@ -738,6 +771,16 @@ async function createEmploye(entrepriseId) {
                         {expandedEnt === e.id ? 'Fermer' : 'Modules'}
                       </button>
                       <button onClick={() => ouvrirEdition(e)} disabled={editLoading} style={{ padding: '6px 12px', border: '1px solid #3B82F6', color: '#3B82F6', background: '#EFF6FF', borderRadius: 6, cursor: editLoading ? 'not-allowed' : 'pointer', fontSize: 12 }}>Modifier</button>
+                      {e.date_fin_abonnement && (
+                        <button onClick={() => activerAbonnement(e)} title="Leve la periode d'essai : l'ecriture redevient possible" style={{ padding: '6px 12px', border: '1px solid #10B981', color: '#065F46', background: '#ECFDF5', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                          ✓ Activer l&apos;abonnement
+                        </button>
+                      )}
+                      {e.date_fin_abonnement && (
+                        <button onClick={() => prolongerEssai(e, 14)} title="Repousse la fin d'essai de 14 jours" style={{ padding: '6px 12px', border: '1px solid #F59E0B', color: '#92400E', background: '#FFFBEB', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
+                          + 14 j d&apos;essai
+                        </button>
+                      )}
                       <button onClick={() => toggleActifEntreprise(e)} style={{ padding: '6px 12px', border: '1px solid ' + (e.actif ? '#EF4444' : '#10B981'), color: e.actif ? '#EF4444' : '#10B981', background: '#fff', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
                         {e.actif ? 'Desactiver' : 'Reactiver'}
                       </button>
