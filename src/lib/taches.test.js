@@ -3,7 +3,7 @@ import path from 'path'
 import {
   CATEGORIES_TACHE, PRIORITES_TACHE, STATUTS_TACHE,
   CATEGORIE_TACHE_DEFAUT, PRIORITE_TACHE_DEFAUT, STATUT_TACHE_DEFAUT,
-  construireEcheance,
+  construireEcheance, occupeCreneau, finAvantDebut,
 } from './taches'
 
 // On relit la contrainte dans le schema plutot que de la recopier : c'est
@@ -81,5 +81,54 @@ describe('construireEcheance', () => {
     expect(construireEcheance(null)).toBeNull()
     expect(construireEcheance('')).toBeNull()
     expect(construireEcheance('pas une date')).toBeNull()
+  })
+})
+
+describe('occupeCreneau', () => {
+  test('sans heure de fin : uniquement le creneau de debut', () => {
+    expect(occupeCreneau('14:00', null, 14)).toBe('debut')
+    expect(occupeCreneau('14:00', null, 15)).toBeNull()
+  })
+
+  test('de 14h a 16h : occupe 14 et 15, pas 16', () => {
+    expect(occupeCreneau('14:00', '16:00', 13)).toBeNull()
+    expect(occupeCreneau('14:00', '16:00', 14)).toBe('debut')
+    expect(occupeCreneau('14:00', '16:00', 15)).toBe('suite')
+    expect(occupeCreneau('14:00', '16:00', 16)).toBeNull()
+  })
+
+  test('une fin a 16h30 occupe bien la ligne de 16h', () => {
+    expect(occupeCreneau('14:00', '16:30', 16)).toBe('suite')
+    expect(occupeCreneau('14:00', '16:30', 17)).toBeNull()
+  })
+
+  test('un debut a 14h30 occupe la ligne de 14h', () => {
+    expect(occupeCreneau('14:30', '15:30', 14)).toBe('debut')
+    expect(occupeCreneau('14:30', '15:30', 15)).toBe('suite')
+  })
+
+  test('fin incoherente : on retombe sur un seul creneau', () => {
+    expect(occupeCreneau('15:00', '12:00', 15)).toBe('debut')
+    expect(occupeCreneau('15:00', '12:00', 12)).toBeNull()
+    expect(occupeCreneau('15:00', '15:00', 15)).toBe('debut')
+  })
+
+  test('entrees illisibles : null, pas une exception', () => {
+    expect(occupeCreneau(null, '16:00', 14)).toBeNull()
+    expect(occupeCreneau('midi', '16:00', 14)).toBeNull()
+    expect(occupeCreneau('14:00', '16:00', null)).toBeNull()
+  })
+})
+
+describe('finAvantDebut', () => {
+  test('detecte une fin anterieure ou egale', () => {
+    expect(finAvantDebut('15:00', '12:00')).toBe(true)
+    expect(finAvantDebut('15:00', '15:00')).toBe(true)
+    expect(finAvantDebut('15:00', '16:00')).toBe(false)
+  })
+
+  test('sans heure de fin, rien a signaler', () => {
+    expect(finAvantDebut('15:00', '')).toBe(false)
+    expect(finAvantDebut('15:00', null)).toBe(false)
   })
 })
