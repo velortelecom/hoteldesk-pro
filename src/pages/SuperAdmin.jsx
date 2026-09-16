@@ -112,6 +112,9 @@ export default function SuperAdmin() {
   const [userDeleteConfirm, setUserDeleteConfirm] = useState(null)
   // Demandes de pack superieur deposees par les clients (aucune activation auto)
   const [demandes, setDemandes] = useState([])
+  // Un echec de lecture n'est pas une absence de demande. Sans cet etat,
+  // l'onglet affichait "Aucune demande pour le moment" dans les deux cas.
+  const [demandesErreur, setDemandesErreur] = useState(null)
   const [demandeSaving, setDemandeSaving] = useState(null)
   const [lastActivityByEntreprise, setLastActivityByEntreprise] = useState({})
 
@@ -129,9 +132,16 @@ export default function SuperAdmin() {
       supabase.rpc('super_admin_platform_health'),
       supabase.from('demandes_pack').select('*').order('created_at', { ascending: false }),
     ])
-    // demandes_pack peut ne pas encore exister si la migration n'est pas passee :
-    // on degrade silencieusement plutot que de casser tout le back-office.
-    setDemandes(demandesRes?.error ? [] : (demandesRes?.data || []))
+    // On degrade plutot que de casser tout le back-office, mais on ne fait
+    // plus passer un echec pour une liste vide : le Super Admin doit savoir
+    // qu'il ne voit pas les demandes, pas croire qu'il n'en a aucune.
+    if (demandesRes?.error) {
+      setDemandes([])
+      setDemandesErreur(demandesRes.error.message || 'Lecture impossible.')
+    } else {
+      setDemandes(demandesRes?.data || [])
+      setDemandesErreur(null)
+    }
     const health = Array.isArray(healthRes?.data) ? (healthRes.data[0] || null) : (healthRes?.data || null)
     let audits = []
 
@@ -659,6 +669,7 @@ async function createEmploye(entrepriseId) {
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid #E5E7EB' }}>
         {['entreprises','utilisateurs','modules','plans','demandes','supervision','plateforme','assistance'].map(o => {
           const nbNouvelles = o === 'demandes' ? demandes.filter(d => d.statut === 'nouvelle').length : 0
+          const enEchec = o === 'demandes' && !!demandesErreur
           return (
             <button key={o} onClick={() => setOnglet(o)} style={{
               padding: '8px 18px', border: 'none', borderRadius: '6px 6px 0 0',
@@ -669,6 +680,9 @@ async function createEmploye(entrepriseId) {
               {o}
               {nbNouvelles > 0 && (
                 <span style={{ background: '#EF4444', color: '#fff', borderRadius: 10, fontSize: 11, fontWeight: 700, padding: '1px 7px' }}>{nbNouvelles}</span>
+              )}
+              {enEchec && (
+                <span title="Les demandes n'ont pas pu etre lues" style={{ background: '#F59E0B', color: '#fff', borderRadius: 10, fontSize: 11, fontWeight: 700, padding: '1px 7px' }}>!</span>
               )}
             </button>
           )
@@ -948,13 +962,25 @@ async function createEmploye(entrepriseId) {
 
       {onglet === 'demandes' && (
         <div>
-          <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Demandes de pack superieur ({demandes.length})</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Demandes de pack superieur {demandesErreur ? '(inconnu)' : '(' + demandes.length + ')'}</h2>
           <p style={{ fontSize: 12.5, color: '#6B7280', marginBottom: 16, lineHeight: 1.6 }}>
             Un client ne peut pas activer un pack lui-meme : il depose une demande ici.
             L&apos;activation se fait a la main depuis la fiche entreprise, et uniquement pour un module reellement developpe.
           </p>
 
-          {demandes.length === 0 && (
+          {demandesErreur && (
+            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 12, padding: '16px 18px', color: '#991B1B', fontSize: 13, lineHeight: 1.6 }}>
+              <strong>Les demandes n&apos;ont pas pu etre lues.</strong> Cet ecran ne dit donc rien sur leur nombre :
+              il peut y en avoir en attente. Detail technique : {demandesErreur}
+              <div style={{ marginTop: 10 }}>
+                <button onClick={fetchData} style={{ padding: '6px 14px', border: '1px solid #991B1B', color: '#991B1B', background: '#fff', borderRadius: 6, cursor: 'pointer', fontSize: 12.5, fontWeight: 600 }}>
+                  Reessayer
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!demandesErreur && demandes.length === 0 && (
             <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>
               Aucune demande pour le moment.
             </div>
