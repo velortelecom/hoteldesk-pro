@@ -27,7 +27,6 @@ export const PLAN_1_SOCLE = [
   { id: 'taches', label: 'Taches', icone: '✅', detail: 'Attribution et suivi des taches' },
   { id: 'messagerie', label: 'Messages', icone: '💬', detail: 'Messagerie interne' },
   { id: 'rappels', label: 'Rappels', icone: '🔔', detail: 'Rappels et echeances' },
-  { id: 'personnel', label: 'Equipe', icone: '👥', detail: 'Annuaire de l’equipe' },
 ]
 
 export const PLAN_1_MODULES_DETAIL = [
