@@ -12,7 +12,7 @@
 // =====================================================================
 
 export const PLAN_1_ID = 'starter'
-export const PLAN_1_LABEL = 'Plan 1 - Essentiel'
+export const PLAN_1_LABEL = 'Pack Starter'
 export const PLAN_1_PRIX_MENSUEL = 29
 export const PLAN_1_MAX_UTILISATEURS = 10
 
