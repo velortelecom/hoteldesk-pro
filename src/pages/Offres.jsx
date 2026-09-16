@@ -37,7 +37,7 @@ function Pastille({ children, bg, fg }) {
 }
 
 export default function Offres() {
-  const { profile, user } = useAuth()
+  const { profile, user, entrepriseId } = useAuth()
 
   // Le bloc "VOTRE PLAN" affichait PLAN_1_LABEL / 29 EUR / 10 utilisateurs en
   // dur : quel que soit le pack accorde par le Super Admin, le client lisait
@@ -45,12 +45,6 @@ export default function Offres() {
   // entreprises, et la liste des modules de ses modules reellement actifs.
   const { entreprise, getActiveModuleIds, loading: chargementModules } = useModules()
 
-  // useAuth n'expose que { user, profile, loading, signIn, signOut }.
-  // Cette page lisait un entrepriseId qui n'existait pas : il valait
-  // toujours undefined, la garde d'envoi retournait sans rien dire et le
-  // bouton "Envoyer la demande" ne faisait rien. L'entreprise se lit sur le
-  // profil, ce qui correspond exactement a get_my_entreprise_id() cote RLS.
-  const entrepriseId = profile?.entreprise_id || null
   const [demandes, setDemandes] = useState([])
   const [loading, setLoading] = useState(true)
   const [packOuvert, setPackOuvert] = useState(null)
