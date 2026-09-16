@@ -728,7 +728,7 @@ async function createEmploye(entrepriseId) {
                         </div>
                         <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 3 }}>
                           Créée le {e.created_at ? new Date(e.created_at).toLocaleDateString('fr-FR') : 'N/A'}
-                          {e.date_fin_abonnement && (' · Fin d'essai le ' + new Date(e.date_fin_abonnement).toLocaleDateString('fr-FR'))}
+                          {e.date_fin_abonnement && (" · Fin d'essai le " + new Date(e.date_fin_abonnement).toLocaleDateString('fr-FR'))}
                           {' · '}Dernière activité {lastActivityByEntreprise[e.id] ? new Date(lastActivityByEntreprise[e.id]).toLocaleString('fr-FR') : 'non disponible'}
                         </div>
                       </div>
