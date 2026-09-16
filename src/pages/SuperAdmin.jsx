@@ -23,6 +23,8 @@ import SuperAdminAssistance from './SuperAdminAssistance'
 import SuperAdminEnterpriseStructure from './SuperAdminEnterpriseStructure'
 import SuperAdminPlatformHealth from './SuperAdminPlatformHealth'
 import BlocAbonnement from '../components/BlocAbonnement'
+import SelecteurMenus from '../components/SelecteurMenus'
+import { definirMenusAutorises } from '../modules/organisation/services'
 
 const PLAN_COLORS = { starter: '#6B7280', business: '#3B82F6', premium: '#8B5CF6', enterprise: '#F59E0B' } 
 // Etat d'essai d'une entreprise, a partir de date_fin_abonnement.
@@ -101,6 +103,7 @@ export default function SuperAdmin() {
   const [showEmployeModal, setShowEmployeModal] = useState(false)
   const [employeModalEnt, setEmployeModalEnt] = useState(null)
     const [employeForm, setEmployeForm] = useState({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], site_id: '', actif: true })
+  const [employeMenus, setEmployeMenus] = useState([])
   const [employeSaving, setEmployeSaving] = useState(false)
   const [employeMsg, setEmployeMsg] = useState(null)
   const [employeSuccessInfo, setEmployeSuccessInfo] = useState(null)
@@ -698,8 +701,21 @@ async function createEmploye(entrepriseId) {
     setEmployeMsg(null)
     try {
       const result = await creerCompteMembre(entrepriseId, employeForm, employeForm.role || 'employe')
+
+      // La liste blanche se pose apres coup, comme cote client : l'edge
+      // function create-user ne la connait pas. Si ce second appel echoue,
+      // le compte existe quand meme -- on le signale sans le perdre.
+      if (result?.user_id && employeMenus.length > 0) {
+        try {
+          await definirMenusAutorises(result.user_id, employeMenus)
+        } catch (err) {
+          setEmployeMsg({ type: 'error', text: "Compte cree, mais les onglets visibles n'ont pas pu etre enregistres : " + (err.message || '') })
+        }
+      }
+
       setEmployeSuccessInfo({ email: result.email, password: result.temp_password, url: APP_URL, nom: employeForm.prenom + ' ' + employeForm.nom })
       setEmployeForm({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true })
+      setEmployeMenus([])
       await fetchData()
     } catch (err) {
       setEmployeMsg({ type: 'error', text: mapSuperAdminError(err, 'Impossible de créer l utilisateur.') })
@@ -837,7 +853,7 @@ async function createEmploye(entrepriseId) {
                       </button>
                                          <button onClick={() => { const w = expandedUsersEnt === e.id; setExpandedUsersEnt(w ? null : e.id); if (!w) fetchEntUsers(e.id) }} style={{ padding: '6px 12px', border: '1px solid #6366F1', color: '#6366F1', background: '#EEF2FF', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>👥 Utilisateurs</button>
                       <button onClick={() => { setAdminModalEnt(e); setAdminForm({ prenom: '', nom: '', email: '', telephone: '', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true }); setAdminMsg(null); setAdminSuccessInfo(null); fetchPostesEtDeps(e.id); setShowAdminModal(true) }} style={{ padding: '6px 12px', border: '1px solid #8B5CF6', color: '#8B5CF6', background: '#F5F3FF', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>+ Admin</button>
-                                         <button onClick={() => { setEmployeModalEnt(e); setEmployeForm({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true }); setEmployeMsg(null); setEmployeSuccessInfo(null); fetchPostesEtDeps(e.id); setShowEmployeModal(true) }} style={{ background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontSize: 12 }}>+ Employe</button>
+                                         <button onClick={() => { setEmployeModalEnt(e); setEmployeForm({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true }); setEmployeMsg(null); setEmployeSuccessInfo(null); setEmployeMenus([]); fetchPostesEtDeps(e.id); fetchEntModules(e.id); setShowEmployeModal(true) }} style={{ background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: 'pointer', fontSize: 12 }}>+ Employe</button>
                       <button onClick={() => setDeleteConfirm(e)} style={{ padding: '6px 12px', border: '1px solid #EF4444', color: '#EF4444', background: '#FEF2F2', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>🗑 Supprimer</button>
                     </div>
                     <BlocAbonnement ent={e} onFait={fetchData} />
@@ -917,7 +933,7 @@ async function createEmploye(entrepriseId) {
                       <div style={{ fontSize: 13, fontWeight: 700, color: '#4338CA' }}>👥 Utilisateurs ({(entUsers[e.id]?.admins.length||0) + (entUsers[e.id]?.employes.length||0)} au total)</div>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button onClick={() => { setAdminModalEnt(e); setAdminForm({ prenom: '', nom: '', email: '', telephone: '', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true }); setAdminMsg(null); setAdminSuccessInfo(null); fetchPostesEtDeps(e.id); setShowAdminModal(true) }} style={{ background: '#7C3AED', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>+ Admin</button>
-                        <button onClick={() => { setEmployeModalEnt(e); setEmployeForm({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true }); setEmployeMsg(null); setEmployeSuccessInfo(null); fetchPostesEtDeps(e.id); setShowEmployeModal(true) }} style={{ background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>+ Employé</button>
+                        <button onClick={() => { setEmployeModalEnt(e); setEmployeForm({ prenom: '', nom: '', email: '', telephone: '', role: 'employe', poste_id: '', poste_secondaire_id: '', departement_ids: [], actif: true }); setEmployeMsg(null); setEmployeSuccessInfo(null); setEmployeMenus([]); fetchPostesEtDeps(e.id); fetchEntModules(e.id); setShowEmployeModal(true) }} style={{ background: '#10B981', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>+ Employé</button>
                       </div>
                     </div>
                     {!entUsers[e.id] ? (
@@ -1336,6 +1352,14 @@ async function createEmploye(entrepriseId) {
                   })}
                   {(entDeps[employeModalEnt.id] || []).length === 0 && <span style={{ fontSize: 12, color: '#9CA3AF' }}>Aucun departement pour cette entreprise</span>}
                 </div>
+              </Field>
+              <Field label="Onglets visibles">
+                <SelecteurMenus
+                  valeur={employeMenus}
+                  onChange={setEmployeMenus}
+                  compact
+                  moduleIds={(entModules[employeModalEnt.id] || []).filter(m => m.actif).map(m => m.module_id)}
+                />
               </Field>
               <Field label="Statut">
                 <select value={employeForm.actif ? 'actif' : 'inactif'} onChange={e => setEmployeForm(f => ({ ...f, actif: e.target.value === 'actif' }))} style={inputStyle}>

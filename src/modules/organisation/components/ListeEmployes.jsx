@@ -5,9 +5,7 @@
 import React, { useState } from 'react';
 import { useEmployes, useDepartements, usePostes } from '../hooks.js';
 import { ROLE_COLORS } from '../config.js';
-import { SOCLE_MENUS } from '../../../lib/modules';
-import { getModuleById } from '../../registry';
-import { useModules } from '../../../hooks/useModules';
+import SelecteurMenus from '../../../components/SelecteurMenus';
 import { definirMenusAutorises } from '../services.js';
 
 const ROLE_LABELS = {
@@ -18,7 +16,7 @@ const ROLE_LABELS = {
 };
 
 export default function ListeEmployes({ entrepriseId, permissions, profile, onViewEmploye }) {
-  const { employes, loading, error, desactiver, reactiver, supprimer, reinitialiserMotDePasse, creer } = useEmployes(entrepriseId, { includeInactif: false });
+  const { employes, loading, error, desactiver, reactiver, supprimer, reinitialiserMotDePasse, creer, reload } = useEmployes(entrepriseId, { includeInactif: false });
   const { employes: tous } = useEmployes(entrepriseId, { includeInactif: true });
   const { departements } = useDepartements(entrepriseId);
   const { postes } = usePostes(entrepriseId);
@@ -68,6 +66,9 @@ export default function ListeEmployes({ entrepriseId, permissions, profile, onVi
       }
     });
   });
+
+  // Reglage des onglets d'un employe deja cree.
+  const [menusEmploye, setMenusEmploye] = useState(null);
 
   const handleCreer = async (payload) => {
     const result = await creer(payload);
@@ -213,6 +214,7 @@ export default function ListeEmployes({ entrepriseId, permissions, profile, onVi
               onDesactiver={() => desactiver(employe.id)}
               onReactiver={() => reactiver(employe.id)}
               onReinitialiser={() => handleReinitialiser(employe)}
+              onMenus={() => setMenusEmploye(employe)}
               onSupprimer={() => handleSupprimer(employe)}
             />
           ))}
@@ -239,6 +241,14 @@ export default function ListeEmployes({ entrepriseId, permissions, profile, onVi
         />
       )}
 
+      {menusEmploye && (
+        <ModalMenus
+          employe={menusEmploye}
+          onClose={() => setMenusEmploye(null)}
+          onEnregistre={() => { setMenusEmploye(null); reload(); }}
+        />
+      )}
+
       {creds && (
         <ModalCredentials creds={creds} onClose={() => setCreds(null)} />
       )}
@@ -246,7 +256,7 @@ export default function ListeEmployes({ entrepriseId, permissions, profile, onVi
   );
 }
 
-function EmployeCard({ employe, canManageSensible, onView, onDesactiver, onReactiver, onReinitialiser, onSupprimer }) {
+function EmployeCard({ employe, canManageSensible, onView, onDesactiver, onReactiver, onReinitialiser, onMenus, onSupprimer }) {
   const initiales = `${employe.prenom?.[0] || ''}${employe.nom?.[0] || ''}`.toUpperCase();
   const roleColor = ROLE_COLORS[employe.role] || '#6b7280';
   const depts = employe.employe_departements || [];
@@ -311,6 +321,11 @@ function EmployeCard({ employe, canManageSensible, onView, onDesactiver, onReact
         )}
         {canManageSensible && (
           <BoutonAction label="Reinit. mdp" bg="#fef3c7" text="#92400e" border="#fde68a" onClick={onReinitialiser} />
+        )}
+        {canManageSensible && (
+          <BoutonAction
+            label={(employe.menus_autorises && employe.menus_autorises.length > 0) ? 'Onglets (' + employe.menus_autorises.length + ')' : 'Onglets'}
+            bg="#eef2ff" text="#3730a3" border="#c7d2fe" onClick={onMenus} />
         )}
         {canManageSensible && (
           <BoutonAction label="Supprimer" bg="#fef2f2" text="#dc2626" border="#fecaca" onClick={onSupprimer} />
@@ -407,6 +422,58 @@ const LANGUES = [
   { value: 'ar', label: 'Arabe' },
 ];
 
+function ModalMenus({ employe, onClose, onEnregistre }) {
+  const [menus, setMenus] = useState(employe.menus_autorises || []);
+  const [saving, setSaving] = useState(false);
+  const [erreur, setErreur] = useState(null);
+
+  const enregistrer = async () => {
+    setSaving(true);
+    setErreur(null);
+    try {
+      await definirMenusAutorises(employe.id, menus);
+      onEnregistre();
+    } catch (err) {
+      // La RPC refuse plutot que d'ouvrir : on montre son motif tel quel.
+      setErreur(err.message || 'Enregistrement impossible.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+      <div style={{ background: 'white', borderRadius: '12px', padding: '1.5rem', width: '100%', maxWidth: '480px' }}>
+        <h3 style={{ margin: '0 0 0.25rem', fontSize: '1.0625rem', fontWeight: 700, color: '#111827' }}>
+          Onglets visibles
+        </h3>
+        <p style={{ fontSize: '0.8125rem', color: '#6b7280', margin: '0 0 1rem' }}>
+          {employe.prenom} {employe.nom}
+        </p>
+
+        <SelecteurMenus valeur={menus} onChange={setMenus} compact />
+
+        {erreur && (
+          <div style={{ marginTop: '0.75rem', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', borderRadius: '8px', padding: '0.5rem 0.75rem', fontSize: '0.75rem', lineHeight: 1.5 }}>
+            {erreur}
+          </div>
+        )}
+
+        <p style={{ fontSize: '0.6875rem', color: '#9ca3af', marginTop: '0.75rem', lineHeight: 1.5 }}>
+          Le changement s'applique au prochain chargement de page de la personne concernee.
+        </p>
+
+        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
+          <button onClick={onClose} disabled={saving} style={{ padding: '0.625rem 1.25rem', border: '1px solid #d1d5db', background: 'white', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem' }}>Annuler</button>
+          <button onClick={enregistrer} disabled={saving} style={{ padding: '0.625rem 1.25rem', border: 'none', background: '#6366f1', color: 'white', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
+            {saving ? 'Enregistrement...' : 'Enregistrer'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ModalCreation({ departements, postes, isSuperAdmin, onClose, onCreer }) {
   const [form, setForm] = useState({
     prenom: '', nom: '', telephone: '', email: '', langue: 'fr',
@@ -415,19 +482,6 @@ function ModalCreation({ departements, postes, isSuperAdmin, onClose, onCreer })
   // Liste blanche des onglets. Vide = aucune restriction : la personne voit
   // ce que son role et les modules de l'entreprise lui donnent.
   const [menusChoisis, setMenusChoisis] = useState([]);
-  const { getActiveModuleIds } = useModules();
-
-  const optionsMenus = [
-    ...SOCLE_MENUS.map(m => ({ id: m.id, label: m.label || m.nom })),
-    ...getActiveModuleIds()
-      .map(id => getModuleById(id))
-      .filter(Boolean)
-      .map(m => ({ id: m.id, label: m.nom })),
-  ].filter((m, i, tous) => tous.findIndex(x => x.id === m.id) === i);
-
-  const toggleMenu = (id) => {
-    setMenusChoisis(prev => prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]);
-  };
   const [selectedDepts, setSelectedDepts] = useState([]);
   const [saving, setSaving] = useState(false);
   const [erreur, setErreur] = useState(null);
@@ -502,37 +556,7 @@ function ModalCreation({ departements, postes, isSuperAdmin, onClose, onCreer })
           </div>
         </div>
         <div style={{ marginBottom: '1rem' }}>
-          <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: '#374151', marginBottom: '0.25rem' }}>
-            Onglets visibles
-          </div>
-          <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.5rem', lineHeight: 1.5 }}>
-            {menusChoisis.length === 0
-              ? 'Aucune coche : la personne voit tout ce que son role et votre offre autorisent.'
-              : 'Seuls les ' + menusChoisis.length + ' onglet(s) coche(s) lui seront visibles.'}
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.375rem' }}>
-            {optionsMenus.map(m => {
-              const choisi = menusChoisis.includes(m.id);
-              return (
-                <label key={m.id} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '0.375rem', cursor: 'pointer',
-                  fontSize: '0.75rem', padding: '0.25rem 0.625rem', borderRadius: '999px',
-                  border: '1px solid ' + (choisi ? '#6366f1' : '#e5e7eb'),
-                  background: choisi ? '#eef2ff' : '#fff',
-                  color: choisi ? '#3730a3' : '#6b7280',
-                }}>
-                  <input type="checkbox" checked={choisi} onChange={() => toggleMenu(m.id)} style={{ margin: 0 }} />
-                  {m.label}
-                </label>
-              );
-            })}
-          </div>
-          {menusChoisis.length > 0 && (
-            <button type="button" onClick={() => setMenusChoisis([])}
-              style={{ marginTop: '0.5rem', border: 'none', background: 'none', color: '#6366f1', cursor: 'pointer', fontSize: '0.75rem', padding: 0 }}>
-              Tout rendre visible
-            </button>
-          )}
+          <SelecteurMenus valeur={menusChoisis} onChange={setMenusChoisis} />
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', marginBottom: '1.25rem', cursor: 'pointer' }}>
           <input type="checkbox" checked={form.actif} onChange={e => setForm(f => ({ ...f, actif: e.target.checked }))} />
