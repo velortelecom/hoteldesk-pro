@@ -598,3 +598,39 @@ describe('accord entre la grille et la contrainte de la base', () => {
     expect(sqlPlan).toMatch(/UNION\s+SELECT DISTINCT e\.plan FROM public\.entreprises e/)
   })
 })
+
+// ---------------------------------------------------------------------
+// LE GRATUIT N'EST PAS UN ESSAI
+//
+// set_essai_14j posait 14 jours sur toute inscription publique. Depuis
+// que la formule gratuite passe par la meme porte, elle recevait elle
+// aussi une date de fin, puis basculait en lecture seule. La page
+// d'inscription annonce « gratuit » : sa limite est le nombre
+// d'utilisateurs, pas le temps.
+// ---------------------------------------------------------------------
+describe('le plan gratuit n expire pas', () => {
+  const ESSAI_SQL = path.join(
+    RACINE, 'supabase', 'migrations', '20260918_0001_gratuit_sans_essai.sql',
+  )
+
+  test('le trigger d essai exclut la formule gratuite', () => {
+    const essai = lire(ESSAI_SQL)
+    expect(essai).not.toBeNull()
+    expect(essai).toMatch(new RegExp("c_formule_gratuite\\s+constant\\s+text\\s*:=\\s*'" + OFFRE_GRATUITE + "'"))
+    expect(essai).toMatch(/coalesce\(new\.plan, ''\) <> c_formule_gratuite/)
+  })
+
+  test('le rattrapage ne touche QUE les entreprises gratuites', () => {
+    // Retirer sa date de fin a un client payant lui offrirait un
+    // abonnement illimite : la symetrie exacte du bug qu'on corrige.
+    const essai = lire(ESSAI_SQL)
+    expect(essai).toMatch(/UPDATE public\.entreprises[\s\S]{0,200}WHERE plan = 'gratuit'/)
+  })
+
+  test('la grille confirme que le gratuit se limite en utilisateurs, pas en duree', () => {
+    const g = getOffre(OFFRE_GRATUITE)
+    expect(g.prix).toBe(0)
+    expect(g.maxUtilisateurs).toBeGreaterThan(0)
+    expect(g.debordement).toBeNull()
+  })
+})
