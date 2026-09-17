@@ -11,6 +11,7 @@ import { BrandMark, APP_URL } from '../branding/Brand'
 import { buildCreationSlug, buildEditionForm } from './superAdminUtils'
 import { buildDependencyErrorMessage, buildEntrepriseUpdatePayload, diffModulesEntreprise, mapSuperAdminError } from './superAdminControlUtils'
 import { MODULES_DEVELOPPES } from '../lib/modulesDeveloppes'
+import { messageSuppressionMembre } from '../lib/erreurSuppressionMembre'
 import SelecteurPoste from '../components/SelecteurPoste'
 import { departementsApresChoixPoste } from '../lib/postesDepartements'
 import {
@@ -261,7 +262,7 @@ export default function SuperAdmin() {
       fetchEntUsers(entId)
       fetchData()
     } catch (err) {
-      setSuppressionErreur(mapSuperAdminError(err, buildDependencyErrorMessage(err)))
+      setSuppressionErreur(messageSuppressionMembre(err))
     } finally {
       setSuppressionEnCours(false)
     }

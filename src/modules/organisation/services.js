@@ -6,6 +6,7 @@
 
 import { supabase } from '../../lib/supabase.js';
 import { messageErreurEdge } from '../../lib/edgeErreur.js';
+import { messageSuppressionMembre } from '../../lib/erreurSuppressionMembre.js';
 import { normaliserPayloadProfil } from '../../lib/profilPayload.js';
 
 // ============================================================
@@ -204,12 +205,19 @@ export async function creerEmploye(entrepriseId, payload) {
   return data;
 }
 
+// Une seule voie de suppression pour toute l'application.
+//
+// Cet ecran appelait la fonction serveur delete-user, tandis que le Super
+// Admin appelait la fonction en base supprimer_membre_complet. Deux codes,
+// deux listes de nettoyage, deux facons d'echouer -- et de fait, elles ont
+// echoue separement, a un jour d'intervalle, pour des raisons differentes.
+//
+// On garde la fonction en base : elle fait tout en UNE transaction (donc
+// jamais de suppression a moitie faite), elle n'a pas de surface CORS, et
+// elle ne demande pas de deploiement separe.
 export async function supprimerEmploye(employeId) {
-  const { data, error } = await supabase.functions.invoke('delete-user', { body: { user_id: employeId } });
-  // invoke() ne rend que "non-2xx status code" : le motif reel est dans le
-  // corps de la reponse, qu'on va chercher.
-  if (error) throw new Error(await messageErreurEdge(error, 'Suppression impossible.'));
-  if (data && data.success === false) throw new Error(data.error || 'Suppression impossible.');
+  const { data, error } = await supabase.rpc('supprimer_membre_complet', { p_user_id: employeId });
+  if (error) throw new Error(messageSuppressionMembre(error));
   return data;
 }
 
