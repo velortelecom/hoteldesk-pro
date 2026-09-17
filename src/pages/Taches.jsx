@@ -242,7 +242,14 @@ export default function Taches() {
     fetchTaches()
   }
 
-  const canManage = profile?.role === 'admin' || profile?.role === 'responsable'
+  // Creer une tache n'etait offert qu'aux administrateurs et aux
+  // responsables sur cet ecran, alors que le planning l'ouvre a tout le
+  // monde : un employe devait passer par le calendrier pour faire ce que
+  // l'onglet Taches lui refusait. Deux ecrans, deux droits, sans raison.
+  //
+  // Ce qu'il peut en faire reste borne par la meme regle qu'ailleurs : sa
+  // tache n'est visible que par son destinataire, lui-meme et
+  // l'administrateur.
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center', color: '#6B7280' }}>Chargement...</div>
 
@@ -250,11 +257,9 @@ export default function Taches() {
     <div style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1F2937' }}>Taches</h1>
-        {canManage && (
-          <button onClick={openCreate} style={{ background: '#3B82F6', color: 'white', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 600, cursor: 'pointer' }}>
-            + Nouvelle tache
-          </button>
-        )}
+        <button onClick={openCreate} style={{ background: '#3B82F6', color: 'white', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 600, cursor: 'pointer' }}>
+          + Nouvelle tache
+        </button>
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
