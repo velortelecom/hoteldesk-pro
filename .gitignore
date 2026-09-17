@@ -5,6 +5,10 @@ build/
 supabase/.temp/
 .env
 .env.*
+# ... sauf le modele, qui ne contient aucun secret et doit voyager avec
+# le depot : sans lui, chaque nouveau poste redecouvre a ses frais que
+# les appels partent vers example.supabase.co.
+!.env.exemple
 *.local
 *.tmp
 .tmp*

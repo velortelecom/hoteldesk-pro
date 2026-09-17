@@ -1,7 +1,37 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || 'https://example.supabase.co'
-const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || 'example-anon-key'
+// ---------------------------------------------------------------------
+// CONFIGURATION -- et ce qui se passe quand elle manque.
+//
+// Le repli sur des valeurs d'exemple evite un plantage au demarrage, mais
+// il produit une application qui a l'air de fonctionner et dont AUCUN
+// appel n'aboutit : chaque requete part vers example.supabase.co. On a
+// perdu une soiree la-dessus -- le bandeau tarif fondateur n'apparaissait
+// pas, et on a cherche dans la base, dans les droits, dans le cache
+// PostgREST, avant de comprendre que le .env local n'existait pas.
+//
+// Le repli reste, mais il CRIE. Une configuration absente doit se voir a
+// la premiere seconde, pas apres trois heures de diagnostic.
+// ---------------------------------------------------------------------
+const URL_EXEMPLE = 'https://example.supabase.co'
+const CLE_EXEMPLE = 'example-anon-key'
+
+const supabaseUrl = process.env.REACT_APP_SUPABASE_URL || URL_EXEMPLE
+const supabaseAnonKey = process.env.REACT_APP_SUPABASE_ANON_KEY || CLE_EXEMPLE
+
+export const CONFIG_SUPABASE_MANQUANTE =
+  supabaseUrl === URL_EXEMPLE || supabaseAnonKey === CLE_EXEMPLE
+
+if (CONFIG_SUPABASE_MANQUANTE) {
+  console.error(
+    '[supabase] CONFIGURATION ABSENTE : '
+    + (supabaseUrl === URL_EXEMPLE ? 'REACT_APP_SUPABASE_URL ' : '')
+    + (supabaseAnonKey === CLE_EXEMPLE ? 'REACT_APP_SUPABASE_ANON_KEY ' : '')
+    + 'n\'est pas defini. Tous les appels a la base vont echouer. '
+    + 'Creez un fichier .env a la racine du projet, puis REDEMARREZ le serveur '
+    + '(les variables ne sont lues qu\'au demarrage, pas au rechargement a chaud).',
+  )
+}
 
 /**
  * Evenement emis quand la base refuse une ecriture parce que la periode
