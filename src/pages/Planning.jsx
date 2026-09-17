@@ -580,7 +580,12 @@ export default function Planning() {
                   Assigner a
                   <select value={quickForm.assigne_a} onChange={e => setQuickForm(f => ({ ...f, assigne_a: e.target.value }))}
                     style={{ width: '100%', marginTop: 3, padding: '8px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12, background: '#fff', boxSizing: 'border-box' }}>
-                    <option value="">Personne en particulier</option>
+                    {/* Le libelle suit le departement choisi juste au-dessus :
+                        sans destinataire, la tache revient a son departement,
+                        ou a toute l'entreprise s'il n'y en a pas. Dire
+                        "Personne" laissait croire que la tache n'irait a
+                        personne. */}
+                    <option value="">{quickForm.departement ? 'Tout le departement' : 'Tout le monde'}</option>
                     {profile?.id && <option value={profile.id}>Moi</option>}
                     {employes.filter(emp => emp.id !== profile?.id).map(emp => <option key={emp.id} value={emp.id}>{emp.prenom} {emp.nom}</option>)}
                   </select>
