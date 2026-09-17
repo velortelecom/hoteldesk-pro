@@ -6,47 +6,65 @@
 //   Le contenu des packs etait ecrit a QUATRE endroits : registry.js,
 //   plan1.js, plan1.ts et la RPC SQL d'inscription. Ils s'etaient deja
 //   contredits : le registre annoncait le pointage dans starter, les trois
-//   autres non. C'est la meme famille de bug que les departements
-//   code/nom et les deux chemins de suppression -- une regle ecrite en
-//   plusieurs endroits finit toujours par diverger.
+//   autres non. Desormais tout part d'ici, et offres.test.js relit les
+//   quatre sources pour casser le build en cas d'ecart.
 //
-//   Desormais tout part d'ici. Les autres fichiers s'y referent ou sont
-//   verifies contre lui par offres.test.js, qui casse le build en cas
-//   d'ecart.
+// UNE SEULE OFFRE PAYANTE, ET C'EST VOLONTAIRE
+//   Le registre declare 18 modules ; DEUX sont livrables (organisation,
+//   conges) et le pointage est en cours. Une grille a la carte affichant
+//   18 modules a 10 EUR annoncerait quinze choses qui n'existent pas --
+//   le meme mensonge que le badge "MODULE ACTIF" qu'on a retire et que
+//   l'ecran de corrections qui inventait des demandes.
+//   Donc : une offre, qui contient ce qui existe. La vente au module
+//   reviendra quand il y aura des modules a vendre.
 //
-// CHANGER UN PRIX
-//   Une seule ligne a modifier dans OFFRES. Rien d'autre.
-//
-// LA REGLE DES OPTIONS (pourquoi 20 EUR et pas 15)
-//   Un module Premium s'achete a l'unite depuis n'importe quel pack. Le
-//   prix de l'option doit valoir environ le quart de l'ecart entre
-//   Business et Premium, pour que le 4e module rende Premium moins cher
-//   TOUT SEUL. Le client calcule et monte de lui-meme : il n'y a rien a
-//   vendre.
-//     ecart Business -> Premium = 129 - 49 = 80 EUR
-//     option = 20 EUR  ->  4 options = 80 EUR  ->  bascule au 4e module
-//   A 15 EUR il aurait fallu SIX modules pour justifier Premium : le pack
-//   Premium ne se serait plus jamais vendu.
+// L'IDENTIFIANT RESTE 'starter'
+//   Le nom commercial est "Velor One", mais l'id ne change pas : il est
+//   ecrit dans entreprises.plan, dans la RPC d'inscription et dans le
+//   trigger d'essai 14 jours. Renommer l'id imposerait une migration de
+//   donnees pour ne gagner qu'un mot.
 // =====================================================================
 
-/** Prix mensuel d'un module Premium achete a l'unite, hors pack. */
-export const PRIX_OPTION_MENSUEL = 20
+/** Prix public de l'offre, par mois. */
+export const PRIX_STANDARD = 39
 
 /**
- * Les offres, de la moins chere a la plus chere.
+ * TARIF FONDATEUR
  *
- *   prix            null = tarif sur devis
- *   maxUtilisateurs null = illimite
- *   debordement     prix par utilisateur AU-DELA du plafond, null = pas de
- *                   debordement (on ne peut pas depasser)
- *   modules         ce qui est INCLUS D'OFFICE dans ce pack, en plus de
- *                   tout ce que contiennent les packs inferieurs
+ * Les premieres entreprises entrent a 29 EUR et gardent ce prix A VIE.
  *
- * Le debordement remplace les plafonds durs. Avant, embaucher le 11e
- * salarie faisait passer la facture de 29 a 79 EUR : le client ne montait
- * pas de pack, il ne creait pas de compte pour le 11e. Un salarie sans
- * compte n'a pas de pointage, donc le decompte legal devient faux -- la
- * grille tarifaire sabotait la conformite qu'elle vendait.
+ * Ce n'est pas une promotion : c'est ce qui rend honnete de vendre
+ * aujourd'hui un produit dont le pointage n'est pas fini. Elles prennent
+ * un risque, elles gardent le prix.
+ *
+ * Le blocage a vie ne demande aucun mecanisme : le prix est ecrit dans
+ * entreprises.prix_mensuel a la souscription, et l'ecran Offres lit
+ * TOUJOURS cette colonne en priorite sur la grille. Changer PRIX_STANDARD
+ * demain ne touchera donc aucune entreprise existante -- un test le
+ * verifie.
+ */
+export const TARIF_FONDATEUR = 29
+export const FONDATEURS_MAX = 10
+
+/** Utilisateurs compris dans le forfait, puis prix de l'utilisateur en plus. */
+export const UTILISATEURS_INCLUS = 10
+export const PRIX_UTILISATEUR_SUP = 2
+
+/**
+ * PLAFOND DU FORFAIT.
+ * Au-dela, on ne facture plus au forfait : on etablit un devis. Le
+ * debordement sert a absorber une embauche, pas a tarifer une ETI.
+ */
+export const PLAFOND_FORFAIT = 30
+
+/**
+ * Les offres.
+ *
+ *   vendu   false = plus commercialisee. On la garde parce que des
+ *           entreprises la portent peut-etre encore dans entreprises.plan :
+ *           la supprimer ferait afficher un plan inconnu a leur ecran.
+ *   modules ce que l'offre AJOUTE aux offres inferieures, jamais la liste
+ *           complete -- sinon on recree la duplication qu'on a supprimee.
  */
 export const OFFRES = [
   {
@@ -56,102 +74,72 @@ export const OFFRES = [
     prix: 0,
     maxUtilisateurs: 3,
     debordement: null,
+    vendu: true,
     modules: ['organisation'],
-    resume: 'Pour demarrer : organiser son equipe, sans carte bancaire',
+    resume: 'Organiser son equipe, sans carte bancaire et sans limite de duree',
   },
   {
     id: 'starter',
-    nom: 'Starter',
-    couleur: '#6B7280',
-    prix: 29,
-    maxUtilisateurs: 10,
-    debordement: 2,
-    modules: ['conges'],
-    resume: 'Organisation et conges pour une petite structure',
+    nom: 'Velor One',
+    couleur: '#185FA5',
+    prix: PRIX_STANDARD,
+    maxUtilisateurs: UTILISATEURS_INCLUS,
+    debordement: PRIX_UTILISATEUR_SUP,
+    vendu: true,
+    // Uniquement ce qui est reellement developpe. Le jour ou un module
+    // sort de l'etat de squelette, il se deplace ici -- et le test de
+    // coherence avec le registre echouera tant que ce n'est pas fait
+    // des deux cotes.
+    modules: ['conges', 'pointage'],
+    resume: 'Le decompte du temps de travail conforme, les conges et tout le socle',
   },
+  // --- Anciens packs : conserves pour l'affichage, plus commercialises ---
   {
     id: 'business',
     nom: 'Business',
     couleur: '#3B82F6',
-    prix: 49,
-    maxUtilisateurs: 25,
-    debordement: 2,
-    modules: ['pointage', 'documents', 'rapports', 'facturation', 'clients', 'vehicules', 'stocks', 'reservations'],
-    resume: 'Le decompte du temps de travail conforme, et la gestion complete',
+    prix: null,
+    maxUtilisateurs: null,
+    debordement: null,
+    vendu: false,
+    modules: ['documents', 'rapports', 'facturation', 'clients', 'vehicules', 'stocks', 'reservations'],
+    resume: 'Ancienne formule, remplacee par Velor One',
   },
   {
     id: 'premium',
     nom: 'Premium',
     couleur: '#8B5CF6',
-    prix: 129,
-    maxUtilisateurs: 30,
-    // Plafond DUR, volontairement. Au-dela de 30 utilisateurs on ne
-    // facture plus au forfait : on etablit un devis. A cette taille le
-    // client a des besoins qu'aucune grille ne devine (SSO, integration
-    // paie, engagement de service), et un debordement automatique
-    // l'enfermerait dans un tarif decide sans lui parler.
-    //
-    // A NOTER : le Business deborde jusqu'a ce meme plafond (49 + 2 x 5 =
-    // 59 EUR a 30 utilisateurs), donc il reste toujours moins cher que le
-    // Premium. C'est voulu : le Premium n'est PAS un pack de volume, c'est
-    // un pack de fonctionnalites. On y monte pour le terrain et le
-    // multi-sites, jamais parce qu'on a embauche.
+    prix: null,
+    maxUtilisateurs: null,
     debordement: null,
+    vendu: false,
     modules: ['gps', 'qualite', 'formations', 'securite', 'planning_avance', 'multi_sites'],
-    resume: 'Equipes sur le terrain, multi-sites et qualite',
+    resume: 'Ancienne formule, remplacee par Velor One',
   },
   {
     id: 'enterprise',
-    nom: 'Enterprise',
+    nom: 'Sur mesure',
     couleur: '#F59E0B',
     prix: null,
     maxUtilisateurs: null,
     debordement: null,
+    vendu: true,
     modules: ['api', 'white_label', 'ia'],
-    resume: 'Au-dela de 100 utilisateurs, ou sur mesure : integrations, marque blanche, assistant IA',
+    resume: 'Au-dela de ' + PLAFOND_FORFAIT + ' salaries, ou besoins specifiques : nous en parlons',
   },
 ]
 
 /** Identifiants des offres, du moins cher au plus cher. */
 export const ORDRE_OFFRES = OFFRES.map(o => o.id)
 
-/**
- * PLAFOND GLOBAL DU FORFAIT.
- *
- * Au-dela de cet effectif, AUCUNE formule ne se facture au forfait, quel
- * que soit le pack : on etablit un devis.
- *
- * Ce plafond est global et pas seulement celui du Premium, parce que les
- * packs inferieurs debordent. Sans lui, un client de 300 salaries pouvait
- * rester sur Business a 49 + 2 x 275 = 599 EUR, decides par une formule,
- * sans que personne ne lui ait jamais parle. Le debordement est fait pour
- * absorber une embauche, pas pour tarifer une ETI.
- *
- * La grille publiee s'arrete donc a 30 salaries. C'est un choix de methode
- * de vente : au-dela, on decroche le telephone. L'obligation legale de
- * decompte mord surtout entre 15 et 50 salaries, donc une partie de la
- * cible passe par un devis -- avec l'avantage de fixer le prix en
- * connaissant le client.
- */
-export const PLAFOND_FORFAIT = OFFRES
-  .filter(o => o.prix != null && o.maxUtilisateurs != null)
-  .reduce((max, o) => Math.max(max, o.maxUtilisateurs), 0)
+/** Les offres reellement proposees a la vente aujourd'hui. */
+export const OFFRES_VENDUES = OFFRES.filter(o => o.vendu)
 
 /** L'offre creee par l'inscription publique. */
 export const OFFRE_INSCRIPTION = 'starter'
 
 /** L'offre vers laquelle on retombe quand rien n'est paye. */
 export const OFFRE_GRATUITE = 'gratuit'
-
-/**
- * Les modules achetables a l'unite : ceux du pack Premium.
- *
- * Volontairement PAS ceux de Business. L'ecart Starter -> Business n'est
- * que de 20 EUR pour huit modules : une option a 20 EUR couterait le prix
- * du pack entier. Donc Starter -> Business est une decision de pack,
- * Business -> Premium s'achete au detail.
- */
-export const MODULES_OPTIONNELS = (OFFRES.find(o => o.id === 'premium') || {}).modules || []
 
 export function getOffre(id) {
   return OFFRES.find(o => o.id === id) || null
@@ -164,9 +152,7 @@ export function rangOffre(id) {
 
 /**
  * Tous les modules inclus d'office dans une offre : les siens PLUS ceux
- * de toutes les offres inferieures. Un pack ne reprend jamais la liste
- * de celui d'en dessous, sinon on recree la duplication qu'on vient de
- * supprimer.
+ * des offres inferieures.
  */
 export function modulesInclus(offreId) {
   const rang = rangOffre(offreId)
@@ -179,77 +165,46 @@ export function modulesInclus(offreId) {
 }
 
 /**
- * Prix mensuel reel, debordement compris.
- * Retourne null pour une offre sur devis.
+ * Prix a la souscription, selon le nombre d'entreprises fondatrices deja
+ * entrees. Retourne { prix, fondateur, restants }.
+ *
+ * Le comptage se fait cote SERVEUR (RPC d'inscription) : cette fonction
+ * sert a l'affichage. Le navigateur ne decide jamais d'un prix.
  */
-export function prixMensuel(offreId, nbUtilisateurs = 0) {
+export function prixSouscription(nbFondateurs = 0) {
+  const restants = Math.max(0, FONDATEURS_MAX - nbFondateurs)
+  return restants > 0
+    ? { prix: TARIF_FONDATEUR, fondateur: true, restants }
+    : { prix: PRIX_STANDARD, fondateur: false, restants: 0 }
+}
+
+/**
+ * Prix mensuel d'une offre pour un effectif donne.
+ * Retourne null quand il n'y a pas de tarif au forfait : offre sur devis,
+ * ancienne formule, ou effectif au-dela du plafond.
+ *
+ * prixBase permet de calculer avec le prix REEL de l'entreprise (celui
+ * stocke dans entreprises.prix_mensuel) plutot qu'avec le prix public --
+ * c'est ce qui fait tenir le tarif fondateur dans le temps.
+ */
+export function prixMensuel(offreId, nbUtilisateurs = 0, prixBase = null) {
   const offre = getOffre(offreId)
-  if (!offre || offre.prix == null) return null
-  // Au-dela du plafond global, plus aucun tarif au forfait : c'est un devis.
+  if (!offre) return null
+
+  const base = prixBase != null ? prixBase : offre.prix
+  if (base == null) return null
   if (nbUtilisateurs > PLAFOND_FORFAIT) return null
-  if (offre.maxUtilisateurs == null) return offre.prix
+  if (offre.maxUtilisateurs == null) return base
 
   const surplus = Math.max(0, nbUtilisateurs - offre.maxUtilisateurs)
-  if (surplus === 0) return offre.prix
-  // Pas de debordement prevu : le plafond est dur, le prix ne bouge pas.
-  // C'est a l'appelant de refuser l'utilisateur en trop.
-  if (offre.debordement == null) return offre.prix
-  return offre.prix + surplus * offre.debordement
+  if (surplus === 0) return base
+  // Plafond dur (le plan gratuit) : le prix ne bouge pas, c'est a
+  // l'appelant de refuser l'utilisateur en trop.
+  if (offre.debordement == null) return base
+  return base + surplus * offre.debordement
 }
 
-/**
- * L'offre la moins chere qui accepte cet effectif et contient ces
- * modules. Sert a proposer au client ce qu'il a interet a prendre --
- * y compris a lui dire de redescendre.
- *
- * Retourne { offreId, prix, options }, ou NULL quand aucune formule au
- * forfait ne convient : c'est le cas au-dela de 100 utilisateurs, ou pour
- * un module qui n'existe que dans Enterprise. null ne veut pas dire
- * "erreur", il veut dire DEVIS -- utiliser necessiteDevis() pour le dire
- * clairement a l'ecran plutot que d'afficher un prix vide.
- */
-export function meilleureOffre(nbUtilisateurs, modulesVoulus = []) {
-  let meilleure = null
-
-  for (const offre of OFFRES) {
-    if (offre.prix == null) continue
-    // Plafond dur : cette offre ne peut pas accueillir l'effectif.
-    if (offre.debordement == null && offre.maxUtilisateurs != null && nbUtilisateurs > offre.maxUtilisateurs) continue
-
-    const inclus = modulesInclus(offre.id)
-    const manquants = modulesVoulus.filter(id => !inclus.includes(id))
-    // Un module manquant ne s'achete en option que s'il est optionnel.
-    if (manquants.some(id => !MODULES_OPTIONNELS.includes(id))) continue
-
-    const forfait = prixMensuel(offre.id, nbUtilisateurs)
-    // null = au-dela du plafond global, donc devis : cette offre ne compte pas.
-    if (forfait == null) continue
-
-    const prix = forfait + manquants.length * PRIX_OPTION_MENSUEL
-
-    // A PRIX EGAL, on recommande le pack qui demande le MOINS d'options.
-    // Le 4e module coute exactement l'ecart Business -> Premium : les deux
-    // chemins reviennent au meme prix, mais le pack inclut le module au
-    // lieu de le facturer a cote. Sans cette regle, on conseillerait au
-    // client de payer quatre options plutot que de monter de pack -- et le
-    // pack Premium ne se vendrait jamais.
-    const mieux = !meilleure
-      || prix < meilleure.prix
-      || (prix === meilleure.prix && manquants.length < meilleure.options.length)
-
-    if (mieux) {
-      meilleure = { offreId: offre.id, prix, options: manquants }
-    }
-  }
-
-  return meilleure
+/** Vrai quand aucun tarif au forfait ne s'applique : il faut un devis. */
+export function necessiteDevis(nbUtilisateurs) {
+  return nbUtilisateurs > PLAFOND_FORFAIT
 }
-
-/**
- * Vrai quand aucune formule au forfait ne peut servir ce client : il faut
- * passer par un devis. C'est le pendant lisible de meilleureOffre() === null.
- */
-export function necessiteDevis(nbUtilisateurs, modulesVoulus = []) {
-  return meilleureOffre(nbUtilisateurs, modulesVoulus) === null
-}
-

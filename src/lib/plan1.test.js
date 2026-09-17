@@ -8,9 +8,11 @@ import {
 } from './plan1'
 import { MODULES_REGISTRY, getModuleById } from '../modules/registry'
 import { SOCLE_MENUS } from './modules'
-
-// Modules effectivement developpes (dossier dedie sous src/modules/).
-const MODULES_DEVELOPPES = ['organisation', 'conges']
+// La liste des modules developpes etait RECOPIEE ici, et elle avait deja
+// diverge de src/lib/modulesDeveloppes.js (qui compte le pointage, pas
+// celle-ci). Meme famille de bug que les quatre definitions de packs :
+// on importe la source, on ne la duplique plus.
+import { MODULES_DEVELOPPES } from './modulesDeveloppes'
 
 test('le Plan 1 est le plan starter', () => {
   expect(PLAN_1_ID).toBe('starter')

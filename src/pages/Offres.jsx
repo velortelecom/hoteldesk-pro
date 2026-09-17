@@ -19,7 +19,7 @@ import {
   PLAN_1_LABEL, PLAN_1_PRIX_MENSUEL, PLAN_1_MAX_UTILISATEURS,
   PLAN_1_SOCLE, PLAN_1_MODULES_DETAIL, STATUT_SUR_DEMANDE,
 } from '../lib/plan1'
-import { OFFRES, PRIX_OPTION_MENSUEL, MODULES_OPTIONNELS, PLAFOND_FORFAIT } from '../lib/offres'
+import { OFFRES_VENDUES, PLAFOND_FORFAIT, TARIF_FONDATEUR } from '../lib/offres'
 
 const STATUT_LABEL = {
   nouvelle: { texte: 'Demande envoyee', bg: '#EEF2FF', fg: '#3730A3' },
@@ -64,6 +64,14 @@ export default function Offres() {
   const planPrix = entreprise?.prix_mensuel != null ? entreprise.prix_mensuel : (planInfo?.prix != null ? planInfo.prix : PLAN_1_PRIX_MENSUEL)
   const planMaxUsers = entreprise?.max_utilisateurs != null ? entreprise.max_utilisateurs : (planInfo?.max_utilisateurs != null ? planInfo.max_utilisateurs : PLAN_1_MAX_UTILISATEURS)
 
+  // Tarif fondateur : les premieres entreprises gardent leur prix a vie.
+  // On ne stocke aucun indicateur pour ca -- le prix fige dans la ligne
+  // entreprises SUFFIT, puisque l'affichage le lit en priorite sur la
+  // grille. Si un jour PRIX_STANDARD change, cette entreprise ne bouge pas.
+  const estFondateur = planId === 'starter'
+    && entreprise?.prix_mensuel != null
+    && Number(entreprise.prix_mensuel) === TARIF_FONDATEUR
+
   // Modules reellement actifs, presentes avec le libelle du registre. On
   // retombe sur la liste Plan 1 tant que les modules n'ont pas fini de
   // charger, pour ne pas faire clignoter un encart vide.
@@ -83,7 +91,7 @@ export default function Offres() {
   // reconstituee ici a partir de PACKS_SUPERIEURS avec un cas particulier
   // pour le Plan 1 -- ce qui a cesse de fonctionner des qu'une formule est
   // apparue EN DESSOUS du Starter.
-  const formules = OFFRES.map(offre => ({
+  const formules = OFFRES_VENDUES.map(offre => ({
     id: offre.id,
     nom: offre.id === 'starter' ? PLAN_1_LABEL : offre.nom,
     couleur: offre.couleur,
@@ -189,9 +197,14 @@ export default function Offres() {
               {planMaxUsers != null ? ' \u00b7 jusqu\u2019a ' + planMaxUsers + ' utilisateurs' : ' \u00b7 utilisateurs illimites'}
             </div>
           </div>
-          {finProche && finProche.niveau === 'expire'
-            ? <Pastille bg="#FEF2F2" fg="#991B1B">Lecture seule</Pastille>
-            : <Pastille bg="#ECFDF5" fg="#065F46">Actif</Pastille>}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {/* Le tarif fondateur se lit sur le prix REEL de l'entreprise, pas
+                sur la grille : c'est justement ce qui le rend permanent. */}
+            {estFondateur && <Pastille bg="#FEF3C7" fg="#92400E">Tarif fondateur</Pastille>}
+            {finProche && finProche.niveau === 'expire'
+              ? <Pastille bg="#FEF2F2" fg="#991B1B">Lecture seule</Pastille>
+              : <Pastille bg="#ECFDF5" fg="#065F46">Actif</Pastille>}
+          </div>
         </div>
 
         {finProche && (
@@ -331,34 +344,6 @@ export default function Offres() {
             </div>
           )
         })}
-      </div>
-
-      {/* OPTIONS A L'UNITE */}
-      <div style={{ ...carte, marginBottom: 24, borderLeft: '3px solid #8B5CF6' }}>
-        <h3 style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginTop: 0, marginBottom: 6 }}>
-          Un seul module vous manque ?
-        </h3>
-        <p style={{ fontSize: 12.5, color: '#6B7280', margin: '0 0 12px', lineHeight: 1.6 }}>
-          Les modules du Pack Premium s&apos;ajoutent a l&apos;unite a votre formule actuelle, pour{' '}
-          <strong style={{ color: '#111827' }}>{PRIX_OPTION_MENSUEL} &euro; par mois chacun</strong>.
-          Inutile de changer de pack pour un seul besoin. A partir de quatre modules, le Pack Premium
-          revient moins cher : nous vous le dirons.
-        </p>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {MODULES_OPTIONNELS.map(id => {
-            const mod = getModuleById(id)
-            if (!mod) return null
-            return (
-              <span key={id} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                border: '1px solid #E5E7EB', borderRadius: 8, padding: '3px 9px',
-                fontSize: 11.5, color: '#6B7280', background: '#FAFAFA',
-              }}>
-                <span>{mod.icone}</span>{mod.nom}
-              </span>
-            )
-          })}
-        </div>
       </div>
 
       {/* HISTORIQUE */}

@@ -13,12 +13,30 @@
 // Les 16 autres modules du registre sont des squelettes : jamais actives ici.
 // =====================================================================
 
+// L'identifiant reste 'starter' : il est ecrit dans entreprises.plan, dans
+// la RPC d'inscription et dans le trigger d'essai 14 jours. Seul le nom
+// commercial change.
 export const PLAN_1_ID = 'starter';
-export const PLAN_1_LABEL = 'Pack Starter';
-export const PLAN_1_PRIX_MENSUEL = 29;
+export const PLAN_1_LABEL = 'Velor One';
+export const PLAN_1_PRIX_MENSUEL = 39;
 export const PLAN_1_MAX_UTILISATEURS = 10;
-export const PLAN_1_MODULES: readonly string[] = ['organisation', 'conges'];
+export const PLAN_1_MODULES: readonly string[] = ['organisation', 'conges', 'pointage'];
 export const PLAN_1_ROLE_ADMIN = 'admin';
+
+// --- Utilisateur supplementaire --------------------------------------
+// Au-dela du forfait, chaque utilisateur coute ce montant. Remplace le
+// plafond dur : un plafond poussait le client a ne PAS creer le compte du
+// salarie en trop, ce qui rendait son decompte legal incomplet.
+export const PRIX_UTILISATEUR_SUP = 2;
+export const PLAFOND_FORFAIT = 30;   // au-dela : devis
+
+// --- Tarif fondateur --------------------------------------------------
+// Les PREMIERES entreprises entrent a 29 EUR et gardent ce prix a vie.
+// Le comptage se fait en SQL dans la RPC d'inscription : le navigateur ne
+// decide jamais d'un prix. Le blocage a vie ne demande aucun mecanisme,
+// puisque le prix est fige dans entreprises.prix_mensuel a la creation.
+export const TARIF_FONDATEUR = 29;
+export const FONDATEURS_MAX = 10;
 
 // --- Plan Gratuit -----------------------------------------------------
 // Ajoute le 17/09/2026. Ce n'est PAS le plan de l'inscription publique :
@@ -36,11 +54,10 @@ export const PLAN_GRATUIT_PRIX_MENSUEL = 0;
 export const PLAN_GRATUIT_MAX_UTILISATEURS = 3;
 export const PLAN_GRATUIT_MODULES: readonly string[] = ['organisation'];
 
-// --- Options ----------------------------------------------------------
-// Un module Premium achete a l'unite depuis n'importe quel pack. Le prix
-// vaut le quart de l'ecart Business -> Premium, pour que le 4e module rende
-// Premium moins cher tout seul.
-export const PRIX_OPTION_MENSUEL = 20;
+// Les options a l'unite ont ete retirees le 17/09/2026 en meme temps que
+// les packs : avec DEUX modules livrables, une liste d'options aurait
+// annonce quinze choses qui n'existent pas. Elles reviendront quand il y
+// aura des modules a vendre.
 
 // --- Anti-abus de l'inscription publique -----------------------------
 export const ANTI_ABUS = {

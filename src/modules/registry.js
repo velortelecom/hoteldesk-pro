@@ -62,11 +62,10 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true, creer: true, modifier: true, supprimer: false, exporter: true, valider: true, administrer: false },
       admin: { voir: true, creer: true, modifier: true, supprimer: true, exporter: true, valider: true, administrer: true },
     },
-    // Le pointage QUITTE le plan Starter : c'est le module qui justifie le
-    // passage a Business. Il repond a une obligation legale (decompte
-    // quotidien, art. D.3171-8) qui ne se declenche qu'au-dela d'une
-    // dizaine de salaries -- exactement la cible Business.
-    dependances: [], plans: ['business', 'premium', 'enterprise'],
+    // Le pointage est DANS l'offre Velor One : c'est ce qu'elle vend.
+    // Il repond a une obligation legale (decompte quotidien, art.
+    // D.3171-8) que la concurrence ne couvre qu'en surface.
+    dependances: [], plans: ['starter', 'business', 'premium', 'enterprise'],
     templates: ['hotel', 'restaurant', 'pharmacie', 'commerce', 'mairie', 'ehpad'],
     ordre: 10,
     categorie: 'rh',
