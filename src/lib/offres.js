@@ -84,15 +84,15 @@ export const OFFRES = [
     nom: 'Premium',
     couleur: '#8B5CF6',
     prix: 129,
-    maxUtilisateurs: 50,
-    // Plafond DUR, volontairement. Au-dela de 50 utilisateurs on ne
+    maxUtilisateurs: 30,
+    // Plafond DUR, volontairement. Au-dela de 30 utilisateurs on ne
     // facture plus au forfait : on etablit un devis. A cette taille le
     // client a des besoins qu'aucune grille ne devine (SSO, integration
     // paie, engagement de service), et un debordement automatique
     // l'enfermerait dans un tarif decide sans lui parler.
     //
-    // A NOTER : le Business deborde jusqu'a ce meme plafond (49 + 2 x 25 =
-    // 99 EUR a 50 utilisateurs), donc il reste toujours moins cher que le
+    // A NOTER : le Business deborde jusqu'a ce meme plafond (49 + 2 x 5 =
+    // 59 EUR a 30 utilisateurs), donc il reste toujours moins cher que le
     // Premium. C'est voulu : le Premium n'est PAS un pack de volume, c'est
     // un pack de fonctionnalites. On y monte pour le terrain et le
     // multi-sites, jamais parce qu'on a embauche.
@@ -126,6 +126,12 @@ export const ORDRE_OFFRES = OFFRES.map(o => o.id)
  * rester sur Business a 49 + 2 x 275 = 599 EUR, decides par une formule,
  * sans que personne ne lui ait jamais parle. Le debordement est fait pour
  * absorber une embauche, pas pour tarifer une ETI.
+ *
+ * La grille publiee s'arrete donc a 30 salaries. C'est un choix de methode
+ * de vente : au-dela, on decroche le telephone. L'obligation legale de
+ * decompte mord surtout entre 15 et 50 salaries, donc une partie de la
+ * cible passe par un devis -- avec l'avantage de fixer le prix en
+ * connaissant le client.
  */
 export const PLAFOND_FORFAIT = OFFRES
   .filter(o => o.prix != null && o.maxUtilisateurs != null)
