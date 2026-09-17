@@ -73,13 +73,49 @@ export default function Planning() {
   const userRole = profile?.role || 'employe'
   const userDept = profile?.departement || ''
 
-  // Load employes
+  // Les personnes a qui l'on peut confier une tache.
+  //
+  // Cette lecture ne se faisait qu'au TOUT PREMIER rendu (dependances
+  // vides), or le profil n'est pas encore charge a ce moment-la. Le role
+  // valait donc "employe" par defaut, la requete filtrait sur un
+  // identifiant indefini, et la liste restait vide POUR TOUJOURS -- y
+  // compris pour un administrateur. D'ou un menu "Assigner a" qui ne
+  // proposait que "Moi".
+  //
+  // Elle se rejoue maintenant des que le profil est connu, et l'erreur
+  // n'est plus avalee.
   useEffect(() => {
-    const q = supabase.from('profiles').select('id,nom,prenom,couleur,avatar_initiales,departement').eq('actif', true)
-    if (userRole === 'responsable') q.eq('departement', userDept)
-    else if (userRole === 'employe') q.eq('id', profile?.id)
-    q.then(({ data }) => setEmployes(data || []))
-  }, [])
+    if (!profile?.id) return
+    let annule = false
+
+    async function chargerEmployes() {
+      let q = supabase.from('profiles')
+        .select('id,nom,prenom,couleur,avatar_initiales,departement')
+        .eq('actif', true)
+        .order('nom')
+
+      if (profile.entreprise_id) q = q.eq('entreprise_id', profile.entreprise_id)
+
+      // Un responsable ne confie qu'a son equipe, un employe qu'a lui-meme.
+      // Le filtre du responsable s'appuie encore sur l'ancienne etiquette
+      // profiles.departement : quand elle est vide, on ne restreint pas
+      // plutot que de lui rendre une liste vide.
+      if (userRole === 'responsable' && userDept) q = q.eq('departement', userDept)
+      else if (userRole === 'employe') q = q.eq('id', profile.id)
+
+      const { data, error } = await q
+      if (annule) return
+      if (error) {
+        setEmployes([])
+        setQuickErreur("La liste des employes n'a pas pu etre lue : " + (error.message || ''))
+        return
+      }
+      setEmployes(data || [])
+    }
+
+    chargerEmployes()
+    return () => { annule = true }
+  }, [profile?.id, profile?.entreprise_id, userRole, userDept])
 
   // Les taches du mois affiche.
   //
