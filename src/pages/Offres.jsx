@@ -19,7 +19,8 @@ import {
   PLAN_1_LABEL, PLAN_1_PRIX_MENSUEL, PLAN_1_MAX_UTILISATEURS,
   PLAN_1_SOCLE, PLAN_1_MODULES_DETAIL, STATUT_SUR_DEMANDE,
 } from '../lib/plan1'
-import { OFFRES_VENDUES, PLAFOND_FORFAIT, TARIF_FONDATEUR } from '../lib/offres'
+import { OFFRES_VENDUES, PLAFOND_FORFAIT, PRIX_UTILISATEUR_SUP, TARIF_FONDATEUR } from '../lib/offres'
+import useEtatFacturation from '../hooks/useEtatFacturation'
 
 const STATUT_LABEL = {
   nouvelle: { texte: 'Demande envoyee', bg: '#EEF2FF', fg: '#3730A3' },
@@ -71,6 +72,20 @@ export default function Offres() {
   const estFondateur = planId === 'starter'
     && entreprise?.prix_mensuel != null
     && Number(entreprise.prix_mensuel) === TARIF_FONDATEUR
+
+  // CE QUI EST REELLEMENT FACTURE CE MOIS-CI.
+  //
+  // Le prix du plan (planPrix) est le prix du FORFAIT. Il ne dit rien de
+  // l'effectif reel : une entreprise a 39 EUR qui compte 13 comptes actifs
+  // doit 43 EUR. Tant que personne n'affichait ce montant, le client
+  // decouvrait le supplement sur sa facture -- la pire facon de l'annoncer.
+  //
+  // La source est la base, pas un comptage local : c'est la MEME fonction
+  // qui etablit les releves factures.
+  const { etat: facturation } = useEtatFacturation(entrepriseId)
+  const debordementActif = facturation != null
+    && Number(facturation.surplus || 0) > 0
+    && Number(facturation.supplement || 0) > 0
 
   // Modules reellement actifs, presentes avec le libelle du registre. On
   // retombe sur la liste Plan 1 tant que les modules n'ont pas fini de
@@ -206,6 +221,58 @@ export default function Offres() {
               : <Pastille bg="#ECFDF5" fg="#065F46">Actif</Pastille>}
           </div>
         </div>
+
+        {/* EFFECTIF ET MONTANT REEL.
+            On l'affiche meme sans depassement : le client doit pouvoir
+            verifier le compte sur lequel on le facture, pas le decouvrir. */}
+        {facturation && (
+          <div style={{
+            marginTop: 14, padding: '10px 12px', borderRadius: 10,
+            background: debordementActif ? '#FFFBEB' : '#F9FAFB',
+            border: '1px solid ' + (debordementActif ? '#FDE68A' : '#E5E7EB'),
+            fontSize: 12.5, lineHeight: 1.7, color: debordementActif ? '#92400E' : '#374151',
+          }}>
+            <div>
+              <strong>{facturation.utilisateurs}</strong>
+              {' '}utilisateur{Number(facturation.utilisateurs) > 1 ? 's' : ''} actif
+              {Number(facturation.utilisateurs) > 1 ? 's' : ''}
+              {facturation.inclus != null && <> sur <strong>{facturation.inclus}</strong> compris dans la formule</>}
+            </div>
+
+            {facturation.sur_devis ? (
+              <div style={{ marginTop: 4 }}>
+                Au-dela de {PLAFOND_FORFAIT} utilisateurs, l&apos;abonnement n&apos;est plus
+                au forfait : nous etablissons un devis.
+              </div>
+            ) : debordementActif ? (
+              <div style={{ marginTop: 4 }}>
+                <strong>{facturation.surplus}</strong> au-dela du forfait, facture
+                {' '}{Number(facturation.prix_utilisateur_sup).toFixed(2).replace('.', ',')} &euro; chacun.
+                {' '}Total ce mois-ci :{' '}
+                <strong>
+                  {Number(facturation.prix_base).toFixed(0)} + {Number(facturation.supplement).toFixed(0)}
+                  {' = '}{Number(facturation.prix_total).toFixed(0)} &euro; / mois
+                </strong>
+              </div>
+            ) : facturation.surplus > 0 ? (
+              /* Plan gratuit depasse : son plafond est un vrai plafond, il
+                 n'y a pas de supplement a 2 EUR -- il faut changer de formule. */
+              <div style={{ marginTop: 4 }}>
+                Cette formule s&apos;arrete a {facturation.inclus} utilisateurs. Au-dela,
+                il faut passer a une formule payante.
+              </div>
+            ) : facturation.prix_total != null ? (
+              <div style={{ marginTop: 4 }}>
+                Facture ce mois-ci : <strong>{Number(facturation.prix_total).toFixed(0)} &euro; / mois</strong>.
+                {facturation.inclus != null && Number(facturation.inclus) > Number(facturation.utilisateurs) && (
+                  <> Vous pouvez creer {Number(facturation.inclus) - Number(facturation.utilisateurs)} compte
+                  {Number(facturation.inclus) - Number(facturation.utilisateurs) > 1 ? 's' : ''} de plus sans
+                  supplement, puis {PRIX_UTILISATEUR_SUP} &euro; par utilisateur.</>
+                )}
+              </div>
+            ) : null}
+          </div>
+        )}
 
         {estFondateur && (
           <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E', borderRadius: 10, padding: '10px 12px', fontSize: 12.5, lineHeight: 1.6, marginTop: 14 }}>

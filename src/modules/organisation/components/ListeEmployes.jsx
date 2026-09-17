@@ -9,6 +9,8 @@ import SelecteurMenus from '../../../components/SelecteurMenus';
 import SelecteurPoste from '../../../components/SelecteurPoste';
 import { departementsApresChoixPoste, posteHorsDepartements } from '../../../lib/postesDepartements';
 import { definirMenusAutorises } from '../services.js';
+import { useModules } from '../../../hooks/useModules';
+import { impactUtilisateurEnPlus } from '../../../lib/offres';
 
 const ROLE_LABELS = {
   admin: 'Admin',
@@ -31,6 +33,19 @@ export default function ListeEmployes({ entrepriseId, permissions, profile, onVi
   const [vue, setVue] = useState(() => (typeof window !== 'undefined' && window.localStorage.getItem('organisation_vue_employes')) || 'cartes');
   const [showCreate, setShowCreate] = useState(false);
   const [creds, setCreds] = useState(null);
+
+  // FACTURATION : ce qu'un compte de plus coute.
+  //
+  // On annonce le supplement AVANT la creation, jamais apres. Et on
+  // n'interdit rien : un plafond dur pousserait l'entreprise a ne pas
+  // creer le 11e compte, et le 11e salarie pointerait sur le telephone
+  // d'un collegue -- ce qui fausse le decompte des heures, la seule chose
+  // qui ait une valeur legale dans cet outil.
+  //
+  // Le compte facturable suit la meme regle qu'en base
+  // (utilisateurs_factures) : profils ACTIFS, super admin exclu.
+  const { entreprise } = useModules();
+  const nbFactures = employes.filter(e => e.is_super_admin !== true).length;
 
   const isSuperAdmin = profile?.is_super_admin === true;
   const isAdminEntreprise = profile?.role === 'admin' || isSuperAdmin;
@@ -243,6 +258,8 @@ export default function ListeEmployes({ entrepriseId, permissions, profile, onVi
           departements={departements}
           postes={postes}
           isSuperAdmin={isSuperAdmin}
+          entreprise={entreprise}
+          nbFactures={nbFactures}
           onClose={() => setShowCreate(false)}
           onCreer={handleCreer}
         />
@@ -481,7 +498,7 @@ function ModalMenus({ employe, onClose, onEnregistre }) {
   );
 }
 
-function ModalCreation({ departements, postes, isSuperAdmin, onClose, onCreer }) {
+function ModalCreation({ departements, postes, isSuperAdmin, entreprise, nbFactures = 0, onClose, onCreer }) {
   const [form, setForm] = useState({
     prenom: '', nom: '', telephone: '', email: '', langue: 'fr',
     role: 'employe', poste_id: '', poste_secondaire_id: '', actif: true,
@@ -510,8 +527,25 @@ function ModalCreation({ departements, postes, isSuperAdmin, onClose, onCreer })
     ? (departements.find(d => d.id === deptManquant) || {}).nom
     : null;
 
+  // Un compte cree INACTIF n'est pas facture : la case « Compte actif des
+  // la creation » change donc reellement le montant, et l'avertissement
+  // doit suivre la case, pas l'ignorer.
+  const impact = form.actif && entreprise
+    ? impactUtilisateurEnPlus(entreprise, nbFactures)
+    : null;
+  const avertirFacturation = impact != null && impact.franchitUneLimite;
+
+  // Le supplement doit etre ACCEPTE, pas seulement affiche. Une case a
+  // cocher dans le formulaire plutot qu'un window.confirm : elle reste
+  // visible a cote du bouton, et on ne peut pas la faire disparaitre d'un
+  // clic reflexe.
+  const [supplementAccepte, setSupplementAccepte] = useState(false);
+  const supplementAFacturer = avertirFacturation && impact.cout != null && impact.cout > 0;
+  const blocage = supplementAFacturer && !supplementAccepte;
+
   const handleSubmit = async () => {
     if (!form.prenom || !form.nom) { setErreur('Prenom et nom sont requis.'); return; }
+    if (blocage) { setErreur('Merci de confirmer le supplement mensuel avant de creer le compte.'); return; }
     setSaving(true);
     setErreur(null);
     try {
@@ -596,9 +630,72 @@ function ModalCreation({ departements, postes, isSuperAdmin, onClose, onCreer })
           <input type="checkbox" checked={form.actif} onChange={e => setForm(f => ({ ...f, actif: e.target.checked }))} />
           Compte actif des la creation
         </label>
+
+        {/* IMPACT SUR L'ABONNEMENT.
+            Annonce avant la creation, avec le montant exact. On n'empeche
+            pas la creation : on la facture. */}
+        {avertirFacturation && (
+          <div style={{
+            marginBottom: '1.25rem', padding: '0.75rem 0.875rem', borderRadius: '8px',
+            background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E',
+            fontSize: '0.8125rem', lineHeight: 1.6,
+          }}>
+            {impact.apres.surDevis ? (
+              <>
+                Ce compte porte votre effectif a <strong>{impact.apres.utilisateurs} utilisateurs</strong>,
+                au-dela du forfait. L&apos;abonnement passera sur devis : nous vous
+                contacterons pour etablir le tarif. Vous pouvez creer le compte des
+                maintenant, rien ne sera bloque.
+              </>
+            ) : impact.apres.passageRequis ? (
+              <>
+                Votre formule s&apos;arrete a <strong>{impact.apres.inclus} utilisateurs</strong>.
+                Ce compte la depasse : il faudra passer a une formule payante. Le compte
+                sera cree normalement.
+              </>
+            ) : (
+              <>
+                Ce compte est le <strong>{impact.apres.utilisateurs}e</strong> de votre
+                entreprise, soit <strong>{impact.apres.surplus}</strong> au-dela des{' '}
+                {impact.apres.inclus} compris dans votre formule.
+                <div style={{ marginTop: '0.375rem' }}>
+                  Votre abonnement passe de <strong>{impact.avant.prixTotal} &euro;</strong> a{' '}
+                  <strong>{impact.apres.prixTotal} &euro; / mois</strong>
+                  {' '}(+{impact.cout.toFixed(2).replace('.', ',')} &euro;).
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {supplementAFacturer && (
+          <label style={{
+            display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.8125rem',
+            marginBottom: '1.25rem', cursor: 'pointer', color: '#92400E', fontWeight: 600,
+          }}>
+            <input
+              type="checkbox"
+              checked={supplementAccepte}
+              onChange={e => setSupplementAccepte(e.target.checked)}
+              style={{ marginTop: '0.2rem' }}
+            />
+            J&apos;accepte le supplement de {impact.cout.toFixed(2).replace('.', ',')} &euro; par mois.
+          </label>
+        )}
+
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
           <button onClick={onClose} disabled={saving} style={{ padding: '0.625rem 1.25rem', border: '1px solid #d1d5db', background: 'white', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem' }}>Annuler</button>
-          <button onClick={handleSubmit} disabled={saving} style={{ padding: '0.625rem 1.25rem', border: 'none', background: '#6366f1', color: 'white', borderRadius: '8px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600 }}>
+          <button
+            onClick={handleSubmit}
+            disabled={saving || blocage}
+            style={{
+              padding: '0.625rem 1.25rem', border: 'none',
+              background: (saving || blocage) ? '#c7d2fe' : '#6366f1',
+              color: 'white', borderRadius: '8px',
+              cursor: (saving || blocage) ? 'not-allowed' : 'pointer',
+              fontSize: '0.875rem', fontWeight: 600,
+            }}
+          >
             {saving ? 'Creation...' : 'Creer l\'employe'}
           </button>
         </div>

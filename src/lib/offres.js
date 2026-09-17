@@ -268,3 +268,105 @@ export function prixMensuel(offreId, nbUtilisateurs = 0, prixBase = null) {
   return base + surplus * offre.debordement
 }
 
+
+// =====================================================================
+// FACTURATION REELLE D'UNE ENTREPRISE
+//
+// prixMensuel() ci-dessus repond a « combien coute cette OFFRE pour cet
+// effectif » : c'est ce qu'il faut pour une grille tarifaire. Ce qui suit
+// repond a « combien doit CETTE entreprise ce mois-ci », ce qui n'est pas
+// la meme question : la base de prix vient de sa ligne (donc le tarif
+// fondateur a 29 EUR survit), et le forfait inclus vient de sa colonne
+// max_utilisateurs (donc un forfait negocie par le Super Admin est
+// respecte).
+//
+// LE MEME CALCUL EXISTE EN SQL -- etat_facturation(), migration 0007.
+// C'est volontaire et c'est verrouille : le calcul JS sert a AVERTIR
+// l'utilisateur avant qu'il cree un compte (instantane, sans aller-retour
+// reseau), le calcul SQL sert a FACTURER (et lui seul est fige dans
+// releves_facturation). offres.test.js relit le SQL et casse le build si
+// les deux divergent -- c'est le meme verrou que pour la RPC
+// d'inscription.
+// =====================================================================
+
+/**
+ * Detail de ce que doit une entreprise pour un effectif donne.
+ *
+ * @param entreprise  ligne « entreprises » : { plan, prix_mensuel, max_utilisateurs }
+ * @param nbUtilisateurs  profils ACTIFS, super admin exclu
+ */
+export function detailFacture(entreprise, nbUtilisateurs = 0) {
+  const ent = entreprise || {}
+  const plan = ent.plan || null
+  const utilisateurs = Math.max(0, Math.trunc(Number(nbUtilisateurs) || 0))
+  const prixBase = ent.prix_mensuel != null ? Number(ent.prix_mensuel) : null
+
+  // max_utilisateurs a ete rempli avec 0 ou 999 par d'anciens ecrans du
+  // Super Admin. Un 0 facturerait chaque utilisateur en supplement, un
+  // 999 n'en facturerait jamais aucun. On ne devine pas : valeur
+  // inutilisable => pas de supplement, et inclus reste null pour que
+  // l'affichage puisse se taire plutot que mentir.
+  const brut = ent.max_utilisateurs
+  const inclus = brut == null || Number(brut) <= 0 || Number(brut) > PLAFOND_FORFAIT
+    ? null
+    : Number(brut)
+
+  const surplus = inclus == null ? 0 : Math.max(0, utilisateurs - inclus)
+  const surDevis = utilisateurs > PLAFOND_FORFAIT
+
+  // Le plan gratuit n'a pas de debordement : son plafond est un vrai
+  // plafond. Depasser 3 utilisateurs n'ajoute pas 2 EUR, cela veut dire
+  // qu'il faut passer a Velor One.
+  const sansDebordement = plan === OFFRE_GRATUITE
+  // Au-dela du plafond du forfait non plus : le montant vient d'un devis.
+  // Annoncer 21 x 2 = 42 EUR laisserait croire que c'est ce qu'on facture.
+  const supplement = sansDebordement || surDevis ? 0 : surplus * PRIX_UTILISATEUR_SUP
+
+  let prixTotal = null
+  if (!surDevis && prixBase != null) {
+    prixTotal = sansDebordement ? prixBase : prixBase + supplement
+  }
+
+  return {
+    plan,
+    utilisateurs,
+    inclus,
+    surplus,
+    prixBase,
+    prixUtilisateurSup: PRIX_UTILISATEUR_SUP,
+    supplement,
+    prixTotal,
+    surDevis,
+    // Vrai quand l'effectif depasse un plafond qui ne se facture pas :
+    // il faut changer de formule, pas payer 2 EUR de plus.
+    passageRequis: sansDebordement && surplus > 0,
+  }
+}
+
+/**
+ * Ce que coute UN utilisateur de plus, pour l'annoncer avant de creer le
+ * compte.
+ *
+ * On avertit, on ne bloque pas. Un plafond dur pousse le client a ne pas
+ * creer le 11e compte : le 11e salarie pointera sur le telephone d'un
+ * collegue, et le decompte des heures -- la seule chose qui ait une
+ * valeur legale ici -- deviendra faux.
+ */
+export function impactUtilisateurEnPlus(entreprise, nbUtilisateursActuel = 0) {
+  const avant = detailFacture(entreprise, nbUtilisateursActuel)
+  const apres = detailFacture(entreprise, nbUtilisateursActuel + 1)
+
+  const cout = avant.prixTotal != null && apres.prixTotal != null
+    ? apres.prixTotal - avant.prixTotal
+    : null
+
+  return {
+    avant,
+    apres,
+    /** Surcout mensuel, ou null si le montant n'est plus calculable. */
+    cout,
+    /** Ce compte fait franchir une limite : il faut le dire avant de le creer. */
+    franchitUneLimite: (cout != null && cout > 0) || apres.surDevis || apres.passageRequis,
+  }
+}
+

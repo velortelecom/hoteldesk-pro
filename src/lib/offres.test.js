@@ -394,3 +394,168 @@ describe('definitions serveur contre offres.js', () => {
     expect(fondateur).toMatch(/pg_advisory_xact_lock/)   // pas de 11e place
   })
 })
+
+// ---------------------------------------------------------------------
+// FACTURATION DU DEBORDEMENT
+//
+// max_utilisateurs existait depuis le premier jour et n'etait lu par
+// personne : une entreprise a 39 EUR pouvait compter vingt-cinq comptes
+// actifs sans que rien ne le dise. Ces tests verrouillent le calcul, et
+// surtout son accord avec le calcul SQL -- parce que c'est le SQL qui
+// facture.
+// ---------------------------------------------------------------------
+const { detailFacture, impactUtilisateurEnPlus } = require('./offres')
+
+const FACTURATION_SQL = path.join(
+  RACINE, 'supabase', 'migrations', '20260917_0007_facturation_debordement.sql',
+)
+
+// Une entreprise telle qu'elle existe en base.
+const ENT_PAYANTE = { plan: OFFRE_INSCRIPTION, prix_mensuel: PRIX_STANDARD, max_utilisateurs: UTILISATEURS_INCLUS }
+const ENT_FONDATEUR = { plan: OFFRE_INSCRIPTION, prix_mensuel: TARIF_FONDATEUR, max_utilisateurs: UTILISATEURS_INCLUS }
+
+describe('facturation du debordement', () => {
+  test('dans le forfait, on paie le forfait', () => {
+    const d = detailFacture(ENT_PAYANTE, UTILISATEURS_INCLUS)
+    expect(d.surplus).toBe(0)
+    expect(d.supplement).toBe(0)
+    expect(d.prixTotal).toBe(PRIX_STANDARD)
+    expect(d.surDevis).toBe(false)
+  })
+
+  test('chaque utilisateur au-dela du forfait coute PRIX_UTILISATEUR_SUP', () => {
+    const d = detailFacture(ENT_PAYANTE, UTILISATEURS_INCLUS + 3)
+    expect(d.surplus).toBe(3)
+    expect(d.supplement).toBe(3 * PRIX_UTILISATEUR_SUP)
+    expect(d.prixTotal).toBe(PRIX_STANDARD + 3 * PRIX_UTILISATEUR_SUP)
+  })
+
+  test('le tarif fondateur sert de base au debordement, pas le tarif public', () => {
+    // C'est tout l'interet du blocage a vie : le fondateur qui embauche
+    // paie 29 + 2 x N, jamais 39 + 2 x N. Si ce test tombe, le « bloque a
+    // vie » affiche sur la page Offres est un mensonge.
+    const d = detailFacture(ENT_FONDATEUR, UTILISATEURS_INCLUS + 2)
+    expect(d.prixBase).toBe(TARIF_FONDATEUR)
+    expect(d.prixTotal).toBe(TARIF_FONDATEUR + 2 * PRIX_UTILISATEUR_SUP)
+  })
+
+  test('au-dela du plafond du forfait, il n y a plus de prix', () => {
+    const d = detailFacture(ENT_PAYANTE, PLAFOND_FORFAIT + 1)
+    expect(d.surDevis).toBe(true)
+    expect(d.prixTotal).toBeNull()
+  })
+
+  test('hors forfait, le supplement est remis a zero plutot que d annoncer un faux montant', () => {
+    // A 31 utilisateurs, 21 x 2 = 42 EUR n'est PAS ce qu'on facture : le
+    // montant vient d'un devis. Afficher 42 laisserait croire le contraire.
+    // Le surplus, lui, reste renseigne : c'est lui qui explique pourquoi.
+    const d = detailFacture(ENT_PAYANTE, PLAFOND_FORFAIT + 1)
+    expect(d.surplus).toBe(PLAFOND_FORFAIT + 1 - UTILISATEURS_INCLUS)
+    expect(d.supplement).toBe(0)
+    expect(d.prixTotal).toBeNull()
+  })
+
+  test('le plafond lui-meme est encore facture au forfait', () => {
+    // Le devis commence STRICTEMENT au-dela : a PLAFOND_FORFAIT pile, le
+    // client a un prix. Un test parce qu'une inegalite large ici enverrait
+    // une entreprise de 30 salaries chez le commercial sans raison.
+    const d = detailFacture(ENT_PAYANTE, PLAFOND_FORFAIT)
+    expect(d.surDevis).toBe(false)
+    expect(d.prixTotal).toBe(PRIX_STANDARD + (PLAFOND_FORFAIT - UTILISATEURS_INCLUS) * PRIX_UTILISATEUR_SUP)
+  })
+
+  test('le plan gratuit ne facture aucun debordement : il demande un changement de formule', () => {
+    const g = getOffre(OFFRE_GRATUITE)
+    const ent = { plan: OFFRE_GRATUITE, prix_mensuel: g.prix, max_utilisateurs: g.maxUtilisateurs }
+    const d = detailFacture(ent, g.maxUtilisateurs + 2)
+    expect(d.surplus).toBe(2)
+    expect(d.supplement).toBe(0)
+    expect(d.prixTotal).toBe(0)
+    expect(d.passageRequis).toBe(true)
+  })
+
+  test('un max_utilisateurs inutilisable ne facture rien plutot que de facturer faux', () => {
+    // D'anciens ecrans du Super Admin ont ecrit 0 et 999. Un 0 facturerait
+    // CHAQUE utilisateur en supplement, un 999 n'en facturerait jamais
+    // aucun. Dans les deux cas on ne facture rien.
+    expect(detailFacture({ plan: OFFRE_INSCRIPTION, prix_mensuel: PRIX_STANDARD, max_utilisateurs: 0 }, 8).supplement).toBe(0)
+    expect(detailFacture({ plan: OFFRE_INSCRIPTION, prix_mensuel: PRIX_STANDARD, max_utilisateurs: 999 }, 8).supplement).toBe(0)
+    expect(detailFacture({ plan: OFFRE_INSCRIPTION, prix_mensuel: PRIX_STANDARD, max_utilisateurs: null }, 8).inclus).toBeNull()
+  })
+
+  test('un compte desactive ne se facture pas : c est l appelant qui compte les actifs', () => {
+    // La regle du comptage est ailleurs (utilisateurs_factures en base,
+    // employes actifs dans la liste). Ici on verifie seulement que la
+    // fonction prend le nombre qu'on lui donne, sans le recalculer.
+    expect(detailFacture(ENT_PAYANTE, 0).prixTotal).toBe(PRIX_STANDARD)
+    expect(detailFacture(ENT_PAYANTE, -5).utilisateurs).toBe(0)
+  })
+
+  test('l impact d un utilisateur en plus est annonce avant la creation', () => {
+    const sousLeForfait = impactUtilisateurEnPlus(ENT_PAYANTE, UTILISATEURS_INCLUS - 2)
+    expect(sousLeForfait.cout).toBe(0)
+    expect(sousLeForfait.franchitUneLimite).toBe(false)
+
+    const auFranchissement = impactUtilisateurEnPlus(ENT_PAYANTE, UTILISATEURS_INCLUS)
+    expect(auFranchissement.cout).toBe(PRIX_UTILISATEUR_SUP)
+    expect(auFranchissement.franchitUneLimite).toBe(true)
+    expect(auFranchissement.apres.prixTotal).toBe(PRIX_STANDARD + PRIX_UTILISATEUR_SUP)
+  })
+
+  test('franchir le plafond du forfait est signale meme si le surcout n est plus calculable', () => {
+    const i = impactUtilisateurEnPlus(ENT_PAYANTE, PLAFOND_FORFAIT)
+    expect(i.cout).toBeNull()          // plus de prix au forfait
+    expect(i.franchitUneLimite).toBe(true)  // ... mais il faut le dire
+  })
+
+  // -------------------------------------------------------------------
+  // Accord avec le SQL : c'est le SQL qui facture.
+  // -------------------------------------------------------------------
+  test('le SQL facture le meme supplement et le meme plafond que la grille', () => {
+    const f = lire(FACTURATION_SQL)
+    expect(f).not.toBeNull()
+    expect(f).toMatch(new RegExp('c_prix_utilisateur_sup\\s+constant\\s+numeric\\s*:=\\s*' + PRIX_UTILISATEUR_SUP + '\\b'))
+    expect(f).toMatch(new RegExp('c_plafond_forfait\\s+constant\\s+integer\\s*:=\\s*' + PLAFOND_FORFAIT + '\\b'))
+  })
+
+  test('le SQL compte les profils actifs et exclut le super admin', () => {
+    // Le compte de supervision de Velor Telecom n'a rien a faire sur la
+    // facture d'un client, et un salarie parti n'est plus facture -- c'est
+    // exactement pour ca que la desactivation existe.
+    const f = lire(FACTURATION_SQL)
+    expect(f).toMatch(/COALESCE\(p\.actif, true\) = true/)
+    expect(f).toMatch(/COALESCE\(p\.is_super_admin, false\) = false/)
+  })
+
+  test('le SQL prend la base de prix sur la ligne entreprise, pas sur la grille', () => {
+    // Si un jour quelqu'un ecrit 39 en dur dans cette fonction, tous les
+    // fondateurs perdent leur tarif le mois suivant, sans un mot.
+    const f = lire(FACTURATION_SQL)
+    expect(f).toMatch(/e\.prix_mensuel/)
+    expect(f).not.toMatch(new RegExp(':=\\s*' + PRIX_STANDARD + '\\s*;'))
+  })
+
+  test('une periode deja figee ne peut pas etre reecrite', () => {
+    // C'est la seule garantie qui compte pour une facture : le montant
+    // qu'on a envoye le 5 doit etre le meme le 20.
+    const f = lire(FACTURATION_SQL)
+    expect(f).toMatch(/UNIQUE \(entreprise_id, periode\)/)
+    expect(f).toMatch(/ON CONFLICT \(entreprise_id, periode\) DO NOTHING/)
+  })
+
+  test('le SQL remet lui aussi le supplement a zero hors forfait', () => {
+    const f = lire(FACTURATION_SQL)
+    expect(f).toMatch(/WHEN v_nb > c_plafond_forfait THEN 0::numeric/)
+  })
+
+  test('les releves ne sont jamais ecrits depuis le navigateur', () => {
+    const f = lire(FACTURATION_SQL)
+    expect(f).toMatch(/GRANT SELECT ON public\.releves_facturation TO authenticated;/)
+    expect(f).not.toMatch(/GRANT (INSERT|UPDATE|DELETE)[^\n]*releves_facturation[^\n]*authenticated/)
+  })
+
+  test('figer un releve est reserve au super admin', () => {
+    const f = lire(FACTURATION_SQL)
+    expect(f).toMatch(/IF NOT public\.is_super_admin\(\) THEN[\s\S]{0,200}ACCES_REFUSE/)
+  })
+})
