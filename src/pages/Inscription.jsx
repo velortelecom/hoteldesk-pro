@@ -84,9 +84,16 @@ function usePlacesFondateur() {
       // n'apparaissait pas. Une erreur muette fait perdre plus de temps
       // qu'elle n'en economise.
       if (error) {
+        // Le message est aplati en CHAINE, pas passe comme objet : un objet
+        // s'affiche "Object" dans la plupart des outils de lecture de
+        // console, et il faut cliquer pour le deplier. Un diagnostic qu'il
+        // faut deplier ne sert a rien quand on debugue a distance.
         console.warn(
-          '[inscription] places_fondateur_restantes a echoue, repli sur le tarif public.',
-          { message: error.message, code: error.code, details: error.details, hint: error.hint },
+          '[inscription] places_fondateur_restantes a echoue, repli sur le tarif public. '
+          + 'code=' + (error.code || '-')
+          + ' message=' + (error.message || '-')
+          + ' details=' + (error.details || '-')
+          + ' hint=' + (error.hint || '-'),
         )
         return
       }
