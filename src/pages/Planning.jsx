@@ -13,6 +13,7 @@ import { useDepartements } from '../modules/organisation/hooks.js'
 import { tacheVisiblePar } from '../lib/visibiliteTaches'
 import { resumeVisibiliteTache } from '../lib/resumeVisibilite'
 import PhotoTache from '../components/PhotoTache'
+import FilCommentaires from '../components/FilCommentaires'
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   addDays, addMonths, subMonths, isToday, isSameMonth, isSameDay,
@@ -672,6 +673,8 @@ export default function Planning() {
                 {detailErreur}
               </div>
             )}
+
+            <FilCommentaires tacheId={tacheOuverte.id} profile={profile} />
           </div>
         </div>
       )}
