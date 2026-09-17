@@ -63,6 +63,30 @@ describe('honnetete de l offre', () => {
     expect(getOffre('premium')).not.toBeNull()
   })
 
+  test('un tarif INDICATIF n est jamais facturable', () => {
+    // C'est le verrou qui permet d'afficher un prix sur une formule qui
+    // n'existe pas encore sans risquer de la facturer. prixIndicatif ne
+    // doit apparaitre dans AUCUN calcul : seul prix compte, et il est null.
+    OFFRES.filter(o => o.prixIndicatif != null).forEach(offre => {
+      expect(offre.vendu).toBe(false)
+      expect(offre.prix).toBeNull()
+      // prixMensuel ignore totalement prixIndicatif.
+      expect(prixMensuel(offre.id, 5)).toBeNull()
+      expect(prixMensuel(offre.id, offre.maxUtilisateurs + 10)).toBeNull()
+    })
+  })
+
+  test('aucune formule affichee ne peut montrer un prix vide', () => {
+    // Regression : les cartes Business et Premium affichaient "null EUR"
+    // parce que le cas "pas vendu ET sans prix facturable" n'existait pas
+    // dans la condition d'affichage.
+    OFFRES.forEach(offre => {
+      const affichable = offre.prix != null || offre.prixIndicatif != null
+        || (offre.vendu && offre.prix == null)   // sur devis
+      expect(affichable).toBe(true)
+    })
+  })
+
   test('il n y a qu une seule offre payante au forfait', () => {
     const payantes = OFFRES_VENDUES.filter(o => o.prix != null && o.prix > 0)
     expect(payantes).toHaveLength(1)

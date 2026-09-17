@@ -60,6 +60,13 @@ export const PLAFOND_FORFAIT = 30
 /**
  * Les offres.
  *
+ *   prix           null = rien n'est facturable. C'est LE verrou : une
+ *                  offre sans prix ne peut pas etre vendue, quoi qu'affiche
+ *                  l'ecran.
+ *   prixIndicatif  montant annonce a titre indicatif sur une offre pas
+ *                  encore disponible. Sert UNIQUEMENT a l'affichage -- il
+ *                  n'entre dans aucun calcul de facturation. Le jour de la
+ *                  sortie, on le recopie dans prix et on passe vendu: true.
  *   vendu   false = pas (ou plus) commercialisee. Elle reste AFFICHEE a
  *           l'inscription, marquee BIENTOT et non selectionnable, pour que
  *           le visiteur voie la trajectoire du produit. Le jour ou ses
@@ -104,23 +111,27 @@ export const OFFRES = [
     id: 'business',
     nom: 'Business',
     couleur: '#3B82F6',
+    // prix reste null : rien n'est facturable tant que les modules
+    // n'existent pas. prixIndicatif ne sert qu'a AFFICHER la direction.
     prix: null,
-    maxUtilisateurs: null,
-    debordement: null,
+    prixIndicatif: 59,
+    maxUtilisateurs: UTILISATEURS_INCLUS,
+    debordement: PRIX_UTILISATEUR_SUP,
     vendu: false,
     modules: ['documents', 'rapports', 'facturation', 'clients', 'vehicules', 'stocks', 'reservations'],
-    resume: 'Ancienne formule, remplacee par Velor One',
+    resume: 'Facturation, CRM clients, documents, stocks, vehicules et rapports',
   },
   {
     id: 'premium',
     nom: 'Premium',
     couleur: '#8B5CF6',
     prix: null,
-    maxUtilisateurs: null,
-    debordement: null,
+    prixIndicatif: 79,
+    maxUtilisateurs: UTILISATEURS_INCLUS,
+    debordement: PRIX_UTILISATEUR_SUP,
     vendu: false,
     modules: ['gps', 'qualite', 'formations', 'securite', 'planning_avance', 'multi_sites'],
-    resume: 'Ancienne formule, remplacee par Velor One',
+    resume: 'Geolocalisation terrain, multi-sites, qualite, formations et securite',
   },
   {
     id: 'enterprise',

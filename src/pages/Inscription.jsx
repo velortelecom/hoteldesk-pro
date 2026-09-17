@@ -385,7 +385,13 @@ export default function Inscription({ onRetourConnexion }) {
                 const actif = choisissable && formule === offre.id
                 const fondateurIci = offre.id === 'starter' && places != null && places > 0
 
+                // Trois cas, et le dernier manquait : une offre pas encore
+                // disponible n'a pas de prix facturable, seulement un tarif
+                // indicatif. Sans ce cas, la carte affichait "null EUR".
                 const prixAffiche = surDevis ? 'Sur devis'
+                  : aVenir ? (offre.prixIndicatif != null
+                      ? '≈ ' + offre.prixIndicatif + ' € / mois'
+                      : 'Tarif a venir')
                   : offre.prix === 0 ? '0 € / mois'
                   : (fondateurIci ? TARIF_FONDATEUR : offre.prix) + ' € / mois'
 
@@ -433,6 +439,12 @@ export default function Inscription({ onRetourConnexion }) {
                   </button>
                 )
               })}
+            </div>
+
+            <div style={{ fontSize: 11.5, color: '#9CA3AF', marginTop: -14, marginBottom: 26, lineHeight: 1.6 }}>
+              Une seule formule payante est disponible aujourd&apos;hui. Les montants affiches sur
+              les formules marquees BIENTOT sont <strong>indicatifs</strong> et ne vous engagent a
+              rien : elles ne sont pas souscriptibles et ne peuvent pas vous etre facturees.
             </div>
 
             {/* MODULES A VENIR.
