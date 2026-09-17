@@ -14,7 +14,7 @@ import { SECTEURS_OPTIONS } from '../lib/secteurs'
 import { BrandMark, APP_NAME } from '../branding/Brand'
 import {
   PLAN_1_LABEL, PLAN_1_PRIX_MENSUEL, PLAN_1_MAX_UTILISATEURS,
-  PLAN_1_SOCLE, PLAN_1_MODULES_DETAIL, PACKS_SUPERIEURS, STATUT_SUR_DEMANDE,
+  PLAN_1_SOCLE, PLAN_1_MODULES_DETAIL,
 } from '../lib/plan1'
 import { OFFRES, TARIF_FONDATEUR, PRIX_UTILISATEUR_SUP, PLAFOND_FORFAIT, MODULES_A_VENIR, bandeEffectif } from '../lib/offres'
 // Les libelles viennent du registre, jamais recopies : c'est la source.
@@ -183,30 +183,6 @@ function BlocInclus({ places, formule }) {
         </div>
       ))}
 
-      <div style={{ borderTop: '1px solid #E5E7EB', marginTop: 18, paddingTop: 14 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Packs superieurs</div>
-        {PACKS_SUPERIEURS.map(p => (
-          <div key={p.id} style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
-            border: '1px solid #E5E7EB', borderRadius: 10, padding: '9px 12px', marginBottom: 8, background: '#fff',
-          }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{p.nom}</div>
-              <div style={{ fontSize: 11, color: '#9CA3AF' }}>{p.resume}</div>
-            </div>
-            <span style={{
-              flexShrink: 0, background: '#F3F4F6', color: '#6B7280', borderRadius: 20,
-              padding: '3px 10px', fontSize: 11, fontWeight: 600,
-            }}>
-              {STATUT_SUR_DEMANDE}
-            </span>
-          </div>
-        ))}
-        <div style={{ fontSize: 11, color: '#9CA3AF', lineHeight: 1.5 }}>
-          Ces packs ne sont pas activables en ligne. Une fois inscrit, vous pourrez en faire la demande
-          depuis votre espace : Velor One vous recontacte et active le pack manuellement.
-        </div>
-      </div>
     </div>
   )
 }
@@ -447,9 +423,11 @@ export default function Inscription({ onRetourConnexion }) {
             </div>
 
             <div style={{ fontSize: 11.5, color: '#9CA3AF', marginTop: -14, marginBottom: 26, lineHeight: 1.6 }}>
-              Une seule formule payante est disponible aujourd&apos;hui. Les montants affiches sur
-              les formules marquees BIENTOT sont <strong>indicatifs</strong> et ne vous engagent a
-              rien : elles ne sont pas souscriptibles et ne peuvent pas vous etre facturees.
+              <strong style={{ color: '#6B7280' }}>Tous les modules disponibles sont inclus dans
+              chaque formule payante</strong> &mdash; votre effectif determine le prix, pas le
+              contenu. Les montants affiches sur les formules marquees BIENTOT sont
+              <strong> indicatifs</strong> : elles ne sont pas souscriptibles et ne peuvent pas
+              vous etre facturees.
             </div>
 
             {/* MODULES A VENIR.

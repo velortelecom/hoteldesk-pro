@@ -4,7 +4,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from './useAuth'
-import { planAllows, SOCLE_MENUS, MODULE_ROUTES } from '../lib/modules'
+import { SOCLE_MENUS, MODULE_ROUTES } from '../lib/modules'
 
 export function useModules() {
   const { profile, entrepriseId } = useAuth()
@@ -62,13 +62,6 @@ export function useModules() {
     return modulesActifs.some(m => m.module_id === moduleId && m.actif)
   }
 
-  // Verifie si le plan de l'entreprise permet un module
-  function canAccessModule(planMinimum) {
-    if (profile?.is_super_admin) return true
-    if (!entreprise) return false
-    return planAllows(entreprise.plan, planMinimum)
-  }
-
   // Retourne la liste des menus dynamiques des modules actifs
   // (pour injection dans NAV de App.jsx)
   function getModuleMenus() {
@@ -114,7 +107,6 @@ export function useModules() {
     entreprise,
     loading,
     isModuleActive,
-    canAccessModule,
     buildNavigation,
     getModuleMenus,
     getActiveModuleIds,

@@ -23,11 +23,12 @@ export const PLANS = OFFRES.reduce((acc, offre) => {
 
 export const PLAN_ORDER = ORDRE_OFFRES
 
-export function planAllows(planEntreprise, planMinimumModule) {
-  const idx1 = PLAN_ORDER.indexOf(planEntreprise)
-  const idx2 = PLAN_ORDER.indexOf(planMinimumModule)
-  return idx1 >= idx2
-}
+// planAllows() a ete SUPPRIME.
+//   Il decidait si le plan d'une entreprise autorisait un module. Il
+//   n'etait plus appele par personne, et surtout il etait devenu FAUX :
+//   l'acces a un module vient de entreprise_modules, pas du plan. Le garder
+//   c'etait laisser une deuxieme regle d'acces dormir dans le code, prete a
+//   contredire la vraie le jour ou quelqu'un la rebrancherait.
 
 // Menus du socle - INALTERABLES - toujours presents dans tous les plans
 // icone = emoji directement affiche dans la nav
@@ -62,15 +63,3 @@ export const MODULE_ROUTES = {
   white_label:    '/white-label',
 }
 
-export const SECTEURS = [
-  { id: 'hotel',        nom: 'Hotel & Hebergement' },
-  { id: 'restaurant',   nom: 'Restauration' },
-  { id: 'sante',        nom: 'EHPAD & Sante' },
-  { id: 'btp',          nom: 'BTP & Construction' },
-  { id: 'commerce',     nom: 'Commerce & Retail' },
-  { id: 'pharmacie',    nom: 'Pharmacie' },
-  { id: 'collectivite', nom: 'Mairie & Collectivite' },
-  { id: 'pme',          nom: 'PME Generique' },
-  { id: 'nettoyage',    nom: 'Nettoyage & Proprete' },
-  { id: 'maintenance',  nom: 'Maintenance Industrielle' },
-]

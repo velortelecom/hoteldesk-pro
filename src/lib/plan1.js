@@ -13,11 +13,7 @@
 // aujourd'hui "Velor One". Les constantes gardent leur nom pour ne pas
 // casser leurs appelants.
 // =====================================================================
-import {
-  OFFRES, OFFRES_VENDUES, OFFRE_INSCRIPTION,
-  TARIF_FONDATEUR, FONDATEURS_MAX,
-  getOffre, modulesInclus, rangOffre,
-} from './offres'
+import { OFFRE_INSCRIPTION, getOffre, modulesInclus } from './offres'
 
 const OFFRE_1 = getOffre(OFFRE_INSCRIPTION)
 
@@ -25,10 +21,6 @@ export const PLAN_1_ID = OFFRE_INSCRIPTION
 export const PLAN_1_LABEL = OFFRE_1.nom
 export const PLAN_1_PRIX_MENSUEL = OFFRE_1.prix
 export const PLAN_1_MAX_UTILISATEURS = OFFRE_1.maxUtilisateurs
-
-// Le tarif des premieres entreprises, reexporte pour l'affichage.
-export const PLAN_1_TARIF_FONDATEUR = TARIF_FONDATEUR
-export const PLAN_1_FONDATEURS_MAX = FONDATEURS_MAX
 
 // Modules actives automatiquement a l'inscription. Derive, jamais recopie.
 export const PLAN_1_MODULES = modulesInclus(OFFRE_INSCRIPTION)
@@ -58,26 +50,4 @@ export function estModulePlan1(moduleId) {
   return PLAN_1_MODULES.includes(moduleId)
 }
 
-// ---------------------------------------------------------------------
-// AU-DESSUS DE L'OFFRE
-//
-// Il n'y a plus de packs superieurs a vendre : une seule offre payante,
-// et le sur-mesure au-dela. Les anciens packs (business, premium) sont
-// marques vendu: false dans offres.js et n'apparaissent donc pas ici --
-// mais ils restent definis, parce qu'une entreprise peut encore les
-// porter dans entreprises.plan et doit voir un nom, pas un identifiant.
-// ---------------------------------------------------------------------
 export const STATUT_SUR_DEMANDE = 'Sur demande'
-
-export const PACKS_SUPERIEURS = OFFRES_VENDUES
-  .filter(o => rangOffre(o.id) > rangOffre(OFFRE_INSCRIPTION))
-  .map(o => ({
-    id: o.id,
-    nom: o.nom,
-    couleur: o.couleur,
-    resume: o.resume,
-    modules: o.modules,
-  }))
-
-/** Toutes les offres, y compris celles qui ne sont plus vendues. */
-export const TOUTES_LES_OFFRES = OFFRES

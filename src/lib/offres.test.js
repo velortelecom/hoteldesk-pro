@@ -19,7 +19,7 @@ const {
   OFFRES, OFFRES_VENDUES, ORDRE_OFFRES, OFFRE_INSCRIPTION, OFFRE_GRATUITE,
   PRIX_STANDARD, TARIF_FONDATEUR, FONDATEURS_MAX, PLAFOND_FORFAIT,
   UTILISATEURS_INCLUS, PRIX_UTILISATEUR_SUP, MODULES_A_VENIR,
-  getOffre, modulesInclus, prixMensuel, prixSouscription, necessiteDevis, bandeEffectif,
+  getOffre, rangOffre, modulesInclus, prixMensuel, bandeEffectif,
 } = require('./offres')
 const { MODULES_REGISTRY } = require('../modules/registry')
 const { MODULES_DEVELOPPES } = require('./modulesDeveloppes')
@@ -127,11 +127,15 @@ describe('tarif fondateur', () => {
     expect(TARIF_FONDATEUR).toBeLessThan(PRIX_STANDARD)
   })
 
-  test('les premieres entreprises l obtiennent, les suivantes non', () => {
-    expect(prixSouscription(0)).toEqual({ prix: TARIF_FONDATEUR, fondateur: true, restants: FONDATEURS_MAX })
-    expect(prixSouscription(FONDATEURS_MAX - 1).fondateur).toBe(true)
-    expect(prixSouscription(FONDATEURS_MAX)).toEqual({ prix: PRIX_STANDARD, fondateur: false, restants: 0 })
-    expect(prixSouscription(FONDATEURS_MAX + 50).prix).toBe(PRIX_STANDARD)
+  test('le nombre de places est un entier positif', () => {
+    // La regle d'attribution elle-meme n'est PLUS en JavaScript : elle vit
+    // dans le trigger SQL, qui compte les places et pose le prix. Une copie
+    // JS de cette regle etait une deuxieme verite a maintenir -- exactement
+    // ce qu'on passe la semaine a supprimer. Ici on ne verifie donc que la
+    // coherence des constantes ; la concordance avec le SQL est verifiee
+    // plus bas, en relisant la migration.
+    expect(Number.isInteger(FONDATEURS_MAX)).toBe(true)
+    expect(FONDATEURS_MAX).toBeGreaterThan(0)
   })
 
   test('LE PRIX EST BLOQUE A VIE : la grille ne peut pas le rattraper', () => {
@@ -168,8 +172,10 @@ describe('debordement et plafond', () => {
   })
 
   test('au-dela du plafond global, plus aucun tarif au forfait', () => {
-    expect(necessiteDevis(PLAFOND_FORFAIT)).toBe(false)
-    expect(necessiteDevis(PLAFOND_FORFAIT + 1)).toBe(true)
+    // Au plafond exactement, l'offre de souscription facture encore.
+    expect(prixMensuel(OFFRE_INSCRIPTION, PLAFOND_FORFAIT)).not.toBeNull()
+    // Un utilisateur de plus : plus aucune offre ne facture, meme celles
+    // qui debordent, et meme avec un tarif fondateur.
     OFFRES.forEach(offre => {
       expect(prixMensuel(offre.id, PLAFOND_FORFAIT + 1)).toBeNull()
       expect(prixMensuel(offre.id, 300, TARIF_FONDATEUR)).toBeNull()
@@ -186,10 +192,35 @@ describe('registry.js contre offres.js', () => {
     OFFRES.forEach(o => o.modules.forEach(id => expect(ids).toContain(id)))
   })
 
-  test('chaque module du registre appartient a exactement une offre', () => {
-    const grille = OFFRES.flatMap(o => o.modules)
+  test('chaque module est SOIT dans une offre, SOIT a venir -- jamais les deux, jamais aucun', () => {
+    // Depuis que l'effectif et les modules sont deux axes separes, les
+    // bandes superieures ne portent plus de contenu. Un module est donc
+    // soit disponible (dans une offre), soit pas encore livre (a venir).
+    // Un module dans aucune des deux listes serait invisible partout ;
+    // dans les deux, il serait annonce comme dispo ET comme a venir.
+    const dansUneOffre = OFFRES.flatMap(o => o.modules)
     MODULES_REGISTRY.forEach(mod => {
-      expect(grille.filter(id => id === mod.id)).toHaveLength(1)
+      const offres = dansUneOffre.filter(id => id === mod.id).length
+      const aVenir = MODULES_A_VENIR.includes(mod.id) ? 1 : 0
+      expect(offres + aVenir).toBe(1)
+    })
+  })
+
+  test('MODULES_A_VENIR vaut exactement le registre MOINS les offres', () => {
+    // La liste n'est plus derivee (les bandes ne portent plus de contenu),
+    // donc c'est ce test qui l'empeche de deriver. Livrer un module sans
+    // le retirer d'ici le ferait annoncer "BIENTOT" alors qu'il existe.
+    const dansUneOffre = OFFRES.flatMap(o => o.modules)
+    const attendu = MODULES_REGISTRY.map(m => m.id).filter(id => !dansUneOffre.includes(id))
+    expect([...MODULES_A_VENIR].sort()).toEqual([...attendu].sort())
+  })
+
+  test('les bandes superieures ne portent aucun contenu propre', () => {
+    // C'est la decision : une bande fixe un PRIX, pas un contenu. Y
+    // remettre un module rouvrirait le trou -- une boite de 6 personnes
+    // ne pourrait jamais l'obtenir, quoi qu'elle paie.
+    OFFRES.filter(o => rangOffre(o.id) > rangOffre(OFFRE_INSCRIPTION)).forEach(offre => {
+      expect(offre.modules).toEqual([])
     })
   })
 

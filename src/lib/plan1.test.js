@@ -4,7 +4,7 @@
 // tests tombent.
 import {
   PLAN_1_ID, PLAN_1_MODULES, PLAN_1_MODULES_DETAIL, PLAN_1_SOCLE,
-  PACKS_SUPERIEURS, estModulePlan1,
+  estModulePlan1,
 } from './plan1'
 import { MODULES_REGISTRY, getModuleById } from '../modules/registry'
 import { SOCLE_MENUS } from './modules'
@@ -42,21 +42,6 @@ test('le detail affiche correspond exactement aux modules du Plan 1', () => {
 
 test('le socle affiche correspond au socle reel de l application', () => {
   expect(PLAN_1_SOCLE.map(m => m.id).sort()).toEqual(SOCLE_MENUS.map(m => m.id).sort())
-})
-
-test('aucun pack superieur ne reprend un module du Plan 1', () => {
-  PACKS_SUPERIEURS.forEach(pack => {
-    pack.modules.forEach(id => {
-      expect(estModulePlan1(id)).toBe(false)
-    })
-  })
-})
-
-test('les modules des packs superieurs existent dans le registre', () => {
-  const ids = MODULES_REGISTRY.map(m => m.id)
-  PACKS_SUPERIEURS.forEach(pack => {
-    pack.modules.forEach(id => expect(ids).toContain(id))
-  })
 })
 
 test('estModulePlan1 refuse tout module non developpe', () => {

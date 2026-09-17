@@ -78,6 +78,16 @@ export const PLAFOND_FORFAIT = 30
  *           identifiant brut.
  *   modules ce que l'offre AJOUTE aux offres inferieures, jamais la liste
  *           complete -- sinon on recree la duplication qu'on a supprimee.
+ *           Vide sur les bandes superieures : voir ci-dessous.
+ *
+ * EFFECTIF ET MODULES SONT DEUX AXES SEPARES
+ *   L'effectif decide du PRIX (39, 59, 79, puis devis).
+ *   Les modules sont ceux qui EXISTENT, et tout le monde les a.
+ *
+ *   Les avoir melanges creait un trou : le CRM etait dans la bande 11-20,
+ *   donc une boite de 6 personnes ne pouvait JAMAIS l'obtenir, quoi
+ *   qu'elle paie -- et une boite de 25 se voyait imposer le GPS sans
+ *   avoir un seul technicien sur la route.
  */
 export const OFFRES = [
   {
@@ -121,8 +131,12 @@ export const OFFRES = [
     maxUtilisateurs: 20,
     debordement: PRIX_UTILISATEUR_SUP,
     vendu: false,
-    modules: ['documents', 'rapports', 'facturation', 'clients', 'vehicules', 'stocks', 'reservations'],
-    resume: 'Facturation, CRM clients, documents, stocks, vehicules et rapports',
+    // VIDE, et c'est le coeur de la decision : une bande fixe un PRIX, pas
+    // un contenu. Attacher les modules aux bandes interdisait a une boite
+    // de 6 personnes d'acceder au CRM -- quoi qu'elle paie -- et imposait
+    // le GPS a une boite de 25 sans technicien sur la route.
+    modules: [],
+    resume: 'Le meme produit, pour une equipe qui a grandi',
   },
   {
     id: 'premium',
@@ -134,8 +148,8 @@ export const OFFRES = [
     maxUtilisateurs: PLAFOND_FORFAIT,
     debordement: PRIX_UTILISATEUR_SUP,
     vendu: false,
-    modules: ['gps', 'qualite', 'formations', 'securite', 'planning_avance', 'multi_sites'],
-    resume: 'Geolocalisation terrain, multi-sites, qualite, formations et securite',
+    modules: [],
+    resume: 'Le meme produit, pour une equipe de 21 a 30 personnes',
   },
   {
     id: 'enterprise',
@@ -145,7 +159,7 @@ export const OFFRES = [
     maxUtilisateurs: null,
     debordement: null,
     vendu: true,
-    modules: ['api', 'white_label', 'ia'],
+    modules: [],
     resume: 'Au-dela de ' + PLAFOND_FORFAIT + ' salaries, ou besoins specifiques : nous en parlons',
   },
 ]
@@ -175,17 +189,23 @@ export const OFFRE_GRATUITE = 'gratuit'
  * difference avec le badge "MODULE ACTIF" qu'on a retire, qui affirmait
  * qu'un module fonctionnait alors qu'il n'existait pas.
  *
- * La liste est DERIVEE : tout ce qui n'est pas dans l'offre de souscription.
- * Le jour ou un module est livre, il entre dans OFFRES[starter].modules et
- * disparait d'ici tout seul -- il n'y a pas deux listes a tenir.
+ * LISTE EXPLICITE, ET NON DERIVEE
+ *   Elle l'etait, tant que les modules etaient attaches aux bandes. Depuis
+ *   que les bandes ne portent plus de contenu, il n'y a plus rien d'ou la
+ *   deriver. Elle est donc ecrite ici -- mais offres.test.js verifie
+ *   qu'elle vaut exactement "le registre MOINS ce que les offres
+ *   contiennent". Oublier de retirer un module livre casse le build.
+ *
+ * LE JOUR OU UN MODULE SORT
+ *   Il entre dans OFFRES[starter].modules et sort de cette liste. Deux
+ *   lignes, un fichier, et tout le monde l'a -- du client de 4 personnes
+ *   a celui de 30.
  */
-export const MODULES_A_VENIR = OFFRES
-  .filter(o => rangOffre(o.id) > rangOffre(OFFRE_INSCRIPTION))
-  .flatMap(o => o.modules)
-
-export function estModuleAVenir(id) {
-  return MODULES_A_VENIR.includes(id)
-}
+export const MODULES_A_VENIR = [
+  'documents', 'rapports', 'facturation', 'clients', 'vehicules', 'stocks',
+  'reservations', 'gps', 'qualite', 'formations', 'securite',
+  'planning_avance', 'multi_sites', 'api', 'white_label', 'ia',
+]
 
 /**
  * La bande d'effectif d'une offre, sous forme { min, max }.
@@ -221,19 +241,6 @@ export function modulesInclus(offreId) {
   return vus
 }
 
-/**
- * Prix a la souscription, selon le nombre d'entreprises fondatrices deja
- * entrees. Retourne { prix, fondateur, restants }.
- *
- * Le comptage se fait cote SERVEUR (RPC d'inscription) : cette fonction
- * sert a l'affichage. Le navigateur ne decide jamais d'un prix.
- */
-export function prixSouscription(nbFondateurs = 0) {
-  const restants = Math.max(0, FONDATEURS_MAX - nbFondateurs)
-  return restants > 0
-    ? { prix: TARIF_FONDATEUR, fondateur: true, restants }
-    : { prix: PRIX_STANDARD, fondateur: false, restants: 0 }
-}
 
 /**
  * Prix mensuel d'une offre pour un effectif donne.
@@ -261,7 +268,3 @@ export function prixMensuel(offreId, nbUtilisateurs = 0, prixBase = null) {
   return base + surplus * offre.debordement
 }
 
-/** Vrai quand aucun tarif au forfait ne s'applique : il faut un devis. */
-export function necessiteDevis(nbUtilisateurs) {
-  return nbUtilisateurs > PLAFOND_FORFAIT
-}

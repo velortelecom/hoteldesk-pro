@@ -102,7 +102,8 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: true  },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true  },
     },
-    dependances: [], plans: ['premium', 'enterprise'],
+    // Pas encore livre : n'appartient a aucune offre.
+    dependances: [], plans: [],
     templates: ['btp', 'nettoyage', 'maintenance', 'collectivite'],
     ordre: 20, categorie: 'terrain', couleur: '#10B981', badge: 'BETA', actif: true,
     widgets: { carte: true },
@@ -118,7 +119,8 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: true  },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true  },
     },
-    dependances: [], plans: ['business', 'premium', 'enterprise'],
+    // Pas encore livre : n'appartient a aucune offre.
+    dependances: [], plans: [],
     templates: ['hotel', 'ehpad', 'pharmacie', 'mairie', 'pme', 'btp'],
     ordre: 30, categorie: 'admin', couleur: '#3B82F6', badge: null, actif: true,
     widgets: { compteur: true },
@@ -134,7 +136,8 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: true  },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true  },
     },
-    dependances: [], plans: ['business', 'premium', 'enterprise'],
+    // Pas encore livre : n'appartient a aucune offre.
+    dependances: [], plans: [],
     templates: ['btp', 'mairie', 'nettoyage', 'maintenance'],
     ordre: 40, categorie: 'logistique', couleur: '#F59E0B', badge: null, actif: true,
     widgets: { stats: true },
@@ -150,7 +153,8 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: true  },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true,  valider: true },
     },
-    dependances: [], plans: ['business', 'premium', 'enterprise'],
+    // Pas encore livre : n'appartient a aucune offre.
+    dependances: [], plans: [],
     templates: ['hotel', 'restaurant', 'pharmacie', 'commerce', 'btp'],
     ordre: 50, categorie: 'logistique', couleur: '#8B5CF6', badge: null, actif: true,
     widgets: { alertes: true, stats: true },
@@ -166,7 +170,8 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: true  },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true,  valider: true },
     },
-    dependances: [], plans: ['business', 'premium', 'enterprise'],
+    // Pas encore livre : n'appartient a aucune offre.
+    dependances: [], plans: [],
     templates: ['hotel', 'restaurant', 'commerce', 'pme'],
     ordre: 60, categorie: 'finance', couleur: '#EF4444', badge: null, actif: true,
     widgets: { chiffre_affaires: true, stats: true },
@@ -182,7 +187,8 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true  },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true,  valider: true },
     },
-    dependances: [], plans: ['business', 'premium', 'enterprise'],
+    // Pas encore livre : n'appartient a aucune offre.
+    dependances: [], plans: [],
     templates: ['hotel', 'restaurant'],
     ordre: 70, categorie: 'metier', couleur: '#06B6D4', badge: null, actif: true,
     widgets: { planning: true, stats: true },
@@ -198,7 +204,8 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: true  },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true  },
     },
-    dependances: [], plans: ['business', 'premium', 'enterprise'],
+    // Pas encore livre : n'appartient a aucune offre.
+    dependances: [], plans: [],
     templates: ['hotel', 'restaurant', 'commerce', 'pme'],
     ordre: 80, categorie: 'commercial', couleur: '#EC4899', badge: null, actif: true,
     widgets: { stats: true },
@@ -214,7 +221,8 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: true,  valider: true },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true,  valider: true },
     },
-    dependances: [], plans: ['premium', 'enterprise'],
+    // Pas encore livre : n'appartient a aucune offre.
+    dependances: [], plans: [],
     templates: ['hotel', 'ehpad', 'pharmacie', 'btp', 'nettoyage'],
     ordre: 90, categorie: 'metier', couleur: '#22C55E', badge: null, actif: true,
     widgets: { stats: true, alertes: true },
@@ -230,7 +238,8 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: true  },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true,  valider: true },
     },
-    dependances: [], plans: ['premium', 'enterprise'],
+    // Pas encore livre : n'appartient a aucune offre.
+    dependances: [], plans: [],
     templates: ['ehpad', 'pharmacie', 'mairie', 'btp'],
     ordre: 100, categorie: 'rh', couleur: '#A78BFA', badge: null, actif: true,
     widgets: { stats: true },
@@ -246,7 +255,8 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: true,  valider: true },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true,  valider: true },
     },
-    dependances: [], plans: ['premium', 'enterprise'],
+    // Pas encore livre : n'appartient a aucune offre.
+    dependances: [], plans: [],
     templates: ['btp', 'ehpad', 'nettoyage', 'maintenance'],
     ordre: 110, categorie: 'metier', couleur: '#F97316', badge: null, actif: true,
     widgets: { alertes: true, stats: true },
@@ -262,7 +272,8 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true,  creer: false, modifier: false, supprimer: false, exporter: true  },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true  },
     },
-    dependances: [], plans: ['business', 'premium', 'enterprise'],
+    // Pas encore livre : n'appartient a aucune offre.
+    dependances: [], plans: [],
     templates: ['hotel', 'restaurant', 'commerce', 'pme', 'btp'],
     ordre: 120, categorie: 'analyse', couleur: '#0EA5E9', badge: null, actif: true,
     widgets: { graphiques: true, kpis: true },
@@ -278,7 +289,8 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: true  },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true  },
     },
-    dependances: [], plans: ['premium', 'enterprise'],
+    // Pas encore livre : n'appartient a aucune offre.
+    dependances: [], plans: [],
     templates: ['btp', 'maintenance', 'nettoyage'],
     ordre: 130, categorie: 'planification', couleur: '#14B8A6', badge: null, actif: true,
     widgets: { gantt: true },
@@ -294,7 +306,8 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true,  creer: false, modifier: false, supprimer: false, exporter: true  },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true,  administrer: true },
     },
-    dependances: [], plans: ['premium', 'enterprise'],
+    // Pas encore livre : n'appartient a aucune offre.
+    dependances: [], plans: [],
     templates: ['hotel', 'pharmacie', 'commerce', 'mairie'],
     ordre: 140, categorie: 'organisation', couleur: '#6B7280', badge: null, actif: true,
     widgets: { comparatif: true },
@@ -310,7 +323,8 @@ export const MODULES_REGISTRY = [
       responsable: { voir: false, creer: false, modifier: false, supprimer: false, exporter: false },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true,  administrer: true },
     },
-    dependances: [], plans: ['enterprise'], templates: [],
+    // Pas encore livre : n'appartient a aucune offre.
+    dependances: [], plans: [], templates: [],
     ordre: 150, categorie: 'technique', couleur: '#374151', badge: 'PRO', actif: true,
     widgets: { stats: true },
   },
@@ -325,7 +339,8 @@ export const MODULES_REGISTRY = [
       responsable: { voir: false, creer: false, modifier: false, supprimer: false, exporter: false },
       admin:       { voir: true,  creer: false, modifier: true,  supprimer: false, exporter: false, administrer: true },
     },
-    dependances: [], plans: ['enterprise'], templates: [],
+    // Pas encore livre : n'appartient a aucune offre.
+    dependances: [], plans: [], templates: [],
     ordre: 160, categorie: 'personnalisation', couleur: '#F472B6', badge: 'PRO', actif: true,
     widgets: null,
   },
@@ -340,7 +355,8 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true,  creer: true,  modifier: false, supprimer: false, exporter: true  },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: true,  administrer: true },
     },
-    dependances: [], plans: ['enterprise'], templates: [],
+    // Pas encore livre : n'appartient a aucune offre.
+    dependances: [], plans: [], templates: [],
     ordre: 170, categorie: 'avance', couleur: '#7C3AED', badge: 'BETA', actif: true,
     widgets: { suggestions: true },
   },
