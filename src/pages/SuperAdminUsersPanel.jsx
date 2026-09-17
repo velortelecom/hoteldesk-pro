@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { MODULES_REGISTRY } from '../modules/registry'
-import { buildDependencyErrorMessage, filterSuperAdminUsers } from './superAdminControlUtils'
+import { filterSuperAdminUsers } from './superAdminControlUtils'
+import { messageSuppressionMembre } from '../lib/erreurSuppressionMembre'
 import { messageErreurEdge } from '../lib/edgeErreur'
 
 const cardStyle = { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 14 }
@@ -163,7 +164,7 @@ export default function SuperAdminUsersPanel({ supabase, profile, entreprises = 
       setMsg({ type: 'success', text: 'Utilisateur supprimé.' })
       await fetchUsers()
     } catch (error) {
-      setMsg({ type: 'error', text: buildDependencyErrorMessage(error) })
+      setMsg({ type: 'error', text: messageSuppressionMembre(error) })
     } finally {
       setSaving(false)
     }
