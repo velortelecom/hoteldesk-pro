@@ -73,11 +73,15 @@ function TacheRow({ tache, enfants, profile, membres, expandedParents, setExpand
             {STATUTS.map(s => <option key={s} value={s}>{STATUT_LABELS[s]}</option>)}
           </select>
         )}
+        {/* Modifier : l'admin et le responsable. Supprimer : l'admin seul.
+            La base applique exactement cette regle ; offrir un bouton que la
+            base refuse produirait un clic sans effet et sans message --
+            l'echec muet qu'on chasse partout. */}
         {(profile?.role === 'admin' || profile?.role === 'responsable') && (
-          <>
-            <button onClick={() => onEdit(t)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>Edit</button>
-            <button onClick={() => onDelete(t.id, isParent)} style={{ background: '#FEE2E2', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>Sup</button>
-          </>
+          <button onClick={() => onEdit(t)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>Edit</button>
+        )}
+        {profile?.role === 'admin' && (
+          <button onClick={() => onDelete(t.id, isParent)} style={{ background: '#FEE2E2', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>Sup</button>
         )}
       </div>
       {t.description && <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>{t.description}</div>}
