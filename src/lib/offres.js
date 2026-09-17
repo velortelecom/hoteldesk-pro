@@ -85,7 +85,12 @@ export const OFFRES = [
     couleur: '#8B5CF6',
     prix: 129,
     maxUtilisateurs: 100,
-    debordement: 1.5,
+    // Plafond DUR, volontairement. Au-dela de 100 utilisateurs on ne
+    // facture plus au forfait : on etablit un devis. A cette taille le
+    // client a des besoins qu'aucune grille ne devine (SSO, integration
+    // paie, engagement de service), et un debordement automatique
+    // l'enfermerait dans un tarif decide sans lui parler.
+    debordement: null,
     modules: ['gps', 'qualite', 'formations', 'securite', 'planning_avance', 'multi_sites'],
     resume: 'Equipes sur le terrain, multi-sites et qualite',
   },
@@ -97,12 +102,28 @@ export const OFFRES = [
     maxUtilisateurs: null,
     debordement: null,
     modules: ['api', 'white_label', 'ia'],
-    resume: 'Sur mesure : integrations, marque blanche, assistant IA',
+    resume: 'Au-dela de 100 utilisateurs, ou sur mesure : integrations, marque blanche, assistant IA',
   },
 ]
 
 /** Identifiants des offres, du moins cher au plus cher. */
 export const ORDRE_OFFRES = OFFRES.map(o => o.id)
+
+/**
+ * PLAFOND GLOBAL DU FORFAIT.
+ *
+ * Au-dela de cet effectif, AUCUNE formule ne se facture au forfait, quel
+ * que soit le pack : on etablit un devis.
+ *
+ * Ce plafond est global et pas seulement celui du Premium, parce que les
+ * packs inferieurs debordent. Sans lui, un client de 300 salaries pouvait
+ * rester sur Business a 49 + 2 x 275 = 599 EUR, decides par une formule,
+ * sans que personne ne lui ait jamais parle. Le debordement est fait pour
+ * absorber une embauche, pas pour tarifer une ETI.
+ */
+export const PLAFOND_FORFAIT = OFFRES
+  .filter(o => o.prix != null && o.maxUtilisateurs != null)
+  .reduce((max, o) => Math.max(max, o.maxUtilisateurs), 0)
 
 /** L'offre creee par l'inscription publique. */
 export const OFFRE_INSCRIPTION = 'starter'
@@ -152,6 +173,8 @@ export function modulesInclus(offreId) {
 export function prixMensuel(offreId, nbUtilisateurs = 0) {
   const offre = getOffre(offreId)
   if (!offre || offre.prix == null) return null
+  // Au-dela du plafond global, plus aucun tarif au forfait : c'est un devis.
+  if (nbUtilisateurs > PLAFOND_FORFAIT) return null
   if (offre.maxUtilisateurs == null) return offre.prix
 
   const surplus = Math.max(0, nbUtilisateurs - offre.maxUtilisateurs)
@@ -166,7 +189,12 @@ export function prixMensuel(offreId, nbUtilisateurs = 0) {
  * L'offre la moins chere qui accepte cet effectif et contient ces
  * modules. Sert a proposer au client ce qu'il a interet a prendre --
  * y compris a lui dire de redescendre.
- * Retourne { offreId, prix, options } ou null si rien ne convient.
+ *
+ * Retourne { offreId, prix, options }, ou NULL quand aucune formule au
+ * forfait ne convient : c'est le cas au-dela de 100 utilisateurs, ou pour
+ * un module qui n'existe que dans Enterprise. null ne veut pas dire
+ * "erreur", il veut dire DEVIS -- utiliser necessiteDevis() pour le dire
+ * clairement a l'ecran plutot que d'afficher un prix vide.
  */
 export function meilleureOffre(nbUtilisateurs, modulesVoulus = []) {
   let meilleure = null
@@ -181,7 +209,11 @@ export function meilleureOffre(nbUtilisateurs, modulesVoulus = []) {
     // Un module manquant ne s'achete en option que s'il est optionnel.
     if (manquants.some(id => !MODULES_OPTIONNELS.includes(id))) continue
 
-    const prix = prixMensuel(offre.id, nbUtilisateurs) + manquants.length * PRIX_OPTION_MENSUEL
+    const forfait = prixMensuel(offre.id, nbUtilisateurs)
+    // null = au-dela du plafond global, donc devis : cette offre ne compte pas.
+    if (forfait == null) continue
+
+    const prix = forfait + manquants.length * PRIX_OPTION_MENSUEL
 
     // A PRIX EGAL, on recommande le pack qui demande le MOINS d'options.
     // Le 4e module coute exactement l'ecart Business -> Premium : les deux
@@ -200,3 +232,12 @@ export function meilleureOffre(nbUtilisateurs, modulesVoulus = []) {
 
   return meilleure
 }
+
+/**
+ * Vrai quand aucune formule au forfait ne peut servir ce client : il faut
+ * passer par un devis. C'est le pendant lisible de meilleureOffre() === null.
+ */
+export function necessiteDevis(nbUtilisateurs, modulesVoulus = []) {
+  return meilleureOffre(nbUtilisateurs, modulesVoulus) === null
+}
+

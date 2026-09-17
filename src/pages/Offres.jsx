@@ -19,7 +19,7 @@ import {
   PLAN_1_LABEL, PLAN_1_PRIX_MENSUEL, PLAN_1_MAX_UTILISATEURS,
   PLAN_1_SOCLE, PLAN_1_MODULES_DETAIL, STATUT_SUR_DEMANDE,
 } from '../lib/plan1'
-import { OFFRES, PRIX_OPTION_MENSUEL, MODULES_OPTIONNELS } from '../lib/offres'
+import { OFFRES, PRIX_OPTION_MENSUEL, MODULES_OPTIONNELS, PLAFOND_FORFAIT } from '../lib/offres'
 
 const STATUT_LABEL = {
   nouvelle: { texte: 'Demande envoyee', bg: '#EEF2FF', fg: '#3730A3' },
@@ -245,6 +245,8 @@ export default function Offres() {
         Aucun changement de formule ne se fait en ligne : votre demande nous parvient, nous vous
         recontactons, et la modification est appliquee a la main. Vous pouvez demander une formule
         superieure comme revenir a une formule inferieure.
+        {' '}Au-dela de {PLAFOND_FORFAIT} utilisateurs, aucune formule ne s&apos;applique au
+        forfait : nous etablissons un devis avec vous.
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>

@@ -21,7 +21,8 @@ const path = require('path')
 
 const {
   OFFRES, ORDRE_OFFRES, OFFRE_INSCRIPTION, OFFRE_GRATUITE, PRIX_OPTION_MENSUEL,
-  MODULES_OPTIONNELS, getOffre, modulesInclus, prixMensuel, meilleureOffre,
+  MODULES_OPTIONNELS, PLAFOND_FORFAIT,
+  getOffre, modulesInclus, prixMensuel, meilleureOffre, necessiteDevis,
 } = require('./offres')
 const { MODULES_REGISTRY } = require('../modules/registry')
 
@@ -134,6 +135,62 @@ describe('debordement', () => {
   test('un plan sans debordement ne facture jamais au-dela de son forfait', () => {
     const gratuit = getOffre(OFFRE_GRATUITE)
     expect(prixMensuel(OFFRE_GRATUITE, gratuit.maxUtilisateurs + 50)).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------
+// Au-dela du plus gros forfait : devis, jamais un prix invente
+// ---------------------------------------------------------------------
+describe('passage au devis', () => {
+  test('le plafond du forfait est celui du plus gros pack facture', () => {
+    expect(PLAFOND_FORFAIT).toBe(getOffre('premium').maxUtilisateurs)
+  })
+
+  test('au plafond exactement, on est encore au forfait', () => {
+    expect(necessiteDevis(PLAFOND_FORFAIT, ['pointage'])).toBe(false)
+    // A 100 utilisateurs, Business deborderait a 49 + 2 x 75 = 199 EUR alors
+    // que le Premium est a 129 EUR : c'est Premium qu'il faut recommander.
+    // Le debordement ne doit jamais couter plus cher que le pack du dessus.
+    expect(meilleureOffre(PLAFOND_FORFAIT, ['pointage']).offreId).toBe('premium')
+  })
+
+  test('le debordement ne coute jamais plus cher que le pack au-dessus', () => {
+    for (let n = 4; n <= PLAFOND_FORFAIT; n++) {
+      const choix = meilleureOffre(n, ['pointage'])
+      expect(choix).not.toBeNull()
+      OFFRES.filter(o => o.prix != null).forEach(offre => {
+        const forfait = prixMensuel(offre.id, n)
+        if (forfait != null && modulesInclus(offre.id).includes('pointage')) {
+          expect(choix.prix).toBeLessThanOrEqual(forfait)
+        }
+      })
+    }
+  })
+
+  test('un utilisateur de plus que le plafond bascule sur devis', () => {
+    expect(necessiteDevis(PLAFOND_FORFAIT + 1, ['pointage'])).toBe(true)
+    expect(meilleureOffre(PLAFOND_FORFAIT + 1, ['pointage'])).toBeNull()
+  })
+
+  test('le Premium ne deborde plus : il s arrete a son plafond', () => {
+    // Regression : le Premium debordait auparavant a 1,50 EUR/utilisateur,
+    // ce qui produisait un tarif de 429 EUR a 300 salaries sans que
+    // personne n'ait jamais parle au client.
+    expect(getOffre('premium').debordement).toBeNull()
+  })
+
+  test('AUCUN pack ne facture au-dela du plafond global, meme ceux qui debordent', () => {
+    // Le trou d'origine : Business deborde a 2 EUR/utilisateur sans limite.
+    // Un client de 300 salaries serait reste sur Business a 599 EUR, tarife
+    // par une formule, sans devis et sans conversation.
+    OFFRES.filter(o => o.prix != null).forEach(offre => {
+      expect(prixMensuel(offre.id, PLAFOND_FORFAIT + 1)).toBeNull()
+      expect(prixMensuel(offre.id, 300)).toBeNull()
+    })
+  })
+
+  test('un module reserve a Enterprise ne s achete pas en option', () => {
+    expect(necessiteDevis(10, ['white_label'])).toBe(true)
   })
 })
 
