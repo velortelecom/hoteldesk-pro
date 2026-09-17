@@ -390,11 +390,24 @@ Deno.serve(async (req: Request) => {
 
     await tracerTentative(email, false, (rollbackComplet ? '' : 'ROLLBACK_INCOMPLET ') + motif.slice(0, 180));
 
-    // Jamais d'erreur SQL brute dans l'interface.
+    // Jamais d'erreur SQL brute dans l'interface : c'est un endpoint
+    // public, non authentifie. Mais un message qui ne dit RIEN ne permet
+    // ni au visiteur ni a nous de savoir ou regarder -- l'inscription en
+    // formule gratuite a echoue pendant des heures sur une contrainte
+    // CHECK, et rien a l'ecran ne pointait vers la base.
+    //
+    // On renvoie donc une REFERENCE courte et non sensible : elle ne
+    // decrit pas la panne, elle permet de retrouver la ligne exacte dans
+    // les logs de la fonction. Le detail reste cote serveur.
+    const reference = 'INS-' + Date.now().toString(36).toUpperCase().slice(-6);
+    console.error('public-signup echec reference', reference, ':', motif);
+
     return rep({
       success: false,
       error: 'signup_failed',
-      message: "La creation de votre espace n'a pas pu aboutir. Aucune donnee n'a ete conservee. Reessayez ou contactez Velor One.",
+      reference,
+      message: "La creation de votre espace n'a pas pu aboutir. Aucune donnee n'a ete conservee. "
+        + 'Reessayez, ou contactez Velor One en indiquant la reference ' + reference + '.',
     }, 500);
   }
 });

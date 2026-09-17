@@ -559,3 +559,42 @@ describe('facturation du debordement', () => {
     expect(f).toMatch(/IF NOT public\.is_super_admin\(\) THEN[\s\S]{0,200}ACCES_REFUSE/)
   })
 })
+
+// ---------------------------------------------------------------------
+// LA BASE DOIT ACCEPTER TOUTES LES FORMULES DE LA GRILLE
+//
+// entreprises_plan_check datait d'avant l'offre gratuite. La grille
+// annoncait cinq formules, la base en acceptait quatre : toute
+// inscription en formule gratuite etait refusee, et le visiteur ne lisait
+// qu'un message generique. Meme famille que les quatre definitions de
+// packs divergentes -- sauf qu'ici la divergence etait entre le code et
+// une CONTRAINTE, que rien ne relisait.
+// ---------------------------------------------------------------------
+describe('accord entre la grille et la contrainte de la base', () => {
+  const PLAN_SQL = path.join(
+    RACINE, 'supabase', 'migrations', '20260917_0009_plan_gratuit_autorise.sql',
+  )
+
+  test('la migration autorise chaque identifiant de la grille', () => {
+    const sqlPlan = lire(PLAN_SQL)
+    expect(sqlPlan).not.toBeNull()
+
+    const trouve = sqlPlan.match(/c_formules\s+constant\s+text\[\]\s*:=\s*ARRAY\[([^\]]*)\]/)
+    expect(trouve).not.toBeNull()
+
+    const autorises = trouve[1].split(',')
+      .map(s => s.trim().replace(/^'|'$/g, ''))
+      .filter(Boolean)
+
+    expect(autorises.sort()).toEqual([...ORDRE_OFFRES].sort())
+  })
+
+  test('la migration ne retrecit jamais la liste existante', () => {
+    // Elle prend l'UNION de la grille et des plans deja en base. Ecrire
+    // la liste en dur ferait passer la contrainte sans erreur, puis
+    // casserait la premiere mise a jour d'une entreprise au plan oublie,
+    // des mois plus tard et sans rapport visible.
+    const sqlPlan = lire(PLAN_SQL)
+    expect(sqlPlan).toMatch(/UNION\s+SELECT DISTINCT e\.plan FROM public\.entreprises e/)
+  })
+})
