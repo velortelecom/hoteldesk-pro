@@ -6,6 +6,8 @@ import React, { useState } from 'react';
 import { useEmployes, useDepartements, usePostes } from '../hooks.js';
 import { ROLE_COLORS } from '../config.js';
 import SelecteurMenus from '../../../components/SelecteurMenus';
+import SelecteurPoste from '../../../components/SelecteurPoste';
+import { departementsApresChoixPoste, posteHorsDepartements } from '../../../lib/postesDepartements';
 import { definirMenusAutorises } from '../services.js';
 
 const ROLE_LABELS = {
@@ -490,6 +492,19 @@ function ModalCreation({ departements, postes, isSuperAdmin, onClose, onCreer })
     setSelectedDepts(prev => prev.includes(deptId) ? prev.filter(d => d !== deptId) : [...prev, deptId]);
   };
 
+  // Choisir un poste coche son departement : sans ca, on cree une
+  // gouvernante rattachee a l'Accueil, qui ne recevra jamais une tache
+  // adressee aux Etages. La case reste decochable.
+  const choisirPostePrincipal = (posteId) => {
+    setForm(f => ({ ...f, poste_id: posteId }));
+    setSelectedDepts(prev => departementsApresChoixPoste(prev, posteId, postes));
+  };
+
+  const deptManquant = posteHorsDepartements(form.poste_id, selectedDepts, postes);
+  const nomDeptManquant = deptManquant
+    ? (departements.find(d => d.id === deptManquant) || {}).nom
+    : null;
+
   const handleSubmit = async () => {
     if (!form.prenom || !form.nom) { setErreur('Prenom et nom sont requis.'); return; }
     setSaving(true);
@@ -529,20 +544,34 @@ function ModalCreation({ departements, postes, isSuperAdmin, onClose, onCreer })
             </select>
           </Champ>
           <Champ label="Poste principal">
-            <select value={form.poste_id} onChange={e => setForm(f => ({ ...f, poste_id: e.target.value }))} style={inputStyle}>
-              <option value="">-- Aucun --</option>
-              {postes.map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
-            </select>
+            <SelecteurPoste
+              valeur={form.poste_id}
+              onChange={choisirPostePrincipal}
+              postes={postes}
+              departements={departements}
+              style={inputStyle}
+              vide="-- Aucun --"
+            />
           </Champ>
           <Champ label="Poste secondaire">
-            <select value={form.poste_secondaire_id} onChange={e => setForm(f => ({ ...f, poste_secondaire_id: e.target.value }))} style={inputStyle}>
-              <option value="">-- Aucun --</option>
-              {postes.map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
-            </select>
+            <SelecteurPoste
+              valeur={form.poste_secondaire_id}
+              onChange={v => setForm(f => ({ ...f, poste_secondaire_id: v }))}
+              postes={postes}
+              departements={departements}
+              style={inputStyle}
+              vide="-- Aucun --"
+            />
           </Champ>
         </div>
         <div style={{ marginBottom: '0.75rem' }}>
           <label style={{ display: 'block', fontSize: '0.8125rem', color: '#6b7280', marginBottom: '0.375rem' }}>Departements</label>
+          {nomDeptManquant && (
+            <div style={{ background: '#FEF3C7', border: '1px solid #FCD34D', color: '#92400E', borderRadius: 8, padding: '7px 10px', fontSize: '0.75rem', marginBottom: '0.375rem' }}>
+              Ce poste releve de <strong>{nomDeptManquant}</strong>, qui n'est pas coche.
+              Cette personne ne verra pas les taches adressees a ce departement.
+            </div>
+          )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', maxHeight: '140px', overflow: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '0.5rem' }}>
             {departements.map(dept => {
               const isSelected = selectedDepts.includes(dept.id);
