@@ -27,9 +27,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { telechargerXlsx } from '../lib/xlsx'
 import {
-  LARGEURS_EXPORT, construireLignesExport, euros,
-  libellePeriode, nomFichierExport, periodesProposees, premierDuMois,
-  totauxFacturation,
+  LARGEURS_EXPORT, LARGEURS_EXPORT_ENTREPRISE, construireLignesExport,
+  construireLignesExportEntreprise, euros, libellePeriode, lignesFacture,
+  nomFichierExport, nomFichierExportEntreprise, nomFormule,
+  periodesProposees, premierDuMois, repartirUtilisateurs, totauxFacturation,
 } from './facturationExport'
 
 const carte = { background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 10, padding: 16 }
@@ -47,6 +48,9 @@ export default function SuperAdminFacturation() {
   const [figeage, setFigeage] = useState(false)
   const [retour, setRetour] = useState(null)
   const [confirmation, setConfirmation] = useState(false)
+  // Detail d'une entreprise : l'entreprise choisie, ses comptes et tout
+  // son historique fige.
+  const [detail, setDetail] = useState(null)
 
   const charger = useCallback(async () => {
     setChargement(true)
@@ -122,6 +126,59 @@ export default function SuperAdminFacturation() {
       'Facturation ' + libellePeriode(periode),
       construireLignesExport(releves),
       { largeurs: LARGEURS_EXPORT },
+    )
+  }
+
+  // DETAIL D'UNE ENTREPRISE.
+  //
+  // Le tableau donne un total ; le detail donne QUI est compte. C'est ce
+  // qu'on montre au client qui appelle en disant « je ne suis que dix »,
+  // et sans ca le chiffre n'est pas defendable.
+  const ouvrirDetail = async (ligne) => {
+    setDetail({ ligne, chargement: true, profils: [], historique: [], erreur: null })
+
+    const [profilsRes, histoRes] = await Promise.all([
+      supabase
+        .from('profiles_with_email')
+        .select('id, prenom, nom, role, email, actif, is_super_admin')
+        .eq('entreprise_id', ligne.entreprise_id)
+        .order('nom'),
+      supabase
+        .from('releves_facturation')
+        .select('periode, plan, utilisateurs, inclus, surplus, prix_base, supplement, prix_total, sur_devis, fige_le')
+        .eq('entreprise_id', ligne.entreprise_id)
+        .order('periode', { ascending: false }),
+    ])
+
+    const echec = profilsRes.error || histoRes.error
+    if (echec) {
+      console.error(
+        '[facturation] detail illisible pour ' + ligne.nom + '. '
+        + 'code=' + (echec.code || '-')
+        + ' message=' + (echec.message || '-')
+        + ' details=' + (echec.details || '-')
+        + ' hint=' + (echec.hint || '-'),
+      )
+      setDetail({ ligne, chargement: false, profils: [], historique: [], erreur: echec.message || 'Lecture refusee.' })
+      return
+    }
+
+    setDetail({
+      ligne,
+      chargement: false,
+      profils: profilsRes.data || [],
+      historique: histoRes.data || [],
+      erreur: null,
+    })
+  }
+
+  const exporterEntreprise = () => {
+    if (!detail) return
+    telechargerXlsx(
+      nomFichierExportEntreprise(detail.ligne.nom),
+      'Facturation',
+      construireLignesExportEntreprise(detail.historique),
+      { largeurs: LARGEURS_EXPORT_ENTREPRISE },
     )
   }
 
@@ -235,7 +292,8 @@ export default function SuperAdminFacturation() {
           </div>
 
           <h3 style={{ fontSize: 13.5, fontWeight: 700, color: '#374151', marginBottom: 8 }}>
-            Calcul en direct <span style={{ fontWeight: 400, color: '#9CA3AF' }}>&mdash; bouge a chaque embauche</span>
+            Calcul en direct <span style={{ fontWeight: 400, color: '#9CA3AF' }}>&mdash; bouge a chaque embauche.
+            Cliquez une ligne pour le detail de ce qu&apos;elle doit.</span>
           </h3>
           <div style={{ ...carte, padding: 0, overflowX: 'auto', marginBottom: 22 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -257,9 +315,14 @@ export default function SuperAdminFacturation() {
                   <tr><td style={{ ...td, color: '#9CA3AF' }} colSpan={9}>Aucune entreprise.</td></tr>
                 )}
                 {direct.map(l => (
-                  <tr key={l.entreprise_id} style={{ background: Number(l.supplement || 0) > 0 ? '#FFFBEB' : undefined }}>
+                  <tr
+                    key={l.entreprise_id}
+                    onClick={() => ouvrirDetail(l)}
+                    title={'Voir le detail de ' + l.nom}
+                    style={{ cursor: 'pointer', background: Number(l.supplement || 0) > 0 ? '#FFFBEB' : undefined }}
+                  >
                     <td style={{ ...td, fontWeight: 600 }}>
-                      {l.nom}
+                      <span style={{ color: '#1D4ED8', textDecoration: 'underline dotted' }}>{l.nom}</span>
                       {!l.actif && <span style={{ marginLeft: 6, fontSize: 11, color: '#9CA3AF' }}>(inactive)</span>}
                     </td>
                     <td style={td}>{l.plan || '—'}</td>
@@ -326,6 +389,192 @@ export default function SuperAdminFacturation() {
           </div>
         </>
       )}
+
+      {detail && (
+        <PanneauDetail
+          detail={detail}
+          periode={periode}
+          onFermer={() => setDetail(null)}
+          onExporter={exporterEntreprise}
+        />
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------
+// LE DETAIL D'UNE ENTREPRISE
+// ---------------------------------------------------------------------
+function PanneauDetail({ detail, periode, onFermer, onExporter }) {
+  const l = detail.ligne
+  const { comptes, exclus } = repartirUtilisateurs(detail.profils)
+  const lignes = lignesFacture(l)
+
+  // Si la liste lue ici ne donne pas le meme nombre que la base, on le
+  // DIT. Un ecart vient d'une lecture partielle (RLS) ou d'une regle de
+  // comptage qui a divergé ; dans les deux cas, le cacher serait pire
+  // que l'afficher -- c'est le chiffre qu'on facture.
+  const ecart = !detail.chargement && !detail.erreur
+    && comptes.length !== Number(l.utilisateurs)
+
+  const totalHistorique = detail.historique.reduce(
+    (s, r) => s + (r && r.prix_total != null ? Number(r.prix_total) : 0), 0,
+  )
+
+  return (
+    <div
+      onClick={onFermer}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'flex-end', zIndex: 1002 }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ background: '#fff', width: '100%', maxWidth: 620, height: '100%', overflowY: 'auto', padding: 24, boxSizing: 'border-box' }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 4 }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>{l.nom}</div>
+            <div style={{ fontSize: 12.5, color: '#6B7280' }}>
+              {nomFormule(l.plan)}
+              {l.inclus != null && ' \u00b7 ' + l.inclus + ' utilisateurs compris'}
+              {l.actif === false && ' \u00b7 entreprise inactive'}
+            </div>
+          </div>
+          <button onClick={onFermer} style={{ border: 'none', background: 'transparent', fontSize: 22, lineHeight: 1, cursor: 'pointer', color: '#6B7280' }}>&times;</button>
+        </div>
+
+        {/* CE QU'ELLE DOIT, LIGNE PAR LIGNE */}
+        <div style={{ ...carte, marginTop: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#185FA5', letterSpacing: '0.06em', marginBottom: 10 }}>
+            CE QU&apos;ELLE DOIT EN {libellePeriode(periode).toUpperCase()}
+          </div>
+          {lignes.map(ligne => (
+            <div
+              key={ligne.cle}
+              style={{
+                display: 'flex', justifyContent: 'space-between', gap: 12,
+                padding: '7px 0', fontSize: 13.5,
+                borderTop: ligne.total ? '1px solid #E5E7EB' : undefined,
+                marginTop: ligne.total ? 6 : 0,
+                fontWeight: ligne.total ? 700 : 400,
+                color: ligne.montant == null && !ligne.total ? '#92400E' : '#374151',
+              }}
+            >
+              <span>{ligne.libelle}</span>
+              <span style={{ whiteSpace: 'nowrap' }}>
+                {ligne.montant == null
+                  ? (l.sur_devis && ligne.total ? 'Sur devis' : '\u2014')
+                  : euros(ligne.montant)}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {detail.erreur && (
+          <div style={{ ...carte, marginTop: 16, background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', fontSize: 13 }}>
+            Les comptes de cette entreprise n&apos;ont pas pu etre lus : {detail.erreur}
+          </div>
+        )}
+
+        {ecart && (
+          <div style={{ ...carte, marginTop: 16, background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E', fontSize: 13, lineHeight: 1.6 }}>
+            La base facture <strong>{l.utilisateurs}</strong> utilisateurs, mais cette liste
+            en montre <strong>{comptes.length}</strong>. C&apos;est le chiffre de la base qui
+            est facture. A verifier avant d&apos;envoyer la facture.
+          </div>
+        )}
+
+        {/* QUI EST COMPTE */}
+        <div style={{ ...carte, marginTop: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#185FA5', letterSpacing: '0.06em', marginBottom: 4 }}>
+            LES {comptes.length} COMPTES FACTURES
+          </div>
+          <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 10 }}>
+            Comptes actifs, hors compte de supervision Velor.
+          </div>
+          {detail.chargement ? (
+            <div style={{ fontSize: 13, color: '#6B7280' }}>Lecture des comptes...</div>
+          ) : (
+            <>
+              {comptes.map((p, i) => (
+                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '6px 0', fontSize: 13, borderTop: i === 0 ? undefined : '1px solid #F3F4F6' }}>
+                  <span>{(p.prenom || '') + ' ' + (p.nom || '')}</span>
+                  <span style={{ color: '#6B7280', fontSize: 12 }}>{p.role}</span>
+                </div>
+              ))}
+              {comptes.length === 0 && (
+                <div style={{ fontSize: 13, color: '#9CA3AF' }}>Aucun compte actif.</div>
+              )}
+
+              {exclus.length > 0 && (
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #E5E7EB' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#6B7280', marginBottom: 6 }}>
+                    NON FACTURES ({exclus.length})
+                  </div>
+                  {exclus.map(x => (
+                    <div key={x.profil.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '5px 0', fontSize: 12.5, color: '#9CA3AF' }}>
+                      <span style={{ textDecoration: 'line-through' }}>{(x.profil.prenom || '') + ' ' + (x.profil.nom || '')}</span>
+                      <span>{x.raison}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* CE QU'ON LUI A DEJA FACTURE */}
+        <div style={{ ...carte, marginTop: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#185FA5', letterSpacing: '0.06em' }}>
+                HISTORIQUE FIGE
+              </div>
+              <div style={{ fontSize: 12, color: '#6B7280' }}>
+                {detail.historique.length === 0
+                  ? 'Aucune periode figee pour cette entreprise.'
+                  : detail.historique.length + ' periode(s), ' + euros(totalHistorique) + ' au total'}
+              </div>
+            </div>
+            <button
+              onClick={onExporter}
+              disabled={detail.historique.length === 0}
+              style={{
+                padding: '7px 14px', borderRadius: 8, border: '1px solid #D1D5DB', fontSize: 12.5,
+                background: '#fff', whiteSpace: 'nowrap',
+                color: detail.historique.length === 0 ? '#9CA3AF' : '#374151',
+                cursor: detail.historique.length === 0 ? 'default' : 'pointer',
+              }}
+            >
+              Exporter vers Excel
+            </button>
+          </div>
+
+          {detail.historique.length > 0 && (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={th}>Periode</th>
+                  <th style={th}>Utilisateurs</th>
+                  <th style={th}>Au-dela</th>
+                  <th style={th}>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detail.historique.map(r => (
+                  <tr key={r.periode}>
+                    <td style={td}>{libellePeriode(r.periode)}</td>
+                    <td style={td}>{r.utilisateurs}</td>
+                    <td style={td}>{Number(r.surplus) > 0 ? '+' + r.surplus : '\u2014'}</td>
+                    <td style={{ ...td, fontWeight: 700 }}>
+                      {r.sur_devis ? <span style={{ color: '#8B5CF6' }}>Sur devis</span> : euros(r.prix_total)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

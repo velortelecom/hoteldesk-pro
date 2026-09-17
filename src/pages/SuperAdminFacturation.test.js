@@ -23,10 +23,12 @@ import { act } from 'react-dom/test-utils'
 global.IS_REACT_ACT_ENVIRONMENT = true
 
 // Les mockAppels enregistres par le double.
-const mockAppels = { rpc: [], from: [] }
+const mockAppels = { rpc: [], from: [], eq: [], order: [] }
 let mockReponseGlobal = { data: [], error: null }
 let mockReponseReleves = { data: [], error: null }
 let mockReponseFigeage = { data: 0, error: null }
+let mockReponseProfils = { data: [], error: null }
+let mockReponseHistorique = { data: [], error: null }
 
 jest.mock('../lib/supabase', () => ({
   supabase: {
@@ -40,8 +42,16 @@ jest.mock('../lib/supabase', () => ({
       mockAppels.from.push(table)
       const chaine = {
         select: () => chaine,
-        eq: () => chaine,
-        order: () => Promise.resolve(mockReponseReleves),
+        eq: (col, val) => { mockAppels.eq.push({ table, col, val }); return chaine },
+        // La reponse depend de la colonne de tri : l'ecran lit
+        // releves_facturation pour la periode (tri fige_le) et pour
+        // l'historique d'une entreprise (tri periode).
+        order: (col) => {
+          mockAppels.order.push({ table, col })
+          if (table === 'profiles_with_email') return Promise.resolve(mockReponseProfils)
+          if (col === 'periode') return Promise.resolve(mockReponseHistorique)
+          return Promise.resolve(mockReponseReleves)
+        },
       }
       return chaine
     },
@@ -92,9 +102,13 @@ async function cliquer(bouton) {
 beforeEach(() => {
   mockAppels.rpc = []
   mockAppels.from = []
+  mockAppels.eq = []
+  mockAppels.order = []
   mockReponseGlobal = { data: [], error: null }
   mockReponseReleves = { data: [], error: null }
   mockReponseFigeage = { data: 0, error: null }
+  mockReponseProfils = { data: [], error: null }
+  mockReponseHistorique = { data: [], error: null }
 })
 
 afterEach(() => {
@@ -316,5 +330,156 @@ describe('le bouton Exporter', () => {
     expect(blobs).toHaveLength(1)
     expect(blobs[0].type).toContain('spreadsheetml.sheet')
     expect(nomTelecharge).toMatch(/^facturation-velor-one-\d{4}-\d{2}\.xlsx$/)
+  })
+})
+
+describe('le detail d une entreprise', () => {
+  const PROFILS = [
+    { id: '1', prenom: 'Ana', nom: 'Bert', role: 'admin', actif: true, is_super_admin: false },
+    { id: '2', prenom: 'Bob', nom: 'Cart', role: 'employe', actif: true, is_super_admin: false },
+    { id: '3', prenom: 'Parti', nom: 'Dupond', role: 'employe', actif: false, is_super_admin: false },
+    { id: '4', prenom: 'Rayan', nom: 'Velor', role: 'admin', actif: true, is_super_admin: true },
+  ]
+
+  const HISTORIQUE = [
+    { periode: '2026-09-01', plan: 'starter', utilisateurs: 12, inclus: 10, surplus: 2, prix_base: 29, supplement: 4, prix_total: 33, sur_devis: false, fige_le: '2026-09-17T10:00:00Z' },
+    { periode: '2026-08-01', plan: 'starter', utilisateurs: 10, inclus: 10, surplus: 0, prix_base: 29, supplement: 0, prix_total: 29, sur_devis: false, fige_le: '2026-08-01T08:00:00Z' },
+  ]
+
+  async function ouvrir(ligne = LIGNE_FONDATEUR) {
+    mockReponseGlobal = { data: [ligne], error: null }
+    const c = await afficher()
+    // On clique le nom de l'entreprise dans le tableau.
+    const cellule = Array.from(c.querySelectorAll('td'))
+      .find(t => (t.textContent || '').indexOf(ligne.nom) !== -1)
+    await act(async () => {
+      cellule.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    return c
+  }
+
+  test('le detail est demande pour la bonne entreprise', async () => {
+    mockReponseProfils = { data: PROFILS, error: null }
+    await ouvrir()
+
+    expect(mockAppels.from).toContain('profiles_with_email')
+    // Les deux lectures sont filtrees sur l'entreprise cliquee, jamais
+    // sur toutes : sinon on afficherait les comptes d'une autre boite.
+    const filtres = mockAppels.eq.filter(e => e.col === 'entreprise_id')
+    expect(filtres.length).toBeGreaterThanOrEqual(2)
+    filtres.forEach(f => expect(f.val).toBe(LIGNE_FONDATEUR.entreprise_id))
+  })
+
+  test('la facture est detaillee ligne par ligne', async () => {
+    mockReponseProfils = { data: PROFILS, error: null }
+    const c = await ouvrir()
+    const t = c.textContent
+
+    expect(t).toContain('Forfait Velor One')
+    expect(t).toContain('jusqu')                 // « jusqu'a 10 utilisateurs »
+    expect(t).toContain('2 utilisateurs au-dela du forfait')
+    expect(t).toContain('2,00')                  // le prix unitaire
+    expect(t).toContain('29,00')                 // le forfait
+    expect(t).toContain('4,00')                  // le debordement
+    expect(t).toContain('Total du ce mois-ci')
+    expect(t).toContain('33,00')                 // 29 + 4
+  })
+
+  test('les comptes factures sont listes, et les exclus avec leur raison', async () => {
+    mockReponseProfils = { data: PROFILS, error: null }
+    const c = await ouvrir()
+    const t = c.textContent
+
+    expect(t).toContain('Ana Bert')
+    expect(t).toContain('Bob Cart')
+    // Le desactive et le super admin apparaissent, mais du cote non
+    // facture : c'est ce qui permet de repondre a « et Untel ? ».
+    expect(t).toContain('NON FACTURES (2)')
+    expect(t).toContain('compte desactive')
+    expect(t).toContain('compte de supervision Velor')
+  })
+
+  test('un ecart entre la liste et le chiffre facture est signale', async () => {
+    // La base dit 12, la liste en montre 2 : on le dit au lieu de le
+    // cacher. C'est le chiffre de la base qui part sur la facture.
+    mockReponseProfils = { data: PROFILS, error: null }
+    const c = await ouvrir()
+    expect(c.textContent).toContain('A verifier avant d')
+  })
+
+  test('aucun ecart signale quand la liste et la base concordent', async () => {
+    mockReponseProfils = { data: PROFILS, error: null }
+    // 2 comptes actifs hors super admin -> une entreprise facturee 2.
+    const c = await ouvrir({ ...LIGNE_FONDATEUR, utilisateurs: 2, surplus: 0, supplement: 0, prix_total: 29 })
+    expect(c.textContent).not.toContain('A verifier avant d')
+  })
+
+  test('une lecture des comptes refusee est affichee, pas avalee', async () => {
+    const origine = console.error
+    console.error = () => {}
+    mockReponseProfils = { data: null, error: { code: '42501', message: 'permission denied for view profiles_with_email' } }
+    const c = await ouvrir()
+    console.error = origine
+
+    expect(c.textContent).toContain('permission denied')
+    expect(c.textContent).not.toContain('NON FACTURES')
+  })
+
+  test('l historique fige est affiche avec son total', async () => {
+    mockReponseProfils = { data: PROFILS, error: null }
+    mockReponseHistorique = { data: HISTORIQUE, error: null }
+    const c = await ouvrir()
+
+    expect(c.textContent).toContain('HISTORIQUE FIGE')
+    expect(c.textContent).toContain('septembre 2026')
+    expect(c.textContent).toContain('aout 2026')
+    expect(c.textContent).toContain('62,00')   // 33 + 29
+  })
+
+  test('sans historique, l export de l entreprise est desactive', async () => {
+    mockReponseProfils = { data: PROFILS, error: null }
+    mockReponseHistorique = { data: [], error: null }
+    const c = await ouvrir()
+
+    expect(c.textContent).toContain('Aucune periode figee pour cette entreprise')
+    const exports = Array.from(c.querySelectorAll('button'))
+      .filter(b => (b.textContent || '').indexOf('Exporter vers Excel') !== -1)
+    // Deux boutons portent ce libelle (la periode et l'entreprise) :
+    // celui du panneau est le dernier rendu.
+    expect(exports[exports.length - 1].disabled).toBe(true)
+  })
+
+  test('l export de l entreprise produit un fichier a son nom', async () => {
+    mockReponseProfils = { data: PROFILS, error: null }
+    mockReponseHistorique = { data: HISTORIQUE, error: null }
+    const c = await ouvrir({ ...LIGNE_FONDATEUR, nom: 'Hotel Bellevue & Spa' })
+
+    const blobs = []
+    let nomTelecharge = null
+    URL.createObjectURL = (blob) => { blobs.push(blob); return 'blob:fake' }
+    URL.revokeObjectURL = () => {}
+    const creerElement = document.createElement.bind(document)
+    document.createElement = (balise) => {
+      const el = creerElement(balise)
+      if (balise === 'a') el.click = () => { nomTelecharge = el.download }
+      return el
+    }
+
+    const exports = Array.from(c.querySelectorAll('button'))
+      .filter(b => (b.textContent || '').indexOf('Exporter vers Excel') !== -1)
+    await cliquer(exports[exports.length - 1])
+
+    document.createElement = creerElement
+
+    expect(blobs).toHaveLength(1)
+    expect(nomTelecharge).toBe('facturation-hotel-bellevue-spa.xlsx')
+  })
+
+  test('le panneau se ferme', async () => {
+    mockReponseProfils = { data: PROFILS, error: null }
+    const c = await ouvrir()
+    const fermer = Array.from(c.querySelectorAll('button')).find(b => b.textContent === '×')
+    await cliquer(fermer)
+    expect(c.textContent).not.toContain('CE QU')
   })
 })
