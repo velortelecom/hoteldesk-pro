@@ -19,12 +19,18 @@ import {
 } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
-const CAT_COLORS = {
-  menage: { bg: '#EAF3DE', text: '#27500A', border: '#7fb83a' },
-  maintenance: { bg: '#FCEBEB', text: '#791F1F', border: '#e24b4a' },
-  accueil: { bg: '#FAEEDA', text: '#633806', border: '#EF9F27' },
-  admin: { bg: '#E6F1FB', text: '#0C447C', border: '#185FA5' },
-  urgence: { bg: '#F5E6FB', text: '#5B0B7C', border: '#9b59b6' }
+// Les taches etaient coloriees par CATEGORIE -- menage, maintenance,
+// accueil, admin, urgence -- un systeme remplace par les departements.
+// Depuis, la colonne vaut presque toujours la valeur par defaut : tout le
+// calendrier s'affichait de la meme couleur, et la legende annoncait cinq
+// familles qui n'existaient plus.
+//
+// On colorie par PRIORITE : c'est ce qu'on remplit vraiment, et c'est ce
+// qu'on cherche des yeux en ouvrant un planning.
+const COULEURS_PRIORITE = {
+  haute:   { bg: '#FCEBEB', text: '#791F1F', border: '#e24b4a' },
+  moyenne: { bg: '#E6F1FB', text: '#0C447C', border: '#185FA5' },
+  basse:   { bg: '#F3F4F6', text: '#374151', border: '#9CA3AF' },
 }
 
 
@@ -235,7 +241,7 @@ export default function Planning() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   {dayTasks.slice(0, 3).map(t => {
-                    const col = CAT_COLORS[t.categorie] || CAT_COLORS.admin
+                    const col = COULEURS_PRIORITE[t.priorite] || COULEURS_PRIORITE.moyenne
                     return (
                       <div key={t.id} style={{
                         background: col.bg, color: col.text, borderLeft: '2px solid ' + col.border,
@@ -340,7 +346,7 @@ export default function Planning() {
                     </span>
                   )}
                   {tasks.map(t => {
-                    const col = CAT_COLORS[t.categorie] || CAT_COLORS.admin
+                    const col = COULEURS_PRIORITE[t.priorite] || COULEURS_PRIORITE.moyenne
                     const emp = t.assignee
                     const debutT = t.heure_debut ? t.heure_debut.slice(0, 5) : format(parseISO(t.date_echeance), 'HH:mm')
                     const place = occupeCreneau(debutT, t.heure_fin ? t.heure_fin.slice(0, 5) : null, h)
@@ -508,13 +514,18 @@ export default function Planning() {
         ))}
       </div>
 
-      {/* Legende categories */}
+      {/* Legende : les priorites, seules couleurs qui veulent encore dire
+          quelque chose depuis que les categories ont cede la place aux
+          departements. */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-        {Object.entries(CAT_COLORS).map(([cat, col]) => (
-          <span key={cat} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: col.bg, color: col.text, border: '1px solid ' + col.border }}>
-            {cat}
-          </span>
-        ))}
+        {PRIORITES_TACHE.map(p => {
+          const col = COULEURS_PRIORITE[p] || COULEURS_PRIORITE.moyenne
+          return (
+            <span key={p} style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: col.bg, color: col.text, border: '1px solid ' + col.border }}>
+              {LIBELLES_PRIORITE[p] || p}
+            </span>
+          )
+        })}
       </div>
 
       {/* Calendar / Timeline */}
