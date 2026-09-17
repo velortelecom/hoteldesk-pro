@@ -36,7 +36,7 @@ export const PLAFOND_FORFAIT = 30;   // au-dela : devis
 // decide jamais d'un prix. Le blocage a vie ne demande aucun mecanisme,
 // puisque le prix est fige dans entreprises.prix_mensuel a la creation.
 export const TARIF_FONDATEUR = 29;
-export const FONDATEURS_MAX = 10;
+export const FONDATEURS_MAX = 5;
 
 // --- Plan Gratuit -----------------------------------------------------
 // Ajoute le 17/09/2026. Ce n'est PAS le plan de l'inscription publique :

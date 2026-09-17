@@ -222,6 +222,24 @@ describe('definitions serveur contre offres.js', () => {
     expect(fondateur).toMatch(new RegExp('c_prix_standard\\s+constant\\s+numeric\\s*:=\\s*' + PRIX_STANDARD + '\\b'))
   })
 
+  test('la page d inscription annonce le prix qui sera REELLEMENT facture', () => {
+    // Elle affichait le tarif public pendant que le trigger facturait le
+    // tarif fondateur. Un ecran qui ment sur un prix bloque a vie, c'est
+    // une erreur qu'on ne peut plus rattraper ensuite.
+    const page = lire(path.join(__dirname, '..', 'pages', 'Inscription.jsx'))
+    expect(page).not.toBeNull()
+    expect(page).toMatch(/places_fondateur_restantes/)
+    expect(page).toMatch(/TARIF_FONDATEUR/)
+  })
+
+  test('la fonction de comptage est lisible sans etre connecte', () => {
+    // Un prospect n'a pas de compte : sans droit pour anon, la page
+    // retomberait silencieusement sur le tarif public.
+    const fondateur = lire(FONDATEUR_SQL)
+    expect(fondateur).toMatch(/create or replace function public\.places_fondateur_restantes/)
+    expect(fondateur).toMatch(/grant execute on function public\.places_fondateur_restantes\(\) to anon/)
+  })
+
   test('le trigger ne s applique qu aux inscriptions publiques', () => {
     // Une entreprise creee a la main par le Super Admin doit garder le
     // prix qu'il lui a donne : ce n'est pas au code de decider a sa place.

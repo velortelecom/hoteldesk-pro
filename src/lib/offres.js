@@ -44,7 +44,7 @@ export const PRIX_STANDARD = 39
  * verifie.
  */
 export const TARIF_FONDATEUR = 29
-export const FONDATEURS_MAX = 10
+export const FONDATEURS_MAX = 5
 
 /** Utilisateurs compris dans le forfait, puis prix de l'utilisateur en plus. */
 export const UTILISATEURS_INCLUS = 10

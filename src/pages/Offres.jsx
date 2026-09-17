@@ -200,12 +200,22 @@ export default function Offres() {
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {/* Le tarif fondateur se lit sur le prix REEL de l'entreprise, pas
                 sur la grille : c'est justement ce qui le rend permanent. */}
-            {estFondateur && <Pastille bg="#FEF3C7" fg="#92400E">Tarif fondateur</Pastille>}
+            {estFondateur && <Pastille bg="#FEF3C7" fg="#92400E">Tarif fondateur &mdash; bloque a vie</Pastille>}
             {finProche && finProche.niveau === 'expire'
               ? <Pastille bg="#FEF2F2" fg="#991B1B">Lecture seule</Pastille>
               : <Pastille bg="#ECFDF5" fg="#065F46">Actif</Pastille>}
           </div>
         </div>
+
+        {estFondateur && (
+          <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E', borderRadius: 10, padding: '10px 12px', fontSize: 12.5, lineHeight: 1.6, marginTop: 14 }}>
+            Vous faites partie des premieres entreprises inscrites. Votre tarif de{' '}
+            <strong>{TARIF_FONDATEUR} &euro; / mois</strong> est bloque <strong>a vie</strong> sur
+            le perimetre souscrit &mdash; le socle, Organisation &amp; RH, Conges et Pointage &mdash;
+            quelle que soit l&apos;evolution de nos tarifs publics. Les modules publies
+            ulterieurement pourront faire l&apos;objet d&apos;une option.
+          </div>
+        )}
 
         {finProche && (
           <div style={{

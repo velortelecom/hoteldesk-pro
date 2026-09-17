@@ -7,7 +7,7 @@
 // impose le Plan 1 cote serveur. Le plan, le role et la liste des modules
 // ne sont donc jamais envoyes depuis ici : les afficher suffit.
 // =====================================================================
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { SECTEURS_OPTIONS } from '../lib/secteurs'
@@ -16,6 +16,7 @@ import {
   PLAN_1_LABEL, PLAN_1_PRIX_MENSUEL, PLAN_1_MAX_UTILISATEURS,
   PLAN_1_SOCLE, PLAN_1_MODULES_DETAIL, PACKS_SUPERIEURS, STATUT_SUR_DEMANDE,
 } from '../lib/plan1'
+import { TARIF_FONDATEUR, PRIX_UTILISATEUR_SUP, PLAFOND_FORFAIT } from '../lib/offres'
 
 const MDP_MIN = 8
 
@@ -60,14 +61,53 @@ function Champ({ label, aide, erreur, children }) {
 }
 
 function BlocInclus() {
+  // Le prix affiche doit etre CELUI QUI SERA FACTURE. Tant qu'il reste des
+  // places fondatrices, le trigger appliquera 29 EUR : annoncer 39 EUR
+  // serait un ecran qui ment, exactement ce qu'on corrige ailleurs.
+  //
+  // null = on ne sait pas encore, ou la fonction n'existe pas (migration
+  // non appliquee). Dans ce cas on affiche le tarif public : mieux vaut
+  // annoncer plus cher que promettre une remise qu'on ne donnera pas.
+  const [places, setPlaces] = useState(null)
+
+  useEffect(() => {
+    let annule = false
+    supabase.rpc('places_fondateur_restantes').then(({ data, error }) => {
+      if (annule || error || data == null) return
+      setPlaces(Number(data))
+    })
+    return () => { annule = true }
+  }, [])
+
+  const fondateur = places != null && places > 0
+  const prix = fondateur ? TARIF_FONDATEUR : PLAN_1_PRIX_MENSUEL
+
   return (
     <div style={{ ...styles.carte, background: '#F8FAFC' }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: '#185FA5', letterSpacing: '0.06em', marginBottom: 4 }}>
         VOTRE ABONNEMENT
       </div>
       <div style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>{PLAN_1_LABEL}</div>
-      <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2, marginBottom: 18 }}>
-        {PLAN_1_PRIX_MENSUEL} &euro; / mois &middot; jusqu&apos;a {PLAN_1_MAX_UTILISATEURS} utilisateurs
+      <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>
+        {fondateur && (
+          <span style={{ textDecoration: 'line-through', marginRight: 6 }}>{PLAN_1_PRIX_MENSUEL} &euro;</span>
+        )}
+        <strong style={{ color: '#111827', fontSize: 15 }}>{prix} &euro; / mois</strong>
+        {' '}&middot; jusqu&apos;a {PLAN_1_MAX_UTILISATEURS} utilisateurs,
+        puis {PRIX_UTILISATEUR_SUP} &euro; par utilisateur
+      </div>
+
+      {fondateur && (
+        <div style={{ background: '#FEF3C7', border: '1px solid #FCD34D', color: '#92400E', borderRadius: 10, padding: '10px 12px', fontSize: 12, lineHeight: 1.6, margin: '12px 0 6px' }}>
+          <strong>Tarif fondateur &mdash; il reste {places} place{places > 1 ? 's' : ''}.</strong><br />
+          Vous gardez ce prix <strong>a vie</strong> sur le perimetre souscrit : le socle,
+          Organisation &amp; RH, Conges et Pointage. Les modules publies plus tard pourront
+          faire l&apos;objet d&apos;une option.
+        </div>
+      )}
+
+      <div style={{ fontSize: 11.5, color: '#9CA3AF', marginBottom: 18, marginTop: fondateur ? 0 : 10 }}>
+        Au-dela de {PLAFOND_FORFAIT} salaries, nous etablissons un devis avec vous.
       </div>
 
       <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Inclus d&apos;office</div>

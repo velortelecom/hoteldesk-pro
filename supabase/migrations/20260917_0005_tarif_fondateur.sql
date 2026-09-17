@@ -64,7 +64,7 @@ as $$
 declare
   c_tarif_fondateur constant numeric := 29;
   c_prix_standard   constant numeric := 39;
-  c_fondateurs_max  constant integer := 10;
+  c_fondateurs_max  constant integer := 5;
   v_nb_fondateurs   integer;
 begin
   -- Seules les inscriptions publiques sur l'offre Velor One sont
@@ -108,14 +108,39 @@ before insert on public.entreprises
 for each row
 execute function public.appliquer_tarif_fondateur();
 
+-- ---------------------------------------------------------------------
+-- 3. Combien de places restent -- lisible SANS ETRE CONNECTE.
+--
+--    L'ecran d'inscription affichait le tarif public (39 EUR) alors que
+--    le trigger allait facturer 29 EUR a un fondateur : un ecran qui ment,
+--    exactement ce qu'on passe la semaine a corriger ailleurs. Il lui faut
+--    donc une facon de connaitre le nombre de places, avant tout compte.
+--
+--    La fonction ne rend qu'un entier. Elle n'expose ni nom d'entreprise,
+--    ni volume d'affaires : savoir qu'il reste deux places ne renseigne
+--    sur personne.
+-- ---------------------------------------------------------------------
+create or replace function public.places_fondateur_restantes()
+returns integer
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select greatest(0, 5 - (select count(*)::integer from public.entreprises where tarif_fondateur))
+$$;
+
+revoke all on function public.places_fondateur_restantes() from public;
+grant execute on function public.places_fondateur_restantes() to anon, authenticated;
+
 commit;
 
 -- ---------------------------------------------------------------------
--- 3. Verification : l'etat reel apres application.
+-- 4. Verification : l'etat reel apres application.
 -- ---------------------------------------------------------------------
 select
-  (select count(*) from public.entreprises where tarif_fondateur)      as fondateurs_actuels,
-  10 - (select count(*) from public.entreprises where tarif_fondateur) as places_restantes,
+  (select count(*) from public.entreprises where tarif_fondateur) as fondateurs_actuels,
+  public.places_fondateur_restantes()                             as places_restantes,
   (select count(*) from pg_trigger
      where tgrelid = 'public.entreprises'::regclass
-       and tgname = 'trg_tarif_fondateur')                             as trigger_en_place;
+       and tgname = 'trg_tarif_fondateur')                        as trigger_en_place;
