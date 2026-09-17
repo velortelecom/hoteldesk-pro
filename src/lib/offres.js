@@ -60,9 +60,15 @@ export const PLAFOND_FORFAIT = 30
 /**
  * Les offres.
  *
- *   vendu   false = plus commercialisee. On la garde parce que des
- *           entreprises la portent peut-etre encore dans entreprises.plan :
- *           la supprimer ferait afficher un plan inconnu a leur ecran.
+ *   vendu   false = pas (ou plus) commercialisee. Elle reste AFFICHEE a
+ *           l'inscription, marquee BIENTOT et non selectionnable, pour que
+ *           le visiteur voie la trajectoire du produit. Le jour ou ses
+ *           modules sont livres : vendu: true + un prix, et la carte
+ *           devient selectionnable. Rien d'autre a toucher, ni ici ni
+ *           dans la page d'inscription.
+ *           On la garde aussi parce qu'une entreprise peut encore la
+ *           porter dans entreprises.plan et doit voir un nom, pas un
+ *           identifiant brut.
  *   modules ce que l'offre AJOUTE aux offres inferieures, jamais la liste
  *           complete -- sinon on recree la duplication qu'on a supprimee.
  */
@@ -132,6 +138,11 @@ export const OFFRES = [
 /** Identifiants des offres, du moins cher au plus cher. */
 export const ORDRE_OFFRES = OFFRES.map(o => o.id)
 
+/** Rang de l'offre dans l'echelle. -1 si inconnue. */
+export function rangOffre(id) {
+  return ORDRE_OFFRES.indexOf(id)
+}
+
 /** Les offres reellement proposees a la vente aujourd'hui. */
 export const OFFRES_VENDUES = OFFRES.filter(o => o.vendu)
 
@@ -141,13 +152,28 @@ export const OFFRE_INSCRIPTION = 'starter'
 /** L'offre vers laquelle on retombe quand rien n'est paye. */
 export const OFFRE_GRATUITE = 'gratuit'
 
-export function getOffre(id) {
-  return OFFRES.find(o => o.id === id) || null
+/**
+ * MODULES A VENIR -- ceux qui n'existent pas encore.
+ *
+ * Un visiteur peut declarer qu'ils l'interesseraient. Cet interet cree une
+ * DEMANDE (table demandes_pack), jamais une activation : c'est toute la
+ * difference avec le badge "MODULE ACTIF" qu'on a retire, qui affirmait
+ * qu'un module fonctionnait alors qu'il n'existait pas.
+ *
+ * La liste est DERIVEE : tout ce qui n'est pas dans l'offre de souscription.
+ * Le jour ou un module est livre, il entre dans OFFRES[starter].modules et
+ * disparait d'ici tout seul -- il n'y a pas deux listes a tenir.
+ */
+export const MODULES_A_VENIR = OFFRES
+  .filter(o => rangOffre(o.id) > rangOffre(OFFRE_INSCRIPTION))
+  .flatMap(o => o.modules)
+
+export function estModuleAVenir(id) {
+  return MODULES_A_VENIR.includes(id)
 }
 
-/** Rang de l'offre dans l'echelle. -1 si inconnue. */
-export function rangOffre(id) {
-  return ORDRE_OFFRES.indexOf(id)
+export function getOffre(id) {
+  return OFFRES.find(o => o.id === id) || null
 }
 
 /**

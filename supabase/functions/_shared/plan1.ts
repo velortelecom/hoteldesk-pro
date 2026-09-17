@@ -59,6 +59,20 @@ export const PLAN_GRATUIT_MODULES: readonly string[] = ['organisation'];
 // annonce quinze choses qui n'existent pas. Elles reviendront quand il y
 // aura des modules a vendre.
 
+// --- Modules a venir --------------------------------------------------
+// Ceux qui n'existent pas encore. Un visiteur peut declarer qu'ils
+// l'interesseraient : cela cree une ligne dans demandes_pack, JAMAIS dans
+// entreprise_modules. Un interet n'est pas une activation.
+//
+// Liste fermee et verifiee cote serveur : un navigateur ne doit pas pouvoir
+// faire passer 'organisation' ou 'pointage' pour un interet, ni inventer un
+// identifiant.
+export const MODULES_A_VENIR: readonly string[] = [
+  'documents', 'rapports', 'facturation', 'clients', 'vehicules', 'stocks',
+  'reservations', 'gps', 'qualite', 'formations', 'securite',
+  'planning_avance', 'multi_sites', 'api', 'white_label', 'ia',
+];
+
 // --- Anti-abus de l'inscription publique -----------------------------
 export const ANTI_ABUS = {
   /** Inscriptions abouties autorisees depuis une meme IP sur 24 h. */

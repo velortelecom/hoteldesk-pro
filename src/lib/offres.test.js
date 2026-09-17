@@ -18,7 +18,7 @@ const path = require('path')
 const {
   OFFRES, OFFRES_VENDUES, ORDRE_OFFRES, OFFRE_INSCRIPTION, OFFRE_GRATUITE,
   PRIX_STANDARD, TARIF_FONDATEUR, FONDATEURS_MAX, PLAFOND_FORFAIT,
-  UTILISATEURS_INCLUS, PRIX_UTILISATEUR_SUP,
+  UTILISATEURS_INCLUS, PRIX_UTILISATEUR_SUP, MODULES_A_VENIR,
   getOffre, modulesInclus, prixMensuel, prixSouscription, necessiteDevis,
 } = require('./offres')
 const { MODULES_REGISTRY } = require('../modules/registry')
@@ -238,6 +238,43 @@ describe('definitions serveur contre offres.js', () => {
     const fondateur = lire(FONDATEUR_SQL)
     expect(fondateur).toMatch(/create or replace function public\.places_fondateur_restantes/)
     expect(fondateur).toMatch(/grant execute on function public\.places_fondateur_restantes\(\) to anon/)
+  })
+
+  test('un INTERET declare n est jamais une ACTIVATION', () => {
+    // C'est la propriete qui rend honnete d'afficher des modules "BIENTOT"
+    // a l'inscription. Le badge "MODULE ACTIF" qu'on a retire affirmait
+    // qu'un module fonctionnait alors qu'il n'existait pas ; ici on dit
+    // clairement qu'il n'existe pas encore, et on ecrit une DEMANDE.
+    const edge = lire(path.join(RACINE, 'supabase', 'functions', 'public-signup', 'index.ts'))
+    expect(edge).not.toBeNull()
+    // Les interets partent dans demandes_pack...
+    expect(edge).toMatch(/modules_demandes: modulesInteresses/)
+    // ... et JAMAIS dans entreprise_modules.
+    const insertsModulesEntreprise = edge.match(/from\('entreprise_modules'\)\s*\n?\s*\.insert/g) || []
+    expect(insertsModulesEntreprise).toHaveLength(0)
+    // La liste est filtree contre les modules A VENIR, donc un module
+    // developpe ne peut pas s'y glisser.
+    expect(edge).toMatch(/filter\(\(m\) => MODULES_A_VENIR\.includes\(m\)\)/)
+  })
+
+  test('les modules a venir sont exactement ceux qui ne sont pas developpes', () => {
+    MODULES_A_VENIR.forEach(id => {
+      expect(MODULES_DEVELOPPES).not.toContain(id)
+    })
+    // Et reciproquement : rien de developpe ne doit figurer comme "a venir".
+    MODULES_DEVELOPPES.forEach(id => {
+      expect(MODULES_A_VENIR).not.toContain(id)
+    })
+  })
+
+  test('les deux definitions des modules a venir concordent', () => {
+    const ts = lire(PLAN1_TS)
+    const trouve = ts.match(/MODULES_A_VENIR: readonly string\[\] = \[([\s\S]*?)\]/)
+    expect(trouve).not.toBeNull()
+    const declares = trouve[1].split(',')
+      .map(s => s.trim().replace(/^['"]|['"]$/g, ''))
+      .filter(Boolean)
+    expect(declares.sort()).toEqual([...MODULES_A_VENIR].sort())
   })
 
   test('le navigateur ne choisit QUE la formule, jamais le prix', () => {

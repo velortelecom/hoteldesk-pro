@@ -37,7 +37,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { buildCorsHeaders, jsonResponse, readJsonBody } from '../_shared/http.ts';
 import { recordAuditEvent } from '../_shared/audit.ts';
-import { ANTI_ABUS, PLAN_1_ID, PLAN_1_MODULES, PLAN_GRATUIT_ID } from '../_shared/plan1.ts';
+import { ANTI_ABUS, MODULES_A_VENIR, PLAN_1_ID, PLAN_1_MODULES, PLAN_GRATUIT_ID } from '../_shared/plan1.ts';
 import { getTemplate, SECTEURS_VALIDES } from '../_shared/secteurs_templates.ts';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -116,9 +116,22 @@ function valider(body: Record<string, unknown>) {
     ? formuleBrute
     : PLAN_1_ID;
 
+  // MODULES QUI L'INTERESSERAIENT PLUS TARD.
+  // Filtres contre la liste fermee des modules A VENIR : un navigateur ne
+  // peut donc pas faire passer 'pointage' pour un interet, ni inventer un
+  // identifiant. Et de toute facon cela n'ira que dans demandes_pack --
+  // jamais dans entreprise_modules. Un interet n'est pas une activation.
+  const interetsBruts = Array.isArray(body.modules_interesses) ? body.modules_interesses : [];
+  const modulesInteresses = [...new Set(
+    interetsBruts
+      .filter((m): m is string => typeof m === 'string')
+      .map((m) => m.trim().toLowerCase())
+      .filter((m) => MODULES_A_VENIR.includes(m)),
+  )].slice(0, MODULES_A_VENIR.length);
+
   return {
     erreurs,
-    valeurs: { nomEntreprise, secteur, adminPrenom, adminNom, email, password, telephone: telephone || null, nombreEmployes, formule },
+    valeurs: { nomEntreprise, secteur, adminPrenom, adminNom, email, password, telephone: telephone || null, nombreEmployes, formule, modulesInteresses },
   };
 }
 
@@ -165,7 +178,7 @@ Deno.serve(async (req: Request) => {
     return rep({ success: false, error: 'validation_failed', message: 'Certains champs sont invalides.', erreurs }, 400);
   }
 
-  const { nomEntreprise, secteur, adminPrenom, adminNom, email, password, telephone, nombreEmployes, formule } = valeurs;
+  const { nomEntreprise, secteur, adminPrenom, adminNom, email, password, telephone, nombreEmployes, formule, modulesInteresses } = valeurs;
 
   // --- Anti-abus -------------------------------------------------------
   const ilYaUneHeure = new Date(Date.now() - 3600_000).toISOString();
@@ -287,6 +300,27 @@ Deno.serve(async (req: Request) => {
     const idsActifs = (modulesActifs || []).map((m: { module_id: string }) => m.module_id);
     const horsPlan = idsActifs.filter((id: string) => !PLAN_1_MODULES.includes(id));
     if (horsPlan.length > 0) throw new Error('modules_hors_plan1: ' + horsPlan.join(','));
+
+    // --- Interet pour des modules a venir ------------------------------
+    // Une DEMANDE, pas une activation. Le Super Admin la traite a la main
+    // depuis son cockpit, comme n'importe quelle demande de pack.
+    //
+    // Un echec ici ne doit PAS faire echouer l'inscription : le compte est
+    // cree, l'entreprise existe, et perdre une liste de souhaits n'est pas
+    // une raison de tout annuler. On le trace, c'est tout.
+    if (modulesInteresses.length > 0) {
+      const { error: demandeError } = await supabase.from('demandes_pack').insert({
+        entreprise_id: entrepriseId,
+        demandeur_id: null,
+        pack_demande: null,
+        modules_demandes: modulesInteresses,
+        message: 'Interet declare a l inscription.',
+        contact_email: email,
+        contact_telephone: telephone,
+        statut: 'nouvelle',
+      });
+      if (demandeError) console.error('demande_interet_failed', demandeError.message);
+    }
 
     const { data: entreprise } = await supabase
       .from('entreprises')

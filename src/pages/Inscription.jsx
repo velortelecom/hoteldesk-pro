@@ -16,7 +16,9 @@ import {
   PLAN_1_LABEL, PLAN_1_PRIX_MENSUEL, PLAN_1_MAX_UTILISATEURS,
   PLAN_1_SOCLE, PLAN_1_MODULES_DETAIL, PACKS_SUPERIEURS, STATUT_SUR_DEMANDE,
 } from '../lib/plan1'
-import { TARIF_FONDATEUR, PRIX_UTILISATEUR_SUP, PLAFOND_FORFAIT } from '../lib/offres'
+import { OFFRES, TARIF_FONDATEUR, PRIX_UTILISATEUR_SUP, PLAFOND_FORFAIT, MODULES_A_VENIR } from '../lib/offres'
+// Les libelles viennent du registre, jamais recopies : c'est la source.
+import { MODULES_REGISTRY } from '../modules/registry'
 
 const MDP_MIN = 8
 
@@ -222,7 +224,11 @@ export default function Inscription({ onRetourConnexion }) {
   // gratuite pour tout le monde, et lui opposer un choix serait absurde.
   const places = usePlacesFondateur()
   const [formule, setFormule] = useState('starter')
-  const choixPossible = places === 0
+  // Modules qui n'existent pas encore. Les cocher cree une DEMANDE, pas une
+  // activation : le Super Admin la traite a la main.
+  const [interets, setInterets] = useState([])
+  const basculerInteret = (id) =>
+    setInterets(v => (v.includes(id) ? v.filter(x => x !== id) : [...v, id]))
   const [etape, setEtape] = useState('formulaire') // formulaire | envoi | succes
   const [resultat, setResultat] = useState(null)
 
@@ -266,7 +272,10 @@ export default function Inscription({ onRetourConnexion }) {
         nombre_employes: form.nombre_employes ? Number(form.nombre_employes) : null,
         // Le serveur ne fait confiance a ce champ que pour l'aiguillage :
         // il en deduit lui-meme le prix, les modules et le plafond.
-        formule: choixPossible ? formule : 'starter',
+        formule,
+        // Souhaits, pas des achats : le serveur les revalide contre sa
+        // propre liste fermee et les range dans demandes_pack.
+        modules_interesses: interets,
       },
     })
 
@@ -347,46 +356,128 @@ export default function Inscription({ onRetourConnexion }) {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', gap: 20, alignItems: 'start' }} className="inscription-grille">
           <form onSubmit={soumettre} style={styles.carte} noValidate>
-            {/* Le choix n'apparait que s'il ne reste plus de place fondatrice.
-                Tant qu'il y en a, l'offre a 29 EUR domine la gratuite sur
-                tous les criteres : proposer un choix serait une fausse
-                question. */}
-            {choixPossible && (
-              <>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#185FA5', letterSpacing: '0.06em', marginBottom: 14 }}>
-                  VOTRE FORMULE
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 26 }}>
-                  {[
-                    { id: 'starter', titre: PLAN_1_LABEL, prix: PLAN_1_PRIX_MENSUEL + ' € / mois',
-                      detail: 'Jusqu’a ' + PLAN_1_MAX_UTILISATEURS + ' utilisateurs, puis '
-                        + PRIX_UTILISATEUR_SUP + ' €. Organisation, Conges et Pointage.' },
-                    { id: 'gratuit', titre: 'Gratuit', prix: '0 € / mois',
-                      detail: 'Jusqu’a 3 utilisateurs. Organisation & RH uniquement, sans limite de duree.' },
-                  ].map(opt => {
-                    const actif = formule === opt.id
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => setFormule(opt.id)}
-                        style={{
-                          textAlign: 'left', cursor: 'pointer', borderRadius: 12, padding: '14px 16px',
-                          background: actif ? '#EFF6FF' : '#fff',
-                          border: '2px solid ' + (actif ? '#185FA5' : '#E5E7EB'),
-                        }}
-                      >
-                        <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{opt.titre}</div>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: actif ? '#185FA5' : '#6B7280', margin: '2px 0 6px' }}>
-                          {opt.prix}
-                        </div>
-                        <div style={{ fontSize: 11.5, color: '#6B7280', lineHeight: 1.5 }}>{opt.detail}</div>
-                      </button>
-                    )
-                  })}
-                </div>
-              </>
-            )}
+            {/* BANDEAU GRATUIT
+                Le point d'entree le plus important de la page : une petite
+                structure doit voir immediatement qu'elle ne paie rien. */}
+            <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 12, padding: '12px 16px', marginBottom: 22, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 22, lineHeight: 1 }}>🎁</span>
+              <div style={{ fontSize: 13, color: '#065F46', lineHeight: 1.6 }}>
+                <strong>De 1 a 3 utilisateurs, c&apos;est gratuit.</strong> Sans carte bancaire,
+                sans limite de duree. Vous passez a {PLAN_1_LABEL} quand votre equipe grandit,
+                sans perdre une donnee.
+              </div>
+            </div>
+
+            {/* TOUTES LES FORMULES, DES MAINTENANT
+                Celles qui ne sont pas encore commercialisees (vendu: false
+                dans offres.js) s'affichent marquees BIENTOT et ne sont pas
+                selectionnables. Le jour ou leurs modules sont livres, il
+                suffit de passer vendu: true et de leur donner un prix : la
+                carte devient cliquable sans toucher a cette page. */}
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#185FA5', letterSpacing: '0.06em', marginBottom: 14 }}>
+              VOTRE FORMULE
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12, marginBottom: 26 }}>
+              {OFFRES.map(offre => {
+                const surDevis = offre.vendu && offre.prix == null
+                const aVenir = !offre.vendu
+                const choisissable = offre.vendu && offre.prix != null
+                const actif = choisissable && formule === offre.id
+                const fondateurIci = offre.id === 'starter' && places != null && places > 0
+
+                const prixAffiche = surDevis ? 'Sur devis'
+                  : offre.prix === 0 ? '0 € / mois'
+                  : (fondateurIci ? TARIF_FONDATEUR : offre.prix) + ' € / mois'
+
+                const plafond = offre.maxUtilisateurs != null
+                  ? 'Jusqu’a ' + offre.maxUtilisateurs + ' utilisateurs'
+                    + (offre.debordement != null ? ', puis ' + offre.debordement + ' €' : '')
+                  : 'Effectif libre'
+
+                return (
+                  <button
+                    key={offre.id}
+                    type="button"
+                    disabled={!choisissable}
+                    onClick={() => choisissable && setFormule(offre.id)}
+                    title={aVenir ? 'Pas encore disponible' : (surDevis ? 'Nous en parlons ensemble' : undefined)}
+                    style={{
+                      textAlign: 'left', borderRadius: 12, padding: '14px 16px',
+                      cursor: choisissable ? 'pointer' : 'default',
+                      background: actif ? '#EFF6FF' : (choisissable ? '#fff' : '#FAFAFA'),
+                      border: '2px solid ' + (actif ? '#185FA5' : '#E5E7EB'),
+                      opacity: choisissable ? 1 : 0.7,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
+                        {offre.id === 'starter' ? PLAN_1_LABEL : offre.nom}
+                      </span>
+                      {aVenir && (
+                        <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em', background: '#F3F4F6', color: '#9CA3AF', borderRadius: 4, padding: '1px 5px' }}>
+                          BIENTOT
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: actif ? '#185FA5' : '#6B7280', margin: '2px 0 6px' }}>
+                      {fondateurIci && (
+                        <span style={{ textDecoration: 'line-through', fontWeight: 400, fontSize: 12.5, marginRight: 5, color: '#9CA3AF' }}>
+                          {offre.prix} &euro;
+                        </span>
+                      )}
+                      {prixAffiche}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: '#6B7280', lineHeight: 1.5 }}>
+                      {plafond}. {offre.resume}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* MODULES A VENIR.
+                Marques BIENTOT et jamais actives : les cocher cree une
+                demande que Velor One traite a la main. C'est la difference
+                avec le badge "MODULE ACTIF" qu'on a retire -- celui-la
+                affirmait qu'un module marchait alors qu'il n'existait pas. */}
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#185FA5', letterSpacing: '0.06em', marginBottom: 6 }}>
+              CE QUI VOUS INTERESSERAIT PLUS TARD
+            </div>
+            <div style={{ fontSize: 12.5, color: '#6B7280', marginBottom: 12, lineHeight: 1.6 }}>
+              Facultatif. Ces modules ne sont pas encore disponibles et ne vous seront pas
+              factures. Nous vous prevenons en priorite quand ils sortent.
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 26 }}>
+              {MODULES_A_VENIR.map(id => {
+                const mod = MODULES_REGISTRY.find(m => m.id === id)
+                if (!mod) return null
+                const choisi = interets.includes(id)
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => basculerInteret(id)}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+                      borderRadius: 20, padding: '6px 12px', fontSize: 12.5,
+                      background: choisi ? '#EFF6FF' : '#fff',
+                      color: choisi ? '#185FA5' : '#6B7280',
+                      border: '1.5px solid ' + (choisi ? '#185FA5' : '#E5E7EB'),
+                      fontWeight: choisi ? 600 : 400,
+                    }}
+                  >
+                    <span>{mod.icone}</span>
+                    {mod.nom}
+                    <span style={{
+                      fontSize: 9.5, fontWeight: 700, letterSpacing: '0.04em',
+                      background: '#F3F4F6', color: '#9CA3AF', borderRadius: 4, padding: '1px 5px',
+                    }}>
+                      BIENTOT
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
 
             <div style={{ fontSize: 12, fontWeight: 700, color: '#185FA5', letterSpacing: '0.06em', marginBottom: 14 }}>
               VOTRE ENTREPRISE
@@ -469,7 +560,7 @@ export default function Inscription({ onRetourConnexion }) {
             </button>
           </form>
 
-          <BlocInclus places={places} formule={choixPossible ? formule : 'starter'} />
+          <BlocInclus places={places} formule={formule} />
         </div>
 
         <div style={{ textAlign: 'center', marginTop: 22, fontSize: 12, color: '#aaa' }}>
