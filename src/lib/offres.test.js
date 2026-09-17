@@ -133,8 +133,10 @@ describe('debordement', () => {
   })
 
   test('un plan sans debordement ne facture jamais au-dela de son forfait', () => {
+    // On reste SOUS le plafond global, sinon c'est un devis qu'on teste
+    // (null), pas l'absence de debordement.
     const gratuit = getOffre(OFFRE_GRATUITE)
-    expect(prixMensuel(OFFRE_GRATUITE, gratuit.maxUtilisateurs + 50)).toBe(0)
+    expect(prixMensuel(OFFRE_GRATUITE, gratuit.maxUtilisateurs + 5)).toBe(0)
   })
 })
 
@@ -148,10 +150,20 @@ describe('passage au devis', () => {
 
   test('au plafond exactement, on est encore au forfait', () => {
     expect(necessiteDevis(PLAFOND_FORFAIT, ['pointage'])).toBe(false)
-    // A 100 utilisateurs, Business deborderait a 49 + 2 x 75 = 199 EUR alors
-    // que le Premium est a 129 EUR : c'est Premium qu'il faut recommander.
-    // Le debordement ne doit jamais couter plus cher que le pack du dessus.
-    expect(meilleureOffre(PLAFOND_FORFAIT, ['pointage']).offreId).toBe('premium')
+    // A 50 utilisateurs, le Business deborde a 49 + 2 x 25 = 99 EUR, moins
+    // que le Premium a 129 EUR. C'est donc Business qu'on recommande a
+    // quelqu'un qui ne veut que le pointage -- et c'est normal : le Premium
+    // n'est pas un pack de volume, on y monte pour ses modules.
+    expect(meilleureOffre(PLAFOND_FORFAIT, ['pointage']).offreId).toBe('business')
+  })
+
+  test('le Premium ne se gagne jamais sur le volume, seulement sur ses modules', () => {
+    // Business deborde jusqu'au plafond global sans jamais depasser le
+    // Premium. Si un changement de prix inversait ca, un client se
+    // retrouverait pousse vers Premium pour avoir embauche -- exactement la
+    // punition qu'on a supprimee avec les plafonds durs.
+    const premium = getOffre('premium')
+    expect(prixMensuel('business', PLAFOND_FORFAIT)).toBeLessThanOrEqual(premium.prix)
   })
 
   test('le debordement ne coute jamais plus cher que le pack au-dessus', () => {
