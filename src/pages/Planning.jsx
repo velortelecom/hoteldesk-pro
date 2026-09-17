@@ -5,15 +5,15 @@ import { construireEcheance, occupeCreneau, finAvantDebut } from '../lib/taches'
 import {
   CATEGORIES_TACHE, PRIORITES_TACHE,
   CATEGORIE_TACHE_DEFAUT, PRIORITE_TACHE_DEFAUT, STATUT_TACHE_DEFAUT,
-  LIBELLES_PRIORITE, STATUTS_TACHE,
+  LIBELLES_PRIORITE,
 } from '../lib/taches'
 import { useAuth } from '../hooks/useAuth'
 import { useMesDepartements } from '../hooks/useMesDepartements'
 import { useDepartements } from '../modules/organisation/hooks.js'
 import { tacheVisiblePar } from '../lib/visibiliteTaches'
 import { resumeVisibiliteTache } from '../lib/resumeVisibilite'
-import PhotoTache from '../components/PhotoTache'
-import FilCommentaires from '../components/FilCommentaires'
+import { BUCKET_PHOTOS, cheminPhoto, nomFichierPhoto, fichierAcceptable, compresserImage } from '../lib/photoTache'
+import DetailTache from '../components/DetailTache'
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   addDays, addMonths, subMonths, isToday, isSameMonth, isSameDay,
@@ -66,7 +66,11 @@ export default function Planning() {
   // avalait l'evenement pour ne pas ouvrir la creation par-dessus, et
   // s'arretait la. On lui donne une destination.
   const [tacheOuverte, setTacheOuverte] = useState(null)
-  const [detailErreur, setDetailErreur] = useState('')
+  // Meme champ photo que dans l'onglet Taches. L'avoir d'un seul cote,
+  // c'etait obliger la femme de chambre qui signale une fuite a changer
+  // d'ecran pour y joindre la preuve.
+  const [photoFichier, setPhotoFichier] = useState(null)
+  const [photoApercu, setPhotoApercu] = useState(null)
   const { codesDepartements } = useMesDepartements()
   const { departements } = useDepartements(profile?.entreprise_id)
   // Une erreur d'insertion doit se voir : avant, `if (!error)` sans `else`
@@ -76,6 +80,15 @@ export default function Planning() {
   const [vue, setVue] = useState('mois') // 'mois' | 'jour'
   const [filtreEmp, setFiltreEmp] = useState('tous')
   const timelineRef = useRef(null)
+
+  function choisirPhoto(fichier) {
+    setQuickErreur('')
+    if (!fichier) { setPhotoFichier(null); setPhotoApercu(null); return }
+    const verdict = fichierAcceptable(fichier)
+    if (!verdict.ok) { setQuickErreur(verdict.motif); setPhotoFichier(null); setPhotoApercu(null); return }
+    setPhotoFichier(fichier)
+    setPhotoApercu(URL.createObjectURL(fichier))
+  }
 
   const userRole = profile?.role || 'employe'
   const userDept = profile?.departement || ''
@@ -289,7 +302,7 @@ export default function Planning() {
                     const col = COULEURS_PRIORITE[t.priorite] || COULEURS_PRIORITE.moyenne
                     return (
                       <div key={t.id}
-                        onClick={(ev) => { ev.stopPropagation(); setDetailErreur(''); setTacheOuverte(t) }}
+                        onClick={(ev) => { ev.stopPropagation(); setTacheOuverte(t) }}
                         title="Ouvrir la tache"
                         style={{
                         background: col.bg, color: col.text, borderLeft: '2px solid ' + col.border,
@@ -404,7 +417,7 @@ export default function Planning() {
                     if (place === 'suite') {
                       return (
                         <div key={t.id}
-                          onClick={(ev) => { ev.stopPropagation(); setDetailErreur(''); setTacheOuverte(t) }}
+                          onClick={(ev) => { ev.stopPropagation(); setTacheOuverte(t) }}
                           style={{
                           background: col.bg, borderLeft: '3px solid ' + col.border, opacity: 0.55,
                           borderRadius: 5, width: '100%', minHeight: 20, cursor: 'pointer',
@@ -414,7 +427,7 @@ export default function Planning() {
 
                     return (
                       <div key={t.id}
-                        onClick={(ev) => { ev.stopPropagation(); setDetailErreur(''); setTacheOuverte(t) }}
+                        onClick={(ev) => { ev.stopPropagation(); setTacheOuverte(t) }}
                         title="Ouvrir la tache"
                         style={{
                         background: col.bg, color: col.text, borderLeft: '3px solid ' + col.border,
@@ -510,9 +523,35 @@ export default function Planning() {
       return
     }
 
+    // La photo part APRES : son chemin contient l'identifiant de la tache,
+    // qui n'existe qu'une fois la ligne creee.
+    if (photoFichier && data[0] && data[0].id) {
+      try {
+        const compressee = await compresserImage(photoFichier)
+        const chemin = cheminPhoto(profile.entreprise_id, data[0].id, nomFichierPhoto())
+        const { error: erreurEnvoi } = await supabase.storage
+          .from(BUCKET_PHOTOS)
+          .upload(chemin, compressee, { contentType: 'image/jpeg', upsert: true })
+        if (erreurEnvoi) throw new Error(erreurEnvoi.message)
+
+        const { error: erreurLien } = await supabase.from('taches')
+          .update({ photo_chemin: chemin }).eq('id', data[0].id)
+        if (erreurLien) throw new Error(erreurLien.message)
+      } catch (err) {
+        // La tache existe : on ne la perd pas pour une photo. On le dit.
+        setQuickErreur('Tache creee, mais la photo n a pas pu etre jointe : ' + (err.message || ''))
+        setPhotoFichier(null)
+        setPhotoApercu(null)
+        chargerTaches()
+        return
+      }
+    }
+
     setQuickCreateDate(null)
     setQuickErreur('')
     setQuickForm(QUICK_VIDE)
+    setPhotoFichier(null)
+    setPhotoApercu(null)
     chargerTaches()
   }
 
@@ -586,97 +625,15 @@ export default function Planning() {
         {vue === 'mois' ? renderMonthCalendar() : renderDayTimeline()}
       </div>
     
-      {/* Le detail d'une tache, ouvert depuis le calendrier.
-          On y consulte, on y change le statut -- modifier ou supprimer reste
-          dans l'onglet Taches, pour ne pas entretenir deux formulaires qui
-          finiraient par diverger. */}
       {tacheOuverte && (
-        <div onClick={() => setTacheOuverte(null)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: 16 }}>
-          <div onClick={ev => ev.stopPropagation()}
-            style={{ background: '#fff', borderRadius: 14, padding: 22, width: 460, maxWidth: '100%', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 6 }}>
-              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: '#1F2937' }}>{tacheOuverte.titre}</h3>
-              <button onClick={() => setTacheOuverte(null)}
-                style={{ background: 'none', border: 'none', fontSize: 20, lineHeight: 1, cursor: 'pointer', color: '#9CA3AF' }}>&times;</button>
-            </div>
-
-            {tacheOuverte.description && (
-              <p style={{ margin: '0 0 14px', fontSize: 13, color: '#4B5563', whiteSpace: 'pre-wrap' }}>{tacheOuverte.description}</p>
-            )}
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '6px 14px', fontSize: 12, color: '#374151', marginBottom: 14 }}>
-              <span style={{ color: '#6B7280' }}>Quand</span>
-              <span>
-                {tacheOuverte.date_echeance ? format(parseISO(tacheOuverte.date_echeance), 'EEEE d MMMM', { locale: fr }) : '--'}
-                {tacheOuverte.heure_debut ? ' a ' + tacheOuverte.heure_debut.slice(0, 5) : ''}
-                {tacheOuverte.heure_fin ? ' - ' + tacheOuverte.heure_fin.slice(0, 5) : ''}
-              </span>
-
-              <span style={{ color: '#6B7280' }}>Priorite</span>
-              <span>{LIBELLES_PRIORITE[tacheOuverte.priorite] || tacheOuverte.priorite}</span>
-
-              {tacheOuverte.chambre && (<><span style={{ color: '#6B7280' }}>Lieu</span><span>{tacheOuverte.chambre}</span></>)}
-            </div>
-
-            {/* La meme phrase que dans les formulaires : qui voit cette tache. */}
-            {(() => {
-              const resume = resumeVisibiliteTache({
-                departement: tacheOuverte.departement,
-                assigneA: tacheOuverte.assigne_a,
-                employes, departements, moiId: profile?.id,
-              })
-              const couleurs = {
-                personne:    { fond: '#EEF2FF', bord: '#C7D2FE', texte: '#3730A3' },
-                departement: { fond: '#ECFDF5', bord: '#A7F3D0', texte: '#065F46' },
-                entreprise:  { fond: '#FEF3C7', bord: '#FCD34D', texte: '#92400E' },
-              }[resume.portee]
-              return (
-                <div style={{ background: couleurs.fond, border: '1px solid ' + couleurs.bord, color: couleurs.texte, borderRadius: 8, padding: '7px 10px', fontSize: 11, marginBottom: 14 }}>
-                  {resume.texte}
-                </div>
-              )
-            })()}
-
-            {tacheOuverte.photo_chemin && (
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 5 }}>Photo</div>
-                <PhotoTache chemin={tacheOuverte.photo_chemin} taille={140} />
-              </div>
-            )}
-
-            <div style={{ marginBottom: 4 }}>
-              <label style={{ fontSize: 11, color: '#6B7280', display: 'block', marginBottom: 4 }}>Statut</label>
-              <select
-                value={tacheOuverte.statut}
-                onChange={async (e) => {
-                  const statut = e.target.value
-                  setDetailErreur('')
-                  const { data, error } = await supabase.from('taches')
-                    .update({ statut }).eq('id', tacheOuverte.id).select('id')
-                  if (error) { setDetailErreur(error.message); return }
-                  if (!data || data.length === 0) {
-                    setDetailErreur("Changement refuse : vous n'avez pas le droit de modifier cette tache.")
-                    return
-                  }
-                  setTacheOuverte(t => ({ ...t, statut }))
-                  chargerTaches()
-                }}
-                style={{ width: '100%', padding: '8px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 13, background: '#fff' }}>
-                {STATUTS_TACHE.map(st => <option key={st} value={st}>{st}</option>)}
-              </select>
-            </div>
-
-            {detailErreur && (
-              <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', borderRadius: 8, padding: '8px 11px', fontSize: 12, marginTop: 12 }}>
-                {detailErreur}
-              </div>
-            )}
-
-            <FilCommentaires tacheId={tacheOuverte.id} profile={profile} />
-          </div>
-        </div>
+        <DetailTache
+          tache={tacheOuverte}
+          profile={profile}
+          employes={employes}
+          departements={departements}
+          onFermer={() => setTacheOuverte(null)}
+          onChangement={chargerTaches}
+        />
       )}
 
       {quickCreateDate && (
@@ -775,6 +732,19 @@ export default function Planning() {
               <textarea value={quickForm.description} onChange={e => setQuickForm(f => ({ ...f, description: e.target.value }))}
                 rows={2} maxLength={500} placeholder="Description (facultatif)"
                 style={{ width: '100%', padding: '8px 12px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12.5, outline: 'none', marginBottom: 14, boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }} />
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, color: '#888', display: 'block', marginBottom: 4 }}>Photo (facultatif)</label>
+                <input type='file' accept='image/jpeg,image/png,image/webp'
+                  onChange={e => choisirPhoto(e.target.files && e.target.files[0])}
+                  style={{ fontSize: 11 }} />
+                {photoApercu && (
+                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <img src={photoApercu} alt='Ce qui sera joint a la tache' style={{ width: 70, height: 70, objectFit: 'cover', borderRadius: 8, border: '1px solid #e5e7eb' }} />
+                    <button type='button' onClick={() => choisirPhoto(null)} style={{ background: '#FEE2E2', color: '#991B1B', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 11 }}>Retirer</button>
+                  </div>
+                )}
+              </div>
+
               {quickErreur && (
                 <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', borderRadius: 8, padding: '8px 10px', fontSize: 12, lineHeight: 1.5, marginBottom: 12 }}>
                   {quickErreur}
