@@ -375,7 +375,7 @@ export default function Taches() {
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Assigner a</label>
               <select value={form.assigne_a} onChange={e => setForm(f => ({ ...f, assigne_a: e.target.value }))} style={{ width: '100%', border: '1px solid #d1d5db', borderRadius: 6, padding: '8px 10px' }}>
-                <option value=''>Non assigne</option>
+                <option value=''>{form.departement ? 'Tout le departement' : 'Tout le monde'}</option>
                 {membres.map(m => <option key={m.id} value={m.id}>{m.prenom} {m.nom} ({m.role})</option>)}
               </select>
             </div>
