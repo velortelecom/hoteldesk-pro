@@ -34,8 +34,13 @@ export default function ListeEmployes({ entrepriseId, permissions, profile, onVi
 
   const isSuperAdmin = profile?.is_super_admin === true;
   const isAdminEntreprise = profile?.role === 'admin' || isSuperAdmin;
-  // Actions sensibles (creation, suppression, reset mdp, role, actif) : reservees a Admin + Super Admin.
-  // Responsable et Employe sont de toute facon refuses cote serveur (Edge Functions), ceci est la coherence cote UI.
+  // Actions sensibles (creation, suppression, reset mdp, role, actif) :
+  // reservees a Admin + Super Admin.
+  //
+  // La base applique la meme regle : supprimer_membre_complet n'accepte plus
+  // que l'administrateur depuis le 17/09. Cet ecran n'est donc pas la
+  // protection, seulement sa traduction visible -- on ne montre pas un
+  // bouton dont on sait qu'il sera refuse.
   const canManageSensible = isAdminEntreprise;
 
   const changerVue = (v) => {
