@@ -76,7 +76,24 @@ function usePlacesFondateur() {
   useEffect(() => {
     let annule = false
     supabase.rpc('places_fondateur_restantes').then(({ data, error }) => {
-      if (annule || error || data == null) return
+      if (annule) return
+      // On ne bloque pas la page si l'appel echoue -- le repli sur le tarif
+      // public est le bon comportement. Mais on le DIT : la premiere
+      // version avalait l'erreur en silence, et il a fallu trois
+      // allers-retours pour comprendre pourquoi le bandeau fondateur
+      // n'apparaissait pas. Une erreur muette fait perdre plus de temps
+      // qu'elle n'en economise.
+      if (error) {
+        console.warn(
+          '[inscription] places_fondateur_restantes a echoue, repli sur le tarif public.',
+          { message: error.message, code: error.code, details: error.details, hint: error.hint },
+        )
+        return
+      }
+      if (data == null) {
+        console.warn('[inscription] places_fondateur_restantes a repondu vide.', { data })
+        return
+      }
       setPlaces(Number(data))
     })
     return () => { annule = true }
