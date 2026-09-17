@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { seProduitLe, estRepetition, RECURRENCES } from '../lib/recurrence'
 import { construireEcheance, occupeCreneau, finAvantDebut } from '../lib/taches'
@@ -74,17 +74,24 @@ export default function Planning() {
     q.then(({ data }) => setEmployes(data || []))
   }, [])
 
-  // Load tasks for current month
-  useEffect(() => {
+  // Les taches du mois affiche.
+  //
+  // C'etait un useEffect anonyme, et la creation rapide appelait ensuite un
+  // fetchTaches() qui n'existait nulle part : la ligne levait une
+  // ReferenceError, la tache creee n'apparaissait donc pas avant un
+  // rechargement. On nomme le chargement une fois, et les deux s'en servent.
+  const chargerTaches = useCallback(async () => {
     const from = startOfMonth(currentMonth).toISOString()
     const to = endOfMonth(currentMonth).toISOString()
-    supabase.from('taches')
+    const { data } = await supabase.from('taches')
       .select('*, assignee:profiles!taches_assigne_a_fkey(id,nom,prenom,couleur,avatar_initiales)')
       .gte('date_echeance', from)
       .lte('date_echeance', to)
       .neq('statut', 'annulee')
-      .then(({ data }) => setTaches(data || []))
+    setTaches(data || [])
   }, [currentMonth])
+
+  useEffect(() => { chargerTaches() }, [chargerTaches])
 
   // Scroll timeline to current hour on day view
   useEffect(() => {
@@ -440,7 +447,7 @@ export default function Planning() {
     setQuickCreateDate(null)
     setQuickErreur('')
     setQuickForm(QUICK_VIDE)
-    fetchTaches()
+    chargerTaches()
   }
 
   return (
