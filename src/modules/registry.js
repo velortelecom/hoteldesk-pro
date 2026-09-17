@@ -41,7 +41,9 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true, creer: true, modifier: true, supprimer: false, exporter: true, valider: true, administrer: false },
       admin: { voir: true, creer: true, modifier: true, supprimer: true, exporter: true, valider: true, administrer: true },
     },
-    dependances: [], plans: ['starter', 'business', 'premium', 'enterprise'],
+    // Organisation est le seul module du plan Gratuit : c'est ce qu'on
+    // donne pour faire entrer une petite structure.
+    dependances: [], plans: ['gratuit', 'starter', 'business', 'premium', 'enterprise'],
     templates: ['hotel', 'pharmacie', 'commerce', 'mairie', 'restaurant', 'residence'],
     ordre: 5, categorie: 'rh', couleur: '#6366f1', badge: null, actif: true,
     widgets: { employes_actifs: true, departements: true, postes: true },
@@ -52,7 +54,7 @@ export const MODULES_REGISTRY = [
     version: '1.0.0',
     icone: '⏱️',
     iconeLib: 'clock',
-    description: 'Suivi du pointage, du statut des équipes et de l’historique des passages',
+    description: 'Decompte du temps de travail, heures supplementaires et preuve legale',
     route: '/pointage',
     composant: lazy(() => import('./pointage/index.jsx')),
     permissionsParRole: {
@@ -60,7 +62,11 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true, creer: true, modifier: true, supprimer: false, exporter: true, valider: true, administrer: false },
       admin: { voir: true, creer: true, modifier: true, supprimer: true, exporter: true, valider: true, administrer: true },
     },
-    dependances: [], plans: ['starter', 'business', 'premium', 'enterprise'],
+    // Le pointage QUITTE le plan Starter : c'est le module qui justifie le
+    // passage a Business. Il repond a une obligation legale (decompte
+    // quotidien, art. D.3171-8) qui ne se declenche qu'au-dela d'une
+    // dizaine de salaries -- exactement la cible Business.
+    dependances: [], plans: ['business', 'premium', 'enterprise'],
     templates: ['hotel', 'restaurant', 'pharmacie', 'commerce', 'mairie', 'ehpad'],
     ordre: 10,
     categorie: 'rh',

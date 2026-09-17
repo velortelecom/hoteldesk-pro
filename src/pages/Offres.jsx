@@ -17,8 +17,9 @@ import { etatFinAbonnement, texteDecompte } from '../lib/abonnement'
 import { getModuleById, MODULES_REGISTRY } from '../modules/registry'
 import {
   PLAN_1_LABEL, PLAN_1_PRIX_MENSUEL, PLAN_1_MAX_UTILISATEURS,
-  PLAN_1_SOCLE, PLAN_1_MODULES, PLAN_1_MODULES_DETAIL, PACKS_SUPERIEURS, STATUT_SUR_DEMANDE,
+  PLAN_1_SOCLE, PLAN_1_MODULES_DETAIL, STATUT_SUR_DEMANDE,
 } from '../lib/plan1'
+import { OFFRES, PRIX_OPTION_MENSUEL, MODULES_OPTIONNELS } from '../lib/offres'
 
 const STATUT_LABEL = {
   nouvelle: { texte: 'Demande envoyee', bg: '#EEF2FF', fg: '#3730A3' },
@@ -77,18 +78,21 @@ export default function Offres() {
   // Toutes les formules, pas seulement celles au-dessus : un client doit
   // pouvoir demander a REDESCENDRE. Sans ca, la seule sortie possible etait
   // de nous ecrire en dehors de l'outil.
-  const formules = PLAN_ORDER.map((id) => {
-    const pack = PACKS_SUPERIEURS.find(p => p.id === id)
-    if (pack) return pack
-    // Plan 1 n'est pas dans PACKS_SUPERIEURS : il est la formule de depart.
-    return {
-      id,
-      nom: PLAN_1_LABEL,
-      couleur: (PLANS[id] || {}).couleur || '#6B7280',
-      resume: 'La formule de base : organisation, conges et le socle complet',
-      modules: PLAN_1_MODULES,
-    }
-  })
+  //
+  // La liste vient d'offres.js, source unique. Elle etait auparavant
+  // reconstituee ici a partir de PACKS_SUPERIEURS avec un cas particulier
+  // pour le Plan 1 -- ce qui a cesse de fonctionner des qu'une formule est
+  // apparue EN DESSOUS du Starter.
+  const formules = OFFRES.map(offre => ({
+    id: offre.id,
+    nom: offre.id === 'starter' ? PLAN_1_LABEL : offre.nom,
+    couleur: offre.couleur,
+    resume: offre.resume,
+    modules: offre.modules,
+    prix: offre.prix,
+    maxUtilisateurs: offre.maxUtilisateurs,
+    debordement: offre.debordement,
+  }))
 
   const rangActuel = PLAN_ORDER.indexOf(planId)
 
@@ -260,6 +264,19 @@ export default function Offres() {
                       ? <Pastille bg="#ECFDF5" fg="#065F46">Votre formule</Pastille>
                       : <Pastille bg="#F3F4F6" fg="#6B7280">{STATUT_SUR_DEMANDE}</Pastille>}
                   </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginTop: 4 }}>
+                    {pack.prix == null
+                      ? 'Tarif sur mesure'
+                      : pack.prix === 0
+                        ? 'Gratuit'
+                        : pack.prix + ' € / mois'}
+                    {pack.maxUtilisateurs != null && (
+                      <span style={{ fontWeight: 400, color: '#6B7280' }}>
+                        {' · jusqu’a ' + pack.maxUtilisateurs + ' utilisateurs'}
+                        {pack.debordement != null && ', puis ' + pack.debordement + ' € par utilisateur'}
+                      </span>
+                    )}
+                  </div>
                   <div style={{ fontSize: 12.5, color: '#6B7280', marginTop: 3 }}>{pack.resume}</div>
 
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
@@ -308,6 +325,34 @@ export default function Offres() {
             </div>
           )
         })}
+      </div>
+
+      {/* OPTIONS A L'UNITE */}
+      <div style={{ ...carte, marginBottom: 24, borderLeft: '3px solid #8B5CF6' }}>
+        <h3 style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginTop: 0, marginBottom: 6 }}>
+          Un seul module vous manque ?
+        </h3>
+        <p style={{ fontSize: 12.5, color: '#6B7280', margin: '0 0 12px', lineHeight: 1.6 }}>
+          Les modules du Pack Premium s&apos;ajoutent a l&apos;unite a votre formule actuelle, pour{' '}
+          <strong style={{ color: '#111827' }}>{PRIX_OPTION_MENSUEL} &euro; par mois chacun</strong>.
+          Inutile de changer de pack pour un seul besoin. A partir de quatre modules, le Pack Premium
+          revient moins cher : nous vous le dirons.
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {MODULES_OPTIONNELS.map(id => {
+            const mod = getModuleById(id)
+            if (!mod) return null
+            return (
+              <span key={id} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                border: '1px solid #E5E7EB', borderRadius: 8, padding: '3px 9px',
+                fontSize: 11.5, color: '#6B7280', background: '#FAFAFA',
+              }}>
+                <span>{mod.icone}</span>{mod.nom}
+              </span>
+            )
+          })}
+        </div>
       </div>
 
       {/* HISTORIQUE */}
