@@ -11,6 +11,7 @@ import { BrandMark, APP_URL } from '../branding/Brand'
 import { buildCreationSlug, buildEditionForm } from './superAdminUtils'
 import { buildDependencyErrorMessage, buildEntrepriseUpdatePayload, diffModulesEntreprise, mapSuperAdminError } from './superAdminControlUtils'
 import { MODULES_DEVELOPPES } from '../lib/modulesDeveloppes'
+import { OFFRES, PRIX_STANDARD, UTILISATEURS_INCLUS } from '../lib/offres'
 import { messageSuppressionMembre } from '../lib/erreurSuppressionMembre'
 import SelecteurPoste from '../components/SelecteurPoste'
 import { departementsApresChoixPoste } from '../lib/postesDepartements'
@@ -31,7 +32,13 @@ import SelecteurMenus from '../components/SelecteurMenus'
 import { messageErreurEdge } from '../lib/edgeErreur'
 import { definirMenusAutorises } from '../modules/organisation/services'
 
-const PLAN_COLORS = { starter: '#6B7280', business: '#3B82F6', premium: '#8B5CF6', enterprise: '#F59E0B' } 
+// Couleurs des plans : DERIVEES de la grille, pas recopiees. La liste
+// ecrite a la main ignorait 'gratuit', et l'affichage faisait alors
+// `undefined + '22'` -- une couleur CSS invalide, donc une pastille sans
+// fond, sans que rien ne signale l'erreur.
+const PLAN_COLORS = OFFRES.reduce((acc, o) => { acc[o.id] = o.couleur; return acc }, {})
+const COULEUR_PLAN_INCONNU = '#6B7280'
+const couleurPlan = (id) => PLAN_COLORS[id] || COULEUR_PLAN_INCONNU
 // Etat d'essai d'une entreprise, a partir de date_fin_abonnement.
 // null = client etabli (pas de date de fin) -> aucun badge.
 function infoEssai(e) {
@@ -290,7 +297,14 @@ export default function SuperAdmin() {
     const template = SECTEURS_METIERS[secteurDefaut]
     setForm({
       nom: '', slug: '', secteur: secteurDefaut, plan: 'starter',
-      prix_mensuel: 29, max_utilisateurs: 10, actif: true,
+      // TARIF PUBLIC, pas le tarif fondateur.
+      //
+      // Ce formulaire proposait 29 EUR par defaut : le prix reserve aux
+      // cinq premieres entreprises. Toute entreprise creee a la main
+      // partait donc au tarif fondateur sans en etre une -- sans
+      // consommer de place (c'est le trigger qui les compte), mais
+      // facturee 10 EUR de moins que le tarif public, pour toujours.
+      prix_mensuel: PRIX_STANDARD, max_utilisateurs: UTILISATEURS_INCLUS, actif: true,
       modules_selectionnes: getModulesRecommandes(secteurDefaut),
       departements_selectionnes: template.departements.map(d => d.code),
       postes_selectionnes: template.postes.map(p => ({ ...p, selectionne: true })),
@@ -870,7 +884,7 @@ async function createEmploye(entrepriseId) {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                           <span style={{ fontWeight: 700, fontSize: 15 }}>{e.nom}</span>
-                          <span style={{ background: PLAN_COLORS[e.plan] + '22', color: PLAN_COLORS[e.plan], borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>{e.plan}</span>
+                          <span style={{ background: couleurPlan(e.plan) + '22', color: couleurPlan(e.plan), borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>{e.plan}</span>
                           <span style={{ color: e.actif ? '#10B981' : '#EF4444', fontSize: 12, fontWeight: 600 }}>{e.actif ? 'Actif' : 'Inactif'}</span>
                           {e.origine === 'inscription_autonome' && (
                             <span title="Entreprise creee par le client via la page publique /inscription" style={{ background: '#ECFDF5', color: '#065F46', border: '1px solid #A7F3D0', borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>
@@ -1089,7 +1103,7 @@ async function createEmploye(entrepriseId) {
                     <td style={{ padding: '8px 14px', fontSize: 20 }}>{m.icone}</td>
                     <td style={{ padding: '8px 14px', fontWeight: 600 }}>{m.nom}</td>
                     <td style={{ padding: '8px 14px', color: '#6B7280' }}>{m.categorie}</td>
-                    <td style={{ padding: '8px 14px' }}><span style={{ background: (PLAN_COLORS[m.plan_minimum]||'#6B7280') + '22', color: PLAN_COLORS[m.plan_minimum]||'#6B7280', borderRadius: 10, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{m.plan_minimum}</span></td>
+                    <td style={{ padding: '8px 14px' }}><span style={{ background: couleurPlan(m.plan_minimum) + '22', color: couleurPlan(m.plan_minimum), borderRadius: 10, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{m.plan_minimum}</span></td>
                     <td style={{ padding: '8px 14px' }}><span style={{ color: m.actif ? '#10B981' : '#EF4444', fontWeight: 700 }}>{m.actif ? 'Oui' : 'Non'}</span></td>
                   </tr>
                 ))}
@@ -1158,7 +1172,7 @@ async function createEmploye(entrepriseId) {
                     <div style={{ minWidth: 240, flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{ent?.nom || 'Entreprise supprimee'}</span>
-                        <span style={{ background: (PLAN_COLORS[d.pack_demande] || '#6B7280') + '22', color: PLAN_COLORS[d.pack_demande] || '#6B7280', borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>
+                        <span style={{ background: couleurPlan(d.pack_demande) + '22', color: couleurPlan(d.pack_demande), borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>
                           {d.pack_demande || 'pack'}
                         </span>
                         <span style={{ background: couleurStatut + '22', color: couleurStatut, borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>{d.statut}</span>

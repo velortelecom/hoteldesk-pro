@@ -535,7 +535,9 @@ function PanneauDetail({ detail, periode, onFermer, onExporter }) {
         {/* QUI EST COMPTE */}
         <div style={{ ...carte, marginTop: 16 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#185FA5', letterSpacing: '0.06em', marginBottom: 4 }}>
-            LES {comptes.length} COMPTES FACTURES
+            {comptes.length > 1
+              ? 'LES ' + comptes.length + ' COMPTES FACTURES'
+              : comptes.length + ' COMPTE FACTURE'}
           </div>
           <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 10 }}>
             Comptes actifs, hors compte de supervision Velor.

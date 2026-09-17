@@ -241,3 +241,39 @@ describe('tarif fondateur', () => {
     expect(lignes[lignes.length - 1]).toHaveLength(COLONNES_EXPORT_ENTREPRISE.length)
   })
 })
+
+// ---------------------------------------------------------------------
+// LE BACK-OFFICE NE DOIT PAS OFFRIR LE TARIF FONDATEUR
+//
+// Le formulaire « Nouvelle entreprise » proposait 29 EUR par defaut --
+// le prix reserve aux cinq premieres. Toute entreprise creee a la main
+// partait donc au tarif fondateur sans en etre une : sans consommer de
+// place, mais facturee 10 EUR de moins que le tarif public, pour
+// toujours. C'est visible en production : une entreprise du back-office
+// figure a 29 EUR dans l'ecran de facturation, sans pastille Fondateur.
+// ---------------------------------------------------------------------
+const fsSA = require('fs')
+const pathSA = require('path')
+
+describe('creation d entreprise au back-office', () => {
+  const SOURCE = fsSA.readFileSync(
+    pathSA.join(__dirname, 'SuperAdmin.jsx'), 'utf8',
+  )
+
+  test('le formulaire part du tarif public, pas du tarif fondateur', () => {
+    expect(SOURCE).toMatch(/prix_mensuel: PRIX_STANDARD/)
+    expect(SOURCE).not.toMatch(/prix_mensuel: 29\b/)
+  })
+
+  test('le forfait par defaut vient de la grille', () => {
+    expect(SOURCE).toMatch(/max_utilisateurs: UTILISATEURS_INCLUS/)
+  })
+
+  test('les couleurs de plan derivent de la grille et ont un repli', () => {
+    // La liste ecrite a la main ignorait 'gratuit' : l'affichage
+    // produisait `undefined + '22'`, une couleur CSS invalide, donc une
+    // pastille sans fond et aucune erreur visible.
+    expect(SOURCE).toMatch(/const PLAN_COLORS = OFFRES\.reduce/)
+    expect(SOURCE).not.toMatch(/PLAN_COLORS\[[^\]]+\] \+ '22'/)
+  })
+})
