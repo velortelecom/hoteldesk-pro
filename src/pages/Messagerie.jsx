@@ -12,9 +12,27 @@ export default function Messagerie() {
   const [texte, setTexte] = useState('')
   const bottomRef = useRef(null)
 
+  // Sous chaque nom s'affichait profiles.departement -- l'ANCIENNE etiquette,
+  // limitee a cinq valeurs figees et remplacee depuis par les departements.
+  // Tout le monde y apparaissait en "reception", ce qui laissait croire que
+  // les employes etaient dans la meme equipe alors qu'ils sont en cuisine,
+  // au bar ou ailleurs. On lit donc les vrais rattachements.
   useEffect(() => {
-    supabase.from('profiles').select('*').neq('id', profile.id).eq('entreprise_id', profile.entreprise_id).then(({ data }) => setContacts(data || []))
+    if (!profile?.id) return
+    supabase.from('profiles')
+      .select('*, employe_departements(departement:departement_id(nom))')
+      .neq('id', profile.id)
+      .eq('entreprise_id', profile.entreprise_id)
+      .then(({ data }) => setContacts(data || []))
   }, [profile])
+
+  // "Cuisine, Bar", ou le poste a defaut, ou rien -- jamais l'etiquette morte.
+  function sousTitre(personne) {
+    const noms = (personne?.employe_departements || [])
+      .map(ed => ed.departement && ed.departement.nom)
+      .filter(Boolean)
+    return noms.length > 0 ? noms.join(', ') : ''
+  }
 
   useEffect(() => {
     if (!selected) return
@@ -66,7 +84,7 @@ export default function Messagerie() {
                 <div style={{ width: 34, height: 34, borderRadius: '50%', background: a.bg, color: a.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 500, flexShrink: 0 }}>{a.init}</div>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 500, color: '#222', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.prenom} {c.nom}</div>
-                  <div style={{ fontSize: 11, color: '#999' }}>{c.departement}</div>
+                  <div style={{ fontSize: 11, color: '#999' }}>{sousTitre(c)}</div>
                 </div>
               </div>
             )
@@ -80,7 +98,7 @@ export default function Messagerie() {
             {(() => { const a = av(selected); return <div style={{ width: 34, height: 34, borderRadius: '50%', background: a.bg, color: a.text, fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{a.init}</div> })()}
             <div>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{selected.prenom} {selected.nom}</div>
-              <div style={{ fontSize: 12, color: '#999' }}>{selected.departement}</div>
+              <div style={{ fontSize: 12, color: '#999' }}>{sousTitre(selected)}</div>
             </div>
           </div>
 
