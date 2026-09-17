@@ -96,12 +96,14 @@ export default function Planning() {
 
       if (profile.entreprise_id) q = q.eq('entreprise_id', profile.entreprise_id)
 
-      // Un responsable ne confie qu'a son equipe, un employe qu'a lui-meme.
-      // Le filtre du responsable s'appuie encore sur l'ancienne etiquette
-      // profiles.departement : quand elle est vide, on ne restreint pas
-      // plutot que de lui rendre une liste vide.
-      if (userRole === 'responsable' && userDept) q = q.eq('departement', userDept)
-      else if (userRole === 'employe') q = q.eq('id', profile.id)
+      // Tout le monde peut confier une tache a n'importe quel collegue de
+      // l'entreprise. Un employe ne pouvait la confier qu'a lui-meme, et un
+      // responsable qu'aux gens portant la meme ancienne etiquette -- une
+      // restriction heritee d'un systeme de departements disparu.
+      //
+      // Confier n'est pas divulguer : la tache assignee n'est visible que par
+      // son destinataire, son createur et l'administrateur. Elargir la liste
+      // n'ouvre donc l'acces a rien.
 
       const { data, error } = await q
       if (annule) return
@@ -115,7 +117,7 @@ export default function Planning() {
 
     chargerEmployes()
     return () => { annule = true }
-  }, [profile?.id, profile?.entreprise_id, userRole, userDept])
+  }, [profile?.id, profile?.entreprise_id])
 
   // Les taches du mois affiche.
   //
