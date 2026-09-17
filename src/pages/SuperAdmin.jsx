@@ -25,6 +25,7 @@ import SuperAdminUsersPanel from './SuperAdminUsersPanel'
 import SuperAdminAssistance from './SuperAdminAssistance'
 import SuperAdminEnterpriseStructure from './SuperAdminEnterpriseStructure'
 import SuperAdminPlatformHealth from './SuperAdminPlatformHealth'
+import SuperAdminFacturation from './SuperAdminFacturation'
 import BlocAbonnement from '../components/BlocAbonnement'
 import SelecteurMenus from '../components/SelecteurMenus'
 import { messageErreurEdge } from '../lib/edgeErreur'
@@ -808,7 +809,7 @@ async function createEmploye(entrepriseId) {
         <StatCard titre="Sites total" valeur={stats.totalSites} couleur="#F59E0B" />
       </div>
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid #E5E7EB' }}>
-        {['entreprises','utilisateurs','modules','plans','demandes','supervision','plateforme','assistance'].map(o => {
+        {['entreprises','utilisateurs','modules','plans','facturation','demandes','supervision','plateforme','assistance'].map(o => {
           const nbNouvelles = o === 'demandes' ? demandes.filter(d => d.statut === 'nouvelle').length : 0
           const enEchec = o === 'demandes' && !!demandesErreur
           return (
@@ -1115,6 +1116,10 @@ async function createEmploye(entrepriseId) {
             ))}
           </div>
         </div>
+      )}
+
+      {onglet === 'facturation' && (
+        <SuperAdminFacturation />
       )}
 
       {onglet === 'demandes' && (
