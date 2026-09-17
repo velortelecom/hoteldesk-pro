@@ -6,6 +6,7 @@ import { filtrerMenus, pageParDefaut, pageAutorisee } from './lib/menus'
 import { useModules } from './hooks/useModules'
 import { buildLoadedModules, buildNavItems, buildRouteMap, canAccessRoute } from './modules/loader.js'
 import { SOCLE_MENUS } from './lib/modules'
+import { estModuleDeveloppe } from './lib/modulesDeveloppes'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'
 import Planning from './pages/Planning'
@@ -130,7 +131,15 @@ function AppInner() {
   const loadedModules = buildLoadedModules(modulesActifs, profile)
   // Navigation: socle toujours present + modules charges
   const socleNavItems = SOCLE_MENUS.map(m => ({ id: m.id, label: m.label || m.nom, icon: ICONES_SOCLE[m.id] || m.icone || '' }))
-  const moduleNavItems = buildNavItems(loadedModules).map(m => ({ id: m.id, label: m.label || m.nom, icon: m.icone || '' }))
+  // bientot : le module figure au catalogue mais son ecran n'existe pas
+  // encore. On le dit dans la navigation plutot que de laisser la personne
+  // cliquer pour decouvrir une page vide.
+  const moduleNavItems = buildNavItems(loadedModules).map(m => ({
+    id: m.id,
+    label: m.label || m.nom,
+    icon: m.icone || '',
+    bientot: !estModuleDeveloppe(m.id),
+  }))
   const moduleIds = moduleNavItems.map(m => m.id)
   const uniqueSocle = socleNavItems.filter(m => !moduleIds.includes(m.id))
   const superAdminItem = isSuperAdmin ? [{ id: 'superadmin', label: 'Super Admin', icon: '🛡' }] : []
@@ -299,7 +308,12 @@ function AppInner() {
           {navItems.map(item => (
             <button key={item.id} onClick={() => navigate(item.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 20px', background: page === item.id ? '#EEF2FF' : 'none', border: 'none', borderLeft: page === item.id ? '3px solid #1E40AF' : '3px solid transparent', cursor: 'pointer', fontSize: 13, fontWeight: page === item.id ? 600 : 400, color: page === item.id ? '#1E40AF' : '#374151', textAlign: 'left', width: '100%' }}>
               <span style={{ fontSize: 16 }}>{item.icon}</span>
-              {item.label}
+              <span style={{ flex: 1 }}>{item.label}</span>
+              {item.bientot && (
+                <span style={{ background: '#FEF3C7', color: '#92400E', border: '1px solid #FCD34D', borderRadius: 8, padding: '1px 6px', fontSize: 9, fontWeight: 700, letterSpacing: 0.3 }}>
+                  BIENTOT
+                </span>
+              )}
             </button>
           ))}
         </nav>

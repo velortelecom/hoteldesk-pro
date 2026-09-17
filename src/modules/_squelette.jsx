@@ -30,12 +30,16 @@ export default function ModuleSquelette({ moduleId, permissions }) {
     <div style={{ padding: 40, maxWidth: 700, margin: '40px auto', textAlign: 'center' }}>
       <div style={{ fontSize: 64, marginBottom: 16 }}>{icone}</div>
 
+      {/* Cette pastille annoncait "MODULE ACTIF" en vert, au-dessus d'un
+          encadre expliquant que le module n'existe pas encore. L'oeil
+          attrape la pastille, pas l'encadre : le produit affirmait
+          disposer d'une fonctionnalite qu'il n'a pas. */}
       <div style={{
-        display: 'inline-block', background: '#ECFDF5', color: '#065F46',
-        border: '1px solid #6EE7B7', borderRadius: 20, padding: '4px 14px',
+        display: 'inline-block', background: '#FEF3C7', color: '#92400E',
+        border: '1px solid #FCD34D', borderRadius: 20, padding: '4px 14px',
         fontSize: 12, fontWeight: 700, marginBottom: 16,
       }}>
-        MODULE ACTIF — v0.1.0
+        BIENTOT DISPONIBLE
       </div>
 
       <h1 style={{ fontSize: 28, fontWeight: 700, color: '#1F2937', marginBottom: 10 }}>
@@ -54,12 +58,12 @@ export default function ModuleSquelette({ moduleId, permissions }) {
       }}>
         <div style={{ fontSize: 20, marginBottom: 8 }}>🚧</div>
         <p style={{ fontSize: 14, color: '#92400E', fontWeight: 600, margin: 0, lineHeight: 1.5 }}>
-          Ce module est active dans votre abonnement
-          <br />mais n'est pas encore disponible.
+          Cette fonctionnalite n'est pas encore disponible.
         </p>
         <p style={{ fontSize: 13, color: '#B45309', margin: '8px 0 0', lineHeight: 1.4 }}>
-          Il sera deploye prochainement.
-          Votre abonnement est bien pris en compte.
+          Elle est incluse dans votre abonnement et s'activera
+          automatiquement des sa mise en service.
+          Vous n'aurez aucune demarche a faire.
         </p>
       </div>
 
