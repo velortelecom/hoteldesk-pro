@@ -7,27 +7,37 @@
 // service_role, avec validation stricte, anti-abus, audit et rollback.
 //
 // CE QUE CETTE FONCTION PEUT CREER, ET RIEN D'AUTRE :
-//   - 1 entreprise (plan starter, origine 'inscription_autonome')
+//   - 1 entreprise (origine 'inscription_autonome')
 //   - 1 site principal
 //   - 1 compte Auth + 1 profil role 'admin', is_super_admin = false
-//   - les modules organisation + conges, en dur
+//   - les modules de la formule, listes en dur dans la RPC
 //   - les departements / postes du template du secteur choisi
+//
+// LA SEULE CHOSE QUE LE VISITEUR CHOISIT : LE NOM DE SA FORMULE
+//   'gratuit' ou 'starter', et rien d'autre. Le prix, les modules et le
+//   plafond d'utilisateurs sont ecrits dans la RPC, jamais transmis. Une
+//   valeur inconnue retombe sur l'offre PAYANTE : on ne doit pas pouvoir
+//   s'offrir un plan en bricolant la requete.
+//
+//   Le tarif fondateur, lui, n'est decide ni ici ni dans la RPC : le
+//   trigger trg_tarif_fondateur compte les places a l'INSERT. Un seul
+//   endroit decide du prix.
 //
 // CE QU'ELLE NE PEUT JAMAIS FAIRE :
 //   - creer un super_admin
 //   - rejoindre une entreprise existante
-//   - activer un module hors Plan 1
-//   - choisir un plan
+//   - activer un module hors formule
+//   - fixer un prix ou un plafond d'utilisateurs
 //   - ecrire dans modules_catalogue
 //
 // Le corps de requete ne contient NI role, NI is_super_admin, NI
-// entreprise_id, NI liste de modules, NI plan : ces champs sont ignores
-// meme s'ils sont envoyes (voir CHAMPS_INTERDITS).
+// entreprise_id, NI liste de modules, NI plan, NI prix : ces champs sont
+// ignores meme s'ils sont envoyes (voir CHAMPS_INTERDITS).
 // =====================================================================
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { buildCorsHeaders, jsonResponse, readJsonBody } from '../_shared/http.ts';
 import { recordAuditEvent } from '../_shared/audit.ts';
-import { ANTI_ABUS, PLAN_1_ID, PLAN_1_MODULES } from '../_shared/plan1.ts';
+import { ANTI_ABUS, PLAN_1_ID, PLAN_1_MODULES, PLAN_GRATUIT_ID } from '../_shared/plan1.ts';
 import { getTemplate, SECTEURS_VALIDES } from '../_shared/secteurs_templates.ts';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -95,9 +105,20 @@ function valider(body: Record<string, unknown>) {
     }
   }
 
+  // FORMULE : la seule chose que le navigateur choisit. Ni le prix, ni les
+  // modules, ni le plafond d'utilisateurs -- tout cela est ecrit dans la
+  // RPC. On se contente donc de verifier que la valeur fait partie de la
+  // liste fermee ; n'importe quoi d'autre devient l'offre payante, jamais
+  // la gratuite. Un visiteur ne doit pas pouvoir s'offrir un plan en
+  // bricolant la requete.
+  const formuleBrute = texte(body.formule).toLowerCase();
+  const formule = (formuleBrute === PLAN_GRATUIT_ID || formuleBrute === PLAN_1_ID)
+    ? formuleBrute
+    : PLAN_1_ID;
+
   return {
     erreurs,
-    valeurs: { nomEntreprise, secteur, adminPrenom, adminNom, email, password, telephone: telephone || null, nombreEmployes },
+    valeurs: { nomEntreprise, secteur, adminPrenom, adminNom, email, password, telephone: telephone || null, nombreEmployes, formule },
   };
 }
 
@@ -144,7 +165,7 @@ Deno.serve(async (req: Request) => {
     return rep({ success: false, error: 'validation_failed', message: 'Certains champs sont invalides.', erreurs }, 400);
   }
 
-  const { nomEntreprise, secteur, adminPrenom, adminNom, email, password, telephone, nombreEmployes } = valeurs;
+  const { nomEntreprise, secteur, adminPrenom, adminNom, email, password, telephone, nombreEmployes, formule } = valeurs;
 
   // --- Anti-abus -------------------------------------------------------
   const ilYaUneHeure = new Date(Date.now() - 3600_000).toISOString();
@@ -244,6 +265,7 @@ Deno.serve(async (req: Request) => {
       p_admin_user_id: adminUserId,
       p_admin_prenom: adminPrenom,
       p_admin_nom: adminNom,
+      p_formule: formule,
     });
 
     if (rpcError) throw new Error('rpc_failed: ' + rpcError.message);

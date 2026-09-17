@@ -240,6 +240,35 @@ describe('definitions serveur contre offres.js', () => {
     expect(fondateur).toMatch(/grant execute on function public\.places_fondateur_restantes\(\) to anon/)
   })
 
+  test('le navigateur ne choisit QUE la formule, jamais le prix', () => {
+    // Le champ formule voyage depuis le navigateur. S'il servait aussi a
+    // transmettre un prix, un plafond ou une liste de modules, n'importe
+    // qui pourrait s'offrir un plan en bricolant la requete.
+    const edge = lire(path.join(RACINE, 'supabase', 'functions', 'public-signup', 'index.ts'))
+    expect(edge).not.toBeNull()
+    // La valeur est validee contre une liste fermee...
+    expect(edge).toMatch(/formuleBrute === PLAN_GRATUIT_ID \|\| formuleBrute === PLAN_1_ID/)
+    // ... et tout le reste reste interdit.
+    expect(edge).toMatch(/CHAMPS_INTERDITS[\s\S]*'prix_mensuel'/)
+    expect(edge).toMatch(/CHAMPS_INTERDITS[\s\S]*'max_utilisateurs'/)
+    expect(edge).toMatch(/CHAMPS_INTERDITS[\s\S]*'modules'/)
+  })
+
+  test('la RPC retombe sur l offre payante pour toute formule inconnue', () => {
+    // Une valeur vide, nulle ou inventee ne doit jamais donner le gratuit.
+    const formule = lire(path.join(RACINE, 'supabase', 'migrations', '20260917_0006_formule_au_choix.sql'))
+    expect(formule).not.toBeNull()
+    expect(formule).toMatch(/IF coalesce\(trim\(p_formule\), ''\) = c_formule_gratuite THEN/)
+    expect(formule).toMatch(/ELSE\s+c_plan\s+:= c_formule_payante;/)
+  })
+
+  test('l ancienne signature de la RPC est supprimee', () => {
+    // Avec un parametre DEFAULT, Postgres garderait DEUX fonctions et un
+    // appel a dix arguments deviendrait ambigu : l'inscription tomberait.
+    const formule = lire(path.join(RACINE, 'supabase', 'migrations', '20260917_0006_formule_au_choix.sql'))
+    expect(formule).toMatch(/DROP FUNCTION IF EXISTS public\.public_signup_create_entreprise_atomic\(/)
+  })
+
   test('le trigger ne s applique qu aux inscriptions publiques', () => {
     // Une entreprise creee a la main par le Super Admin doit garder le
     // prix qu'il lui a donne : ce n'est pas au code de decider a sa place.

@@ -60,14 +60,15 @@ function Champ({ label, aide, erreur, children }) {
   )
 }
 
-function BlocInclus() {
-  // Le prix affiche doit etre CELUI QUI SERA FACTURE. Tant qu'il reste des
-  // places fondatrices, le trigger appliquera 29 EUR : annoncer 39 EUR
-  // serait un ecran qui ment, exactement ce qu'on corrige ailleurs.
-  //
-  // null = on ne sait pas encore, ou la fonction n'existe pas (migration
-  // non appliquee). Dans ce cas on affiche le tarif public : mieux vaut
-  // annoncer plus cher que promettre une remise qu'on ne donnera pas.
+/**
+ * Combien de places fondatrices restent.
+ *
+ * null = on ne sait pas encore, ou la fonction n'existe pas (migration non
+ * appliquee). Dans ce cas on affiche le tarif public et pas de choix de
+ * formule : mieux vaut annoncer plus cher que promettre une remise que le
+ * serveur ne donnera pas.
+ */
+function usePlacesFondateur() {
   const [places, setPlaces] = useState(null)
 
   useEffect(() => {
@@ -79,8 +80,56 @@ function BlocInclus() {
     return () => { annule = true }
   }, [])
 
-  const fondateur = places != null && places > 0
-  const prix = fondateur ? TARIF_FONDATEUR : PLAN_1_PRIX_MENSUEL
+  return places
+}
+
+function BlocInclus({ places, formule }) {
+  // Le prix affiche doit etre CELUI QUI SERA FACTURE. Tant qu'il reste des
+  // places fondatrices, le trigger appliquera 29 EUR : annoncer 39 EUR
+  // serait un ecran qui ment, exactement ce qu'on corrige ailleurs.
+  const gratuit = formule === 'gratuit'
+  const fondateur = !gratuit && places != null && places > 0
+  const prix = gratuit ? 0 : (fondateur ? TARIF_FONDATEUR : PLAN_1_PRIX_MENSUEL)
+
+  if (gratuit) {
+    return (
+      <div style={{ ...styles.carte, background: '#F8FAFC' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#10B981', letterSpacing: '0.06em', marginBottom: 4 }}>
+          VOTRE ABONNEMENT
+        </div>
+        <div style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>Gratuit</div>
+        <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2, marginBottom: 18 }}>
+          <strong style={{ color: '#111827', fontSize: 15 }}>0 &euro; / mois</strong>
+          {' '}&middot; jusqu&apos;a 3 utilisateurs, sans limite de duree
+        </div>
+
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 8 }}>Inclus d&apos;office</div>
+        {PLAN_1_SOCLE.map(m => (
+          <div key={m.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 8 }}>
+            <span style={{ fontSize: 16, lineHeight: '20px' }}>{m.icone}</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{m.label}</div>
+              <div style={{ fontSize: 12, color: '#6B7280' }}>{m.detail}</div>
+            </div>
+          </div>
+        ))}
+
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', margin: '16px 0 8px' }}>Module active</div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 8 }}>
+          <span style={{ fontSize: 16, lineHeight: '20px' }}>🏢</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>Organisation &amp; RH</div>
+            <div style={{ fontSize: 12, color: '#6B7280' }}>Employes, departements, postes, organigramme</div>
+          </div>
+        </div>
+
+        <div style={{ fontSize: 11.5, color: '#9CA3AF', marginTop: 16, lineHeight: 1.6 }}>
+          Congés et Pointage ne sont pas inclus. Vous pourrez passer a {PLAN_1_LABEL} a
+          tout moment depuis votre espace, sans perdre vos donnees.
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ ...styles.carte, background: '#F8FAFC' }}>
@@ -168,6 +217,12 @@ export default function Inscription({ onRetourConnexion }) {
   })
   const [erreurs, setErreurs] = useState({})
   const [erreurGlobale, setErreurGlobale] = useState('')
+  // Le choix de formule n'est propose QUE s'il ne reste plus de place
+  // fondatrice : tant qu'il y en a, l'offre a 29 EUR est meilleure que la
+  // gratuite pour tout le monde, et lui opposer un choix serait absurde.
+  const places = usePlacesFondateur()
+  const [formule, setFormule] = useState('starter')
+  const choixPossible = places === 0
   const [etape, setEtape] = useState('formulaire') // formulaire | envoi | succes
   const [resultat, setResultat] = useState(null)
 
@@ -196,7 +251,8 @@ export default function Inscription({ onRetourConnexion }) {
     if (!validerLocalement()) return
     setEtape('envoi')
 
-    // Payload volontairement limite : ni plan, ni role, ni modules.
+    // Payload volontairement limite : ni prix, ni role, ni modules.
+    // Seule la formule voyage, et le serveur la revalide.
     const { data, error } = await supabase.functions.invoke('public-signup', {
       body: {
         nom_entreprise: form.nom_entreprise.trim(),
@@ -208,6 +264,9 @@ export default function Inscription({ onRetourConnexion }) {
         password_confirm: form.password_confirm,
         telephone: form.telephone.trim() || null,
         nombre_employes: form.nombre_employes ? Number(form.nombre_employes) : null,
+        // Le serveur ne fait confiance a ce champ que pour l'aiguillage :
+        // il en deduit lui-meme le prix, les modules et le plafond.
+        formule: choixPossible ? formule : 'starter',
       },
     })
 
@@ -288,6 +347,47 @@ export default function Inscription({ onRetourConnexion }) {
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', gap: 20, alignItems: 'start' }} className="inscription-grille">
           <form onSubmit={soumettre} style={styles.carte} noValidate>
+            {/* Le choix n'apparait que s'il ne reste plus de place fondatrice.
+                Tant qu'il y en a, l'offre a 29 EUR domine la gratuite sur
+                tous les criteres : proposer un choix serait une fausse
+                question. */}
+            {choixPossible && (
+              <>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#185FA5', letterSpacing: '0.06em', marginBottom: 14 }}>
+                  VOTRE FORMULE
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 26 }}>
+                  {[
+                    { id: 'starter', titre: PLAN_1_LABEL, prix: PLAN_1_PRIX_MENSUEL + ' € / mois',
+                      detail: 'Jusqu’a ' + PLAN_1_MAX_UTILISATEURS + ' utilisateurs, puis '
+                        + PRIX_UTILISATEUR_SUP + ' €. Organisation, Conges et Pointage.' },
+                    { id: 'gratuit', titre: 'Gratuit', prix: '0 € / mois',
+                      detail: 'Jusqu’a 3 utilisateurs. Organisation & RH uniquement, sans limite de duree.' },
+                  ].map(opt => {
+                    const actif = formule === opt.id
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setFormule(opt.id)}
+                        style={{
+                          textAlign: 'left', cursor: 'pointer', borderRadius: 12, padding: '14px 16px',
+                          background: actif ? '#EFF6FF' : '#fff',
+                          border: '2px solid ' + (actif ? '#185FA5' : '#E5E7EB'),
+                        }}
+                      >
+                        <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{opt.titre}</div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: actif ? '#185FA5' : '#6B7280', margin: '2px 0 6px' }}>
+                          {opt.prix}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: '#6B7280', lineHeight: 1.5 }}>{opt.detail}</div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+
             <div style={{ fontSize: 12, fontWeight: 700, color: '#185FA5', letterSpacing: '0.06em', marginBottom: 14 }}>
               VOTRE ENTREPRISE
             </div>
@@ -369,7 +469,7 @@ export default function Inscription({ onRetourConnexion }) {
             </button>
           </form>
 
-          <BlocInclus />
+          <BlocInclus places={places} formule={choixPossible ? formule : 'starter'} />
         </div>
 
         <div style={{ textAlign: 'center', marginTop: 22, fontSize: 12, color: '#aaa' }}>
