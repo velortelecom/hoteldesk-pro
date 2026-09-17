@@ -90,6 +90,24 @@ describe('superAdminControlUtils', () => {
     expect(buildModuleWritePolicyWarning({ is_super_admin: true })).toBeNull()
   })
 
+  it('nomme la table qui bloque une suppression', () => {
+    // Postgres dit exactement qui retient la ligne. Le perdre dans une
+    // phrase generique obligeait a ouvrir les journaux pour savoir quoi
+    // corriger.
+    const erreur = {
+      message: 'update or delete on table "profiles" violates foreign key constraint '
+        + '"ticket_messages_sender_profile_id_fkey" on table "ticket_messages"',
+    }
+    const message = buildDependencyErrorMessage(erreur)
+    expect(message).toContain('ticket_messages')
+    expect(message).toContain('ticket_messages_sender_profile_id_fkey')
+  })
+
+  it('reste comprehensible quand Postgres ne nomme rien', () => {
+    const message = buildDependencyErrorMessage({ message: 'violates foreign key' })
+    expect(message).toContain('Suppression bloquée')
+  })
+
   it('builds assistance draft with mandatory reason and entreprise', () => {
     const draft = buildAssistanceSessionDraft({ entrepriseId: 'ent-a', reason: 'Aide opérationnelle' })
     expect(draft.entrepriseId).toBe('ent-a')

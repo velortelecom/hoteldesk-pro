@@ -84,11 +84,35 @@ export function buildModuleWritePolicyWarning(viewer) {
   return 'Seul le Super Admin peut modifier les modules commerciaux d une entreprise.'
 }
 
+// Postgres dit precisement QUI bloque une suppression :
+//   ... violates foreign key constraint "x_fkey" on table "ticket_messages"
+// On perdait cette table dans une phrase generique, et il fallait ouvrir
+// les journaux pour savoir quoi corriger. On la garde.
+export function detailDependance(error) {
+  const brut = String(error?.message || error || '')
+
+  const table = brut.match(/on table "([^"]+)"/i)
+  const contrainte = brut.match(/constraint "([^"]+)"/i)
+
+  if (!table && !contrainte) return null
+  return {
+    table: table ? table[1] : null,
+    contrainte: contrainte ? contrainte[1] : null,
+  }
+}
+
 export function buildDependencyErrorMessage(error) {
   const raw = String(error?.message || error || '').toLowerCase()
+
   if (raw.includes('foreign key') || raw.includes('violates')) {
+    const detail = detailDependance(error)
+    if (detail && detail.table) {
+      return 'Suppression bloquée : des données liées subsistent dans « ' + detail.table + ' »'
+        + (detail.contrainte ? ' (contrainte ' + detail.contrainte + ').' : '.')
+    }
     return 'Suppression bloquée: cet élément est encore utilisé par des données liées.'
   }
+
   return error?.message || 'Opération impossible.'
 }
 

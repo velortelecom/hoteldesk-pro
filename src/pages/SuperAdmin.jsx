@@ -118,6 +118,12 @@ export default function SuperAdmin() {
   // Un echec de lecture ne doit pas se lire comme "zero utilisateur" :
   // les comptes existent en base, c'est la lecture qui a ete refusee.
   const [entUsersErreur, setEntUsersErreur] = useState({})
+  // Les modales de suppression fermaient AVANT l'appel, et l'echec
+  // s'affichait en haut de page -- hors de l'ecran quand on a defile
+  // jusqu'a une entreprise. Le bouton semblait ne rien faire. La modale
+  // reste donc ouverte tant que ce n'est pas reussi, et dit pourquoi.
+  const [suppressionErreur, setSuppressionErreur] = useState(null)
+  const [suppressionEnCours, setSuppressionEnCours] = useState(false)
   const [expandedUsersEnt, setExpandedUsersEnt] = useState(null)
   const [userDeleteConfirm, setUserDeleteConfirm] = useState(null)
   // Demandes de pack superieur deposees par les clients (aucune activation auto)
@@ -245,15 +251,19 @@ export default function SuperAdmin() {
   }
 
   async function deleteUser(userId, entId) {
-    setUserDeleteConfirm(null)
+    setSuppressionErreur(null)
+    setSuppressionEnCours(true)
     try {
       const { error: rpcErr } = await supabase.rpc('supprimer_membre_complet', { p_user_id: userId })
       if (rpcErr) throw rpcErr
+      setUserDeleteConfirm(null)
       setMsg({ type: 'success', text: 'Utilisateur supprimé.' })
       fetchEntUsers(entId)
       fetchData()
     } catch (err) {
-      setMsg({ type: 'error', text: mapSuperAdminError(err, buildDependencyErrorMessage(err)) })
+      setSuppressionErreur(mapSuperAdminError(err, buildDependencyErrorMessage(err)))
+    } finally {
+      setSuppressionEnCours(false)
     }
   }
 
@@ -425,14 +435,18 @@ export default function SuperAdmin() {
   }
 
   async function deleteEntreprise(ent) {
-    setDeleteConfirm(null)
+    setSuppressionErreur(null)
+    setSuppressionEnCours(true)
     try {
       const { error } = await supabase.rpc('supprimer_entreprise_complete', { p_entreprise_id: ent.id })
       if (error) throw error
+      setDeleteConfirm(null)
       setMsg({ type: 'success', text: 'Entreprise "' + ent.nom + '" supprimee.' })
       await fetchData()
     } catch (err) {
-      setMsg({ type: 'error', text: mapSuperAdminError(err, buildDependencyErrorMessage(err)) })
+      setSuppressionErreur(mapSuperAdminError(err, buildDependencyErrorMessage(err)))
+    } finally {
+      setSuppressionEnCours(false)
     }
   }
 
@@ -1207,9 +1221,14 @@ async function createEmploye(entrepriseId) {
               <h3 style={{ fontWeight: 700, fontSize: 17, color: '#111827', marginBottom: 8 }}>Supprimer cet utilisateur ?</h3>
               <p style={{ color: '#374151', fontSize: 14, marginBottom: 4 }}><strong>{userDeleteConfirm.user.prenom} {userDeleteConfirm.user.nom}</strong></p>
               <p style={{ color: '#6B7280', fontSize: 12, marginBottom: 20 }}>{userDeleteConfirm.user.email}<br/>Cette action est <strong>irréversible</strong>.</p>
+              {suppressionErreur && (
+                <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', borderRadius: 8, padding: '9px 12px', fontSize: 12, marginBottom: 14, textAlign: 'left' }}>
+                  {suppressionErreur}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                <button onClick={() => setUserDeleteConfirm(null)} style={{ padding: '9px 20px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer' }}>Annuler</button>
-                <button onClick={() => deleteUser(userDeleteConfirm.user.id, userDeleteConfirm.entId)} style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: '#EF4444', color: '#fff', cursor: 'pointer', fontWeight: 600 }}>Oui, supprimer</button>
+                <button onClick={() => { setUserDeleteConfirm(null); setSuppressionErreur(null) }} style={{ padding: '9px 20px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer' }}>Annuler</button>
+                <button disabled={suppressionEnCours} onClick={() => deleteUser(userDeleteConfirm.user.id, userDeleteConfirm.entId)} style={{ padding: '9px 20px', borderRadius: 8, border: 'none', background: suppressionEnCours ? '#FCA5A5' : '#EF4444', color: '#fff', cursor: suppressionEnCours ? 'default' : 'pointer', fontWeight: 600 }}>{suppressionEnCours ? 'Suppression...' : 'Oui, supprimer'}</button>
               </div>
             </div>
           </div>
@@ -1289,9 +1308,14 @@ async function createEmploye(entrepriseId) {
             <p style={{ color: '#6B7280', fontSize: 14, marginBottom: 24 }}>
               Cette action va supprimer <strong>"{deleteConfirm.nom}"</strong> ainsi que tous ses sites, utilisateurs et modules. Cette action est <strong>irreversible</strong>.
             </p>
+            {suppressionErreur && (
+              <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', borderRadius: 8, padding: '9px 12px', fontSize: 12, marginBottom: 16, textAlign: 'left' }}>
+                {suppressionErreur}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-              <button onClick={() => setDeleteConfirm(null)} style={{ padding: '10px 24px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', fontSize: 14 }}>Annuler</button>
-              <button onClick={() => deleteEntreprise(deleteConfirm)} style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: '#EF4444', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>Oui, supprimer</button>
+              <button onClick={() => { setDeleteConfirm(null); setSuppressionErreur(null) }} style={{ padding: '10px 24px', borderRadius: 8, border: '1px solid #D1D5DB', background: '#fff', cursor: 'pointer', fontSize: 14 }}>Annuler</button>
+              <button disabled={suppressionEnCours} onClick={() => deleteEntreprise(deleteConfirm)} style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: suppressionEnCours ? '#FCA5A5' : '#EF4444', color: '#fff', cursor: suppressionEnCours ? 'default' : 'pointer', fontSize: 14, fontWeight: 600 }}>{suppressionEnCours ? 'Suppression...' : 'Oui, supprimer'}</button>
             </div>
           </div>
         </div>
