@@ -17,7 +17,11 @@
 -- au Super Admin si un clic sur « Figer » aura un effet, plutot que de
 -- lui laisser croire qu'il n'a rien fait.
 -- =====================================================================
-CREATE OR REPLACE FUNCTION public.etat_facturation_global(p_periode date DEFAULT NULL)
+-- DROP avant CREATE : le RETURNS TABLE evolue, et CREATE OR REPLACE
+-- refuse de changer un type de retour.
+DROP FUNCTION IF EXISTS public.etat_facturation_global(date);
+
+CREATE FUNCTION public.etat_facturation_global(p_periode date DEFAULT NULL)
 RETURNS TABLE (
   entreprise_id         uuid,
   nom                   text,
@@ -31,6 +35,10 @@ RETURNS TABLE (
   supplement            numeric,
   prix_total            numeric,
   sur_devis             boolean,
+  -- Fait partie des cinq premieres entreprises, donc a 29 EUR bloques a
+  -- vie. Sans cette colonne, un 29 EUR dans le tableau se confond avec
+  -- une erreur de prix -- le tarif public est 39 EUR.
+  tarif_fondateur       boolean,
   fige                  boolean
 )
 LANGUAGE plpgsql
@@ -62,6 +70,7 @@ BEGIN
     f.supplement,
     f.prix_total,
     f.sur_devis,
+    f.tarif_fondateur,
     EXISTS (
       SELECT 1 FROM public.releves_facturation r
       WHERE r.entreprise_id = e.id AND r.periode = v_periode

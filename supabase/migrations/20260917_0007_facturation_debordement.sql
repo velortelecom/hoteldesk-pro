@@ -76,7 +76,13 @@ COMMENT ON FUNCTION public.utilisateurs_factures(uuid) IS
 -- Sans argument : l'entreprise de l'appelant. Avec argument : reserve au
 -- super admin, sauf s'il s'agit de sa propre entreprise.
 -- ---------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.etat_facturation(p_entreprise_id uuid DEFAULT NULL)
+-- Le DROP est indispensable : on fait evoluer le RETURNS TABLE, et
+-- CREATE OR REPLACE refuse de changer un type de retour (« cannot change
+-- return type of existing function »). Meme piege que pour la RPC
+-- d'inscription quand on lui a ajoute p_formule.
+DROP FUNCTION IF EXISTS public.etat_facturation(uuid);
+
+CREATE FUNCTION public.etat_facturation(p_entreprise_id uuid DEFAULT NULL)
 RETURNS TABLE (
   entreprise_id         uuid,
   plan                  text,
@@ -87,7 +93,13 @@ RETURNS TABLE (
   prix_utilisateur_sup  numeric,
   supplement            numeric,
   prix_total            numeric,
-  sur_devis             boolean
+  sur_devis             boolean,
+  -- Le tarif fondateur n'est PAS deductible du prix : une entreprise
+  -- creee a la main par le Super Admin peut tres bien etre a 29 EUR sans
+  -- etre fondatrice. On renvoie donc la colonne posee par le trigger,
+  -- pas une devinette sur le montant. C'est aussi ce qui evite qu'un
+  -- 29 EUR affiche sans explication passe pour une erreur de prix.
+  tarif_fondateur       boolean
 )
 LANGUAGE plpgsql
 STABLE
@@ -119,7 +131,7 @@ BEGIN
       USING DETAIL = 'Etat de facturation reserve a l''entreprise concernee.';
   END IF;
 
-  SELECT e.id, e.plan, e.prix_mensuel, e.max_utilisateurs
+  SELECT e.id, e.plan, e.prix_mensuel, e.max_utilisateurs, e.tarif_fondateur
     INTO v_ent
   FROM public.entreprises e
   WHERE e.id = v_cible;
@@ -176,7 +188,8 @@ BEGIN
       WHEN v_ent.plan = 'gratuit' THEN v_ent.prix_mensuel::numeric
       ELSE (v_ent.prix_mensuel + v_surplus * c_prix_utilisateur_sup)::numeric
     END,
-    (v_nb > c_plafond_forfait);
+    (v_nb > c_plafond_forfait),
+    COALESCE(v_ent.tarif_fondateur, false);
 END;
 $$;
 
@@ -204,10 +217,18 @@ CREATE TABLE IF NOT EXISTS public.releves_facturation (
   supplement            numeric(10,2) NOT NULL DEFAULT 0,
   prix_total            numeric(10,2),
   sur_devis             boolean NOT NULL DEFAULT false,
+  -- Fige avec le reste : dans deux ans, un releve a 29 EUR doit pouvoir
+  -- s'expliquer tout seul, sans aller rechercher si cette entreprise
+  -- faisait partie des cinq premieres.
+  tarif_fondateur       boolean NOT NULL DEFAULT false,
   fige_le               timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT releves_facturation_periode_unique UNIQUE (entreprise_id, periode),
   CONSTRAINT releves_facturation_periode_1er CHECK (date_trunc('month', periode)::date = periode)
 );
+
+-- Pour une base ou la table a ete creee avant l'ajout de la colonne.
+ALTER TABLE public.releves_facturation
+  ADD COLUMN IF NOT EXISTS tarif_fondateur boolean NOT NULL DEFAULT false;
 
 COMMENT ON TABLE public.releves_facturation IS
   'Effectif et montant FIGES pour une periode. Ce qu''on facture. '
@@ -258,11 +279,13 @@ BEGIN
 
   INSERT INTO public.releves_facturation (
     entreprise_id, periode, plan, utilisateurs, inclus, surplus,
-    prix_base, prix_utilisateur_sup, supplement, prix_total, sur_devis
+    prix_base, prix_utilisateur_sup, supplement, prix_total, sur_devis,
+    tarif_fondateur
   )
   SELECT
     f.entreprise_id, v_periode, f.plan, f.utilisateurs, f.inclus, f.surplus,
-    f.prix_base, f.prix_utilisateur_sup, f.supplement, f.prix_total, f.sur_devis
+    f.prix_base, f.prix_utilisateur_sup, f.supplement, f.prix_total, f.sur_devis,
+    f.tarif_fondateur
   FROM public.entreprises e
   CROSS JOIN LATERAL public.etat_facturation(e.id) f
   WHERE COALESCE(e.actif, true) = true

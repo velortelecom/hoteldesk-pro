@@ -26,12 +26,28 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { telechargerXlsx } from '../lib/xlsx'
+import { FONDATEURS_MAX } from '../lib/offres'
 import {
   LARGEURS_EXPORT, LARGEURS_EXPORT_ENTREPRISE, construireLignesExport,
-  construireLignesExportEntreprise, euros, libellePeriode, lignesFacture,
-  nomFichierExport, nomFichierExportEntreprise, nomFormule,
+  construireLignesExportEntreprise, etatFondateurs, euros, libellePeriode,
+  lignesFacture, nomFichierExport, nomFichierExportEntreprise, nomFormule,
   periodesProposees, premierDuMois, repartirUtilisateurs, totauxFacturation,
 } from './facturationExport'
+
+// Pastille « Fondateur » : le tarif a 29 EUR est reserve aux cinq
+// premieres entreprises et bloque a vie. Sans marque visible, une ligne a
+// 29 EUR au milieu de lignes a 39 passe pour une erreur de prix.
+function PastilleFondateur({ petite }) {
+  return (
+    <span style={{
+      background: '#FEF3C7', color: '#92400E', borderRadius: 999,
+      fontSize: petite ? 10 : 11, fontWeight: 700,
+      padding: petite ? '1px 6px' : '2px 8px', whiteSpace: 'nowrap',
+    }}>
+      Fondateur
+    </span>
+  )
+}
 
 const carte = { background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 10, padding: 16 }
 const th = { textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '8px 10px', borderBottom: '1px solid #E5E7EB', whiteSpace: 'nowrap' }
@@ -51,19 +67,35 @@ export default function SuperAdminFacturation() {
   // Detail d'une entreprise : l'entreprise choisie, ses comptes et tout
   // son historique fige.
   const [detail, setDetail] = useState(null)
+  // Places de fondateur restantes. Lu en base (places_fondateur_restantes)
+  // et pas deduit du tableau : une entreprise supprimee libererait sinon
+  // une place dans l'affichage sans en liberer une dans le compteur.
+  const [placesFondateur, setPlacesFondateur] = useState(null)
 
   const charger = useCallback(async () => {
     setChargement(true)
     setErreur(null)
 
-    const [globalRes, relevesRes] = await Promise.all([
+    const [globalRes, relevesRes, placesRes] = await Promise.all([
       supabase.rpc('etat_facturation_global', { p_periode: periode }),
       supabase
         .from('releves_facturation')
         .select('entreprise_id, periode, plan, utilisateurs, inclus, surplus, prix_base, supplement, prix_total, sur_devis, fige_le, entreprises(nom)')
         .eq('periode', periode)
         .order('fige_le', { ascending: true }),
+      supabase.rpc('places_fondateur_restantes'),
     ])
+
+    // Le compteur de fondateurs n'est pas vital pour l'ecran : s'il
+    // echoue, on l'ecrit en console et on masque la vignette plutot que
+    // de faire tomber toute la page.
+    if (placesRes.error) {
+      console.warn('[facturation] places_fondateur_restantes a echoue : '
+        + (placesRes.error.message || '-'))
+      setPlacesFondateur(null)
+    } else {
+      setPlacesFondateur(placesRes.data)
+    }
 
     const echec = globalRes.error || relevesRes.error
     if (echec) {
@@ -184,6 +216,7 @@ export default function SuperAdminFacturation() {
 
   const { totalDirect, totalReleve, nbDevis, nbDebordement, resteAFiger, periodeFigee } =
     totauxFacturation(direct, releves)
+  const fondateurs = etatFondateurs(placesFondateur, FONDATEURS_MAX)
 
   return (
     <div>
@@ -288,6 +321,13 @@ export default function SuperAdminFacturation() {
             <Chiffre titre="Total en direct" valeur={euros(totalDirect)} couleur="#3B82F6" />
             <Chiffre titre={'Total fige (' + releves.length + ')'} valeur={releves.length ? euros(totalReleve) : '—'} couleur="#10B981" />
             <Chiffre titre="En debordement" valeur={String(nbDebordement)} couleur="#F59E0B" />
+            {fondateurs && (
+              <Chiffre
+                titre={'Fondateurs a ' + fondateurs.tarif + ' \u20ac a vie'}
+                valeur={fondateurs.libelle}
+                couleur="#92400E"
+              />
+            )}
             <Chiffre titre="Sur devis" valeur={String(nbDevis)} couleur="#8B5CF6" />
           </div>
 
@@ -323,6 +363,7 @@ export default function SuperAdminFacturation() {
                   >
                     <td style={{ ...td, fontWeight: 600 }}>
                       <span style={{ color: '#1D4ED8', textDecoration: 'underline dotted' }}>{l.nom}</span>
+                      {l.tarif_fondateur && <span style={{ marginLeft: 6 }}><PastilleFondateur petite /></span>}
                       {!l.actif && <span style={{ marginLeft: 6, fontSize: 11, color: '#9CA3AF' }}>(inactive)</span>}
                     </td>
                     <td style={td}>{l.plan || '—'}</td>
@@ -432,7 +473,10 @@ function PanneauDetail({ detail, periode, onFermer, onExporter }) {
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 4 }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>{l.nom}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: 8 }}>
+              {l.nom}
+              {l.tarif_fondateur && <PastilleFondateur />}
+            </div>
             <div style={{ fontSize: 12.5, color: '#6B7280' }}>
               {nomFormule(l.plan)}
               {l.inclus != null && ' \u00b7 ' + l.inclus + ' utilisateurs compris'}
@@ -459,7 +503,12 @@ function PanneauDetail({ detail, periode, onFermer, onExporter }) {
                 color: ligne.montant == null && !ligne.total ? '#92400E' : '#374151',
               }}
             >
-              <span>{ligne.libelle}</span>
+              <span>
+                {ligne.libelle}
+                {ligne.mention && (
+                  <div style={{ fontSize: 12, color: '#92400E', marginTop: 2 }}>{ligne.mention}</div>
+                )}
+              </span>
               <span style={{ whiteSpace: 'nowrap' }}>
                 {ligne.montant == null
                   ? (l.sur_devis && ligne.total ? 'Sur devis' : '\u2014')
@@ -556,6 +605,7 @@ function PanneauDetail({ detail, periode, onFermer, onExporter }) {
                   <th style={th}>Periode</th>
                   <th style={th}>Utilisateurs</th>
                   <th style={th}>Au-dela</th>
+                  <th style={th}>Tarif</th>
                   <th style={th}>Total</th>
                 </tr>
               </thead>
@@ -565,6 +615,7 @@ function PanneauDetail({ detail, periode, onFermer, onExporter }) {
                     <td style={td}>{libellePeriode(r.periode)}</td>
                     <td style={td}>{r.utilisateurs}</td>
                     <td style={td}>{Number(r.surplus) > 0 ? '+' + r.surplus : '\u2014'}</td>
+                    <td style={td}>{r.tarif_fondateur ? <PastilleFondateur petite /> : 'public'}</td>
                     <td style={{ ...td, fontWeight: 700 }}>
                       {r.sur_devis ? <span style={{ color: '#8B5CF6' }}>Sur devis</span> : euros(r.prix_total)}
                     </td>

@@ -65,13 +65,16 @@ export default function Offres() {
   const planPrix = entreprise?.prix_mensuel != null ? entreprise.prix_mensuel : (planInfo?.prix != null ? planInfo.prix : PLAN_1_PRIX_MENSUEL)
   const planMaxUsers = entreprise?.max_utilisateurs != null ? entreprise.max_utilisateurs : (planInfo?.max_utilisateurs != null ? planInfo.max_utilisateurs : PLAN_1_MAX_UTILISATEURS)
 
-  // Tarif fondateur : les premieres entreprises gardent leur prix a vie.
-  // On ne stocke aucun indicateur pour ca -- le prix fige dans la ligne
-  // entreprises SUFFIT, puisque l'affichage le lit en priorite sur la
-  // grille. Si un jour PRIX_STANDARD change, cette entreprise ne bouge pas.
-  const estFondateur = planId === 'starter'
-    && entreprise?.prix_mensuel != null
-    && Number(entreprise.prix_mensuel) === TARIF_FONDATEUR
+  // Tarif fondateur : les CINQ premieres entreprises gardent 29 EUR a
+  // vie, le tarif public etant 39 EUR.
+  //
+  // On lit la colonne posee par le trigger, pas le montant. Deduire le
+  // statut du prix (« prix_mensuel === 29 donc fondateur ») marchait tant
+  // qu'aucune entreprise n'etait a 29 EUR pour une autre raison -- un
+  // geste commercial du Super Admin, par exemple -- et se serait mis a
+  // mentir le jour ou ca arrive. C'est aussi la colonne que lit l'ecran
+  // de facturation : une seule regle, un seul endroit.
+  const estFondateur = entreprise?.tarif_fondateur === true
 
   // CE QUI EST REELLEMENT FACTURE CE MOIS-CI.
   //
@@ -277,7 +280,8 @@ export default function Offres() {
         {estFondateur && (
           <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E', borderRadius: 10, padding: '10px 12px', fontSize: 12.5, lineHeight: 1.6, marginTop: 14 }}>
             Vous faites partie des premieres entreprises inscrites. Votre tarif de{' '}
-            <strong>{TARIF_FONDATEUR} &euro; / mois</strong> est bloque <strong>a vie</strong> sur
+            <strong>{planPrix != null ? planPrix : TARIF_FONDATEUR} &euro; / mois</strong> est
+            bloque <strong>a vie</strong> sur
             le perimetre souscrit &mdash; le socle, Organisation &amp; RH, Conges et Pointage &mdash;
             quelle que soit l&apos;evolution de nos tarifs publics. Les modules publies
             ulterieurement pourront faire l&apos;objet d&apos;une option.

@@ -146,3 +146,98 @@ describe('lignes exportees', () => {
     expect(l[1][0]).toBe('zz')
   })
 })
+
+// ---------------------------------------------------------------------
+// TARIF FONDATEUR
+//
+// 29 EUR, mais seulement pour les cinq premieres entreprises ; le tarif
+// public est 39 EUR. Une ligne a 29 EUR sans explication, au milieu de
+// lignes a 39, se lit comme une erreur de prix.
+// ---------------------------------------------------------------------
+const {
+  etatFondateurs, lignesFacture, nomFormule, repartirUtilisateurs,
+  construireLignesExportEntreprise, COLONNES_EXPORT_ENTREPRISE,
+  LARGEURS_EXPORT_ENTREPRISE, nomFichierExportEntreprise,
+} = require('./facturationExport')
+const { FONDATEURS_MAX, PRIX_STANDARD, TARIF_FONDATEUR } = require('../lib/offres')
+
+const ETAT_FONDATEUR = {
+  plan: 'starter', utilisateurs: 12, inclus: 10, surplus: 2,
+  prix_base: TARIF_FONDATEUR, prix_utilisateur_sup: 2, supplement: 4,
+  prix_total: 33, sur_devis: false, tarif_fondateur: true,
+}
+
+const ETAT_PUBLIC = { ...ETAT_FONDATEUR, prix_base: PRIX_STANDARD, prix_total: 43, tarif_fondateur: false }
+
+describe('tarif fondateur', () => {
+  test('la ligne de forfait porte la mention et rappelle le tarif public', () => {
+    const forfait = lignesFacture(ETAT_FONDATEUR).find(l => l.cle === 'forfait')
+    expect(forfait.montant).toBe(TARIF_FONDATEUR)
+    expect(forfait.mention).toContain('bloque a vie')
+    expect(forfait.mention).toContain(String(PRIX_STANDARD))
+  })
+
+  test('une entreprise au tarif public n a aucune mention', () => {
+    expect(lignesFacture(ETAT_PUBLIC).find(l => l.cle === 'forfait').mention).toBeNull()
+  })
+
+  test('la mention vient de la colonne, jamais du montant', () => {
+    // Une entreprise peut etre a 29 EUR sans etre fondatrice : geste
+    // commercial du Super Admin. Deduire le statut du prix la ferait
+    // passer pour une des cinq premieres, et ce n'est pas vrai.
+    const geste = { ...ETAT_FONDATEUR, tarif_fondateur: false }
+    expect(lignesFacture(geste).find(l => l.cle === 'forfait').mention).toBeNull()
+  })
+
+  test('le debordement d un fondateur part de 29, pas de 39', () => {
+    const lignes = lignesFacture(ETAT_FONDATEUR)
+    expect(lignes.find(l => l.cle === 'forfait').montant).toBe(TARIF_FONDATEUR)
+    expect(lignes.find(l => l.cle === 'debordement').montant).toBe(4)
+    expect(lignes.find(l => l.total).montant).toBe(TARIF_FONDATEUR + 4)
+  })
+
+  test('le compteur de places dit combien sont prises sur cinq', () => {
+    expect(etatFondateurs(5, FONDATEURS_MAX).libelle).toBe('0 / 5')
+    expect(etatFondateurs(4, FONDATEURS_MAX).libelle).toBe('1 / 5')
+    expect(etatFondateurs(0, FONDATEURS_MAX).libelle).toBe('5 / 5')
+    expect(etatFondateurs(0, FONDATEURS_MAX).restantes).toBe(0)
+  })
+
+  test('un compteur illisible se tait au lieu d inventer un chiffre', () => {
+    // places_fondateur_restantes peut echouer ; afficher « 0 / 5 »
+    // laisserait croire qu'aucune place n'est prise.
+    expect(etatFondateurs(null, FONDATEURS_MAX)).toBeNull()
+    expect(etatFondateurs(undefined, FONDATEURS_MAX)).toBeNull()
+    expect(etatFondateurs('abc', FONDATEURS_MAX)).toBeNull()
+  })
+
+  test('un compteur hors bornes est ramene dans les bornes', () => {
+    expect(etatFondateurs(9, FONDATEURS_MAX).prises).toBe(0)
+    expect(etatFondateurs(-2, FONDATEURS_MAX).prises).toBe(FONDATEURS_MAX)
+  })
+
+  test('l export porte une colonne tarif fondateur', () => {
+    const lignes = construireLignesExport([
+      { entreprise_id: 'a', entreprises: { nom: 'F' }, periode: '2026-09-01', plan: 'starter', utilisateurs: 12, inclus: 10, surplus: 2, prix_base: 29, supplement: 4, prix_total: 33, sur_devis: false, tarif_fondateur: true },
+      { entreprise_id: 'b', entreprises: { nom: 'P' }, periode: '2026-09-01', plan: 'starter', utilisateurs: 10, inclus: 10, surplus: 0, prix_base: 39, supplement: 0, prix_total: 39, sur_devis: false, tarif_fondateur: false },
+    ])
+    expect(lignes[0][lignes[0].length - 1]).toBe('Tarif fondateur')
+    expect(lignes[1][10]).toBe('oui')
+    expect(lignes[2][10]).toBe('non')
+    // La ligne TOTAL doit avoir la meme largeur que l'entete, sinon le
+    // montant se retrouve dans la mauvaise colonne du classeur.
+    expect(lignes[lignes.length - 1]).toHaveLength(lignes[0].length)
+    expect(LARGEURS_EXPORT).toHaveLength(COLONNES_EXPORT.length)
+  })
+
+  test('l export d une entreprise aussi, et ses lignes restent alignees', () => {
+    const lignes = construireLignesExportEntreprise([
+      { periode: '2026-09-01', plan: 'starter', utilisateurs: 12, inclus: 10, surplus: 2, prix_base: 29, supplement: 4, prix_total: 33, sur_devis: false, tarif_fondateur: true },
+    ])
+    expect(lignes[0]).toEqual(COLONNES_EXPORT_ENTREPRISE)
+    expect(LARGEURS_EXPORT_ENTREPRISE).toHaveLength(COLONNES_EXPORT_ENTREPRISE.length)
+    expect(lignes[1]).toHaveLength(COLONNES_EXPORT_ENTREPRISE.length)
+    expect(lignes[1][lignes[1].length - 1]).toBe('oui')
+    expect(lignes[lignes.length - 1]).toHaveLength(COLONNES_EXPORT_ENTREPRISE.length)
+  })
+})

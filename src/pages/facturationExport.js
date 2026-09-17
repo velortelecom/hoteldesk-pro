@@ -11,7 +11,7 @@
 // etat_facturation() (la base). Ce fichier ne fait que choisir QUOI
 // exporter, additionner, et nommer.
 // =====================================================================
-import { getOffre, PLAFOND_FORFAIT } from '../lib/offres'
+import { getOffre, PLAFOND_FORFAIT, PRIX_STANDARD, TARIF_FONDATEUR } from '../lib/offres'
 
 /** Premier jour du mois, au format que Postgres attend (AAAA-MM-01). */
 export function premierDuMois(d) {
@@ -75,9 +75,10 @@ export function totauxFacturation(direct = [], releves = []) {
 export const COLONNES_EXPORT = [
   'Entreprise', 'Periode', 'Plan', 'Utilisateurs factures', 'Inclus dans la formule',
   'Au-dela du forfait', 'Prix de base', 'Supplement', 'Total a facturer', 'Sur devis',
+  'Tarif fondateur',
 ]
 
-export const LARGEURS_EXPORT = [28, 12, 12, 20, 22, 19, 13, 12, 17, 10]
+export const LARGEURS_EXPORT = [28, 12, 12, 20, 22, 19, 13, 12, 17, 10, 15]
 
 /**
  * Lignes du classeur, a partir des releves FIGES.
@@ -107,6 +108,7 @@ export function construireLignesExport(releves = []) {
       // un zero dirait « rien a payer », ce qui est faux.
       r.prix_total == null ? '' : Number(r.prix_total),
       r.sur_devis ? 'oui' : 'non',
+      r.tarif_fondateur ? 'oui' : 'non',
     ])
   })
 
@@ -116,7 +118,7 @@ export function construireLignesExport(releves = []) {
   if (releves.length > 0) {
     const total = releves.reduce((s, r) => s + (r && r.prix_total != null ? Number(r.prix_total) : 0), 0)
     lignes.push([])
-    lignes.push(['TOTAL', '', '', '', '', '', '', '', total, ''])
+    lignes.push(['TOTAL', '', '', '', '', '', '', '', total, '', ''])
   }
 
   return lignes
@@ -189,6 +191,14 @@ export function lignesFacture(etat) {
     libelle: 'Forfait ' + nomFormule(etat.plan)
       + (inclus != null ? ' — jusqu’a ' + inclus + ' utilisateurs' : ''),
     montant: etat.prix_base == null ? null : Number(etat.prix_base),
+    // Un 29 EUR sans explication se confond avec une erreur de prix : le
+    // tarif public est 39 EUR, et seules les cinq premieres entreprises
+    // sont a 29. La mention vient de la colonne posee par le trigger, pas
+    // d'une deduction sur le montant -- une entreprise creee a la main
+    // peut etre a 29 EUR sans etre fondatrice.
+    mention: etat.tarif_fondateur === true
+      ? 'tarif fondateur, bloque a vie (tarif public : ' + PRIX_STANDARD + ' €)'
+      : null,
   })
 
   if (surplus > 0 && Number(etat.supplement || 0) > 0) {
@@ -229,9 +239,10 @@ export function lignesFacture(etat) {
 export const COLONNES_EXPORT_ENTREPRISE = [
   'Periode', 'Plan', 'Utilisateurs factures', 'Inclus dans la formule',
   'Au-dela du forfait', 'Prix de base', 'Supplement', 'Total facture', 'Sur devis',
+  'Tarif fondateur',
 ]
 
-export const LARGEURS_EXPORT_ENTREPRISE = [12, 12, 20, 22, 19, 13, 12, 15, 10]
+export const LARGEURS_EXPORT_ENTREPRISE = [12, 12, 20, 22, 19, 13, 12, 15, 10, 15]
 
 /**
  * Historique facture d'UNE entreprise, mois par mois.
@@ -256,16 +267,39 @@ export function construireLignesExportEntreprise(releves = []) {
       r.supplement == null ? '' : Number(r.supplement),
       r.prix_total == null ? '' : Number(r.prix_total),
       r.sur_devis ? 'oui' : 'non',
+      r.tarif_fondateur ? 'oui' : 'non',
     ])
   })
 
   if (tries.length > 0) {
     const total = tries.reduce((s, r) => s + (r && r.prix_total != null ? Number(r.prix_total) : 0), 0)
     lignes.push([])
-    lignes.push(['TOTAL', '', '', '', '', '', '', total, ''])
+    lignes.push(['TOTAL', '', '', '', '', '', '', total, '', ''])
   }
 
   return lignes
+}
+
+/**
+ * Les cinq places de fondateur : combien sont prises.
+ *
+ * On affiche « 3 / 5 » plutot que « 2 places restantes » : ce qui compte
+ * est de voir d'un coup d'oeil combien d'entreprises sont a vie a 29 EUR,
+ * puisque chacune est un revenu bloque.
+ */
+export function etatFondateurs(placesRestantes, maximum) {
+  const max = Number(maximum)
+  const restantes = placesRestantes == null ? null : Number(placesRestantes)
+  if (!Number.isFinite(max) || restantes == null || !Number.isFinite(restantes)) return null
+
+  const prises = Math.max(0, Math.min(max, max - restantes))
+  return {
+    prises,
+    restantes: Math.max(0, Math.min(max, restantes)),
+    maximum: max,
+    libelle: prises + ' / ' + max,
+    tarif: TARIF_FONDATEUR,
+  }
 }
 
 export function nomFichierExportEntreprise(nomEntreprise) {
