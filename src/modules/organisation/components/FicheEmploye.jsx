@@ -6,6 +6,8 @@
 import React, { useState } from 'react';
 import { useEmployeDetail, useDepartements, usePostes } from '../hooks.js';
 import { ROLE_COLORS, NIVEAUX_POSTE } from '../config.js';
+import SelecteurPoste from '../../../components/SelecteurPoste';
+import { departementsApresChoixPoste, posteHorsDepartements } from '../../../lib/postesDepartements';
 import { updateEmploye, setEmployeDepartements, desactiverEmploye, reactiversEmploye, changerRoleEmploye, supprimerEmploye, reinitialiserMotDePasseEmploye } from '../services.js';
 
 // V1 inscription publique : les onglets Planning / Taches / Conges / Pointages /
@@ -68,6 +70,22 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, pro
       return next;
     });
   };
+
+  // Changer de poste coche son departement, sans jamais retirer ceux qui
+  // ont ete poses a la main : quelqu'un peut tenir deux equipes.
+  const choisirPostePrincipal = (posteId) => {
+    setForm(p => ({ ...p, poste_id: posteId }));
+    setSelectedDepts(prev => {
+      const next = departementsApresChoixPoste(prev, posteId, postes);
+      if (!principalDept && next.length > 0) setPrincipalDept(next[0]);
+      return next;
+    });
+  };
+
+  const deptManquant = posteHorsDepartements(form?.poste_id, selectedDepts, postes);
+  const nomDeptManquant = deptManquant
+    ? (departements.find(d => d.id === deptManquant) || {}).nom
+    : null;
 
   const [actionSaving, setActionSaving] = useState(false);
   const [nouveauRole, setNouveauRole] = useState('');
@@ -204,10 +222,13 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, pro
             <div style={{ marginBottom: '1rem' }}>
               <label style={{ display: 'block', fontSize: '0.8125rem', color: '#6b7280', marginBottom: '0.375rem' }}>Poste principal</label>
               {editMode ? (
-                <select value={form?.poste_id} onChange={e => setForm(p => ({...p, poste_id: e.target.value}))} style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.875rem' }}>
-                  <option value="">— Aucun —</option>
-                  {postes.map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
-                </select>
+                <SelecteurPoste
+                  valeur={form?.poste_id}
+                  onChange={choisirPostePrincipal}
+                  postes={postes}
+                  departements={departements}
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.875rem' }}
+                />
               ) : (
                 <span style={{ fontSize: '0.875rem', color: '#111827' }}>{employe.poste?.nom || '—'}</span>
               )}
@@ -216,10 +237,13 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, pro
             <div style={{ marginBottom: '1.5rem' }}>
               <label style={{ display: 'block', fontSize: '0.8125rem', color: '#6b7280', marginBottom: '0.375rem' }}>Poste secondaire</label>
               {editMode ? (
-                <select value={form?.poste_secondaire_id} onChange={e => setForm(p => ({...p, poste_secondaire_id: e.target.value}))} style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.875rem' }}>
-                  <option value="">— Aucun —</option>
-                  {postes.map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
-                </select>
+                <SelecteurPoste
+                  valeur={form?.poste_secondaire_id}
+                  onChange={v => setForm(p => ({ ...p, poste_secondaire_id: v }))}
+                  postes={postes}
+                  departements={departements}
+                  style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.875rem' }}
+                />
               ) : (
                 <span style={{ fontSize: '0.875rem', color: '#111827' }}>{employe.poste_secondaire?.nom || '—'}</span>
               )}
@@ -228,6 +252,12 @@ export default function FicheEmploye({ employeId, entrepriseId, permissions, pro
             {/* Départements multi-sélection */}
             <div>
               <label style={{ display: 'block', fontSize: '0.8125rem', color: '#6b7280', marginBottom: '0.5rem' }}>Départements {editMode && <span style={{ color: '#9ca3af' }}>(cochez pour affecter)</span>}</label>
+              {editMode && nomDeptManquant && (
+                <div style={{ background: '#FEF3C7', border: '1px solid #FCD34D', color: '#92400E', borderRadius: 8, padding: '7px 10px', fontSize: '0.75rem', marginBottom: '0.5rem' }}>
+                  Ce poste relève de <strong>{nomDeptManquant}</strong>, qui n'est pas coché.
+                  Cette personne ne verra pas les tâches adressées à ce département.
+                </div>
+              )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
                 {departements.map(dept => {
                   const isSelected = selectedDepts.includes(dept.id);

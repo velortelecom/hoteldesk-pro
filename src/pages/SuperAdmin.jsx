@@ -11,6 +11,8 @@ import { BrandMark, APP_URL } from '../branding/Brand'
 import { buildCreationSlug, buildEditionForm } from './superAdminUtils'
 import { buildEntrepriseUpdatePayload, diffModulesEntreprise, mapSuperAdminError } from './superAdminControlUtils'
 import { MODULES_DEVELOPPES } from '../lib/modulesDeveloppes'
+import SelecteurPoste from '../components/SelecteurPoste'
+import { departementsApresChoixPoste } from '../lib/postesDepartements'
 import {
   applyEnterpriseCreationToState,
   buildEnterpriseCreationPayload,
@@ -1314,16 +1316,28 @@ async function createEmploye(entrepriseId) {
                                             </select>
                             </Field>
               <Field label="Poste principal">
-                <select value={adminForm.poste_id} onChange={ev => setAdminForm(f => ({ ...f, poste_id: ev.target.value }))} style={inputStyle}>
-                  <option value="">Aucun</option>
-                  {(entPostes[adminModalEnt.id] || []).map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
-                </select>
+                <SelecteurPoste
+                  valeur={adminForm.poste_id}
+                  onChange={v => setAdminForm(f => ({
+                    ...f,
+                    poste_id: v,
+                    departement_ids: departementsApresChoixPoste(f.departement_ids, v, entPostes[adminModalEnt.id] || []),
+                  }))}
+                  postes={entPostes[adminModalEnt.id] || []}
+                  departements={entDeps[adminModalEnt.id] || []}
+                  style={inputStyle}
+                  vide="Aucun"
+                />
               </Field>
               <Field label="Poste secondaire (optionnel)">
-                <select value={adminForm.poste_secondaire_id} onChange={ev => setAdminForm(f => ({ ...f, poste_secondaire_id: ev.target.value }))} style={inputStyle}>
-                  <option value="">Aucun</option>
-                  {(entPostes[adminModalEnt.id] || []).map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
-                </select>
+                <SelecteurPoste
+                  valeur={adminForm.poste_secondaire_id}
+                  onChange={v => setAdminForm(f => ({ ...f, poste_secondaire_id: v }))}
+                  postes={entPostes[adminModalEnt.id] || []}
+                  departements={entDeps[adminModalEnt.id] || []}
+                  style={inputStyle}
+                  vide="Aucun"
+                />
               </Field>
               <Field label="Departements">
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -1386,16 +1400,28 @@ async function createEmploye(entrepriseId) {
                                             </select>
                             </Field>
               <Field label="Poste principal">
-                <select value={employeForm.poste_id} onChange={e => setEmployeForm(f => ({ ...f, poste_id: e.target.value }))} style={inputStyle}>
-                  <option value="">Aucun</option>
-                  {(entPostes[employeModalEnt.id] || []).map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
-                </select>
+                <SelecteurPoste
+                  valeur={employeForm.poste_id}
+                  onChange={v => setEmployeForm(f => ({
+                    ...f,
+                    poste_id: v,
+                    departement_ids: departementsApresChoixPoste(f.departement_ids, v, entPostes[employeModalEnt.id] || []),
+                  }))}
+                  postes={entPostes[employeModalEnt.id] || []}
+                  departements={entDeps[employeModalEnt.id] || []}
+                  style={inputStyle}
+                  vide="Aucun"
+                />
               </Field>
               <Field label="Poste secondaire (optionnel)">
-                <select value={employeForm.poste_secondaire_id} onChange={e => setEmployeForm(f => ({ ...f, poste_secondaire_id: e.target.value }))} style={inputStyle}>
-                  <option value="">Aucun</option>
-                  {(entPostes[employeModalEnt.id] || []).map(p => <option key={p.id} value={p.id}>{p.nom}</option>)}
-                </select>
+                <SelecteurPoste
+                  valeur={employeForm.poste_secondaire_id}
+                  onChange={v => setEmployeForm(f => ({ ...f, poste_secondaire_id: v }))}
+                  postes={entPostes[employeModalEnt.id] || []}
+                  departements={entDeps[employeModalEnt.id] || []}
+                  style={inputStyle}
+                  vide="Aucun"
+                />
               </Field>
               <Field label="Departements">
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
