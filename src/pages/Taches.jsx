@@ -7,6 +7,7 @@ import { filtrerTachesVisibles } from '../lib/visibiliteTaches'
 import { resumeVisibiliteTache } from '../lib/resumeVisibilite'
 import { BUCKET_PHOTOS, cheminPhoto, nomFichierPhoto, fichierAcceptable, compresserImage } from '../lib/photoTache'
 import PhotoTache from '../components/PhotoTache'
+import DetailTache from '../components/DetailTache'
 import { useAuth } from '../hooks/useAuth'
 import { format, isToday, isTomorrow, isYesterday, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -24,7 +25,7 @@ const PRIO_COLORS = { haute: '#E24B4A', moyenne: '#EF9F27', basse: '#639922' }
 const STATUT_LABELS = { planifiee: 'Planifiee', en_cours: 'En cours', terminee: 'Terminee', annulee: 'Ann.' }
 const STATUT_COLORS = { planifiee: '#3B82F6', en_cours: '#F59E0B', terminee: '#10B981', annulee: '#6B7280' }
 
-function TacheRow({ tache, enfants, profile, membres, expandedParents, setExpandedParents, onEdit, onDelete, onStatutChange }) {
+function TacheRow({ tache, enfants, profile, membres, expandedParents, setExpandedParents, onEdit, onDelete, onStatutChange, onOuvrir }) {
   const isParent = tache.recurrence_type && !tache.tache_parente_id
   const hasEnfants = isParent && enfants && enfants.length > 0
   const isExpanded = expandedParents[tache.id]
@@ -35,7 +36,11 @@ function TacheRow({ tache, enfants, profile, membres, expandedParents, setExpand
   }
 
   const renderRow = (t, isChild) => (
-    <div key={t.id} style={{
+    // Cliquer la ligne ouvre le detail : la photo et la discussion s'y
+    // trouvent, comme depuis le planning. Les boutons d'action arretent
+    // l'evenement pour ne pas ouvrir la fenetre en meme temps.
+    <div key={t.id} onClick={() => onOuvrir && onOuvrir(t)} title="Ouvrir la tache" style={{
+      cursor: 'pointer',
       background: isChild ? '#f8fafc' : 'white',
       borderLeft: isChild ? '3px solid #3B82F6' : 'none',
       marginLeft: isChild ? 20 : 0,
@@ -63,7 +68,7 @@ function TacheRow({ tache, enfants, profile, membres, expandedParents, setExpand
             {format(parseISO(t.date_echeance), 'dd MMM', { locale: fr })}
           </span>
         )}
-        {t.photo_chemin && <PhotoTache chemin={t.photo_chemin} />}
+        {t.photo_chemin && <span onClick={e => e.stopPropagation()}><PhotoTache chemin={t.photo_chemin} /></span>}
         {t.heure_debut && <span style={{ fontSize: 11, color: '#8B5CF6' }}>{t.heure_debut.slice(0,5)}</span>}
         {t.heure_fin && <span style={{ fontSize: 11, color: '#8B5CF6' }}>fin: {t.heure_fin.slice(0,5)}</span>}
         {(profile?.role === 'admin' || profile?.role === 'responsable' || t.assigne_a === profile?.id) && (
@@ -81,10 +86,10 @@ function TacheRow({ tache, enfants, profile, membres, expandedParents, setExpand
             base refuse produirait un clic sans effet et sans message --
             l'echec muet qu'on chasse partout. */}
         {(profile?.role === 'admin' || profile?.role === 'responsable') && (
-          <button onClick={() => onEdit(t)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>Edit</button>
+          <button onClick={(e) => { e.stopPropagation(); onEdit(t) }} style={{ background: '#F3F4F6', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>Edit</button>
         )}
         {profile?.role === 'admin' && (
-          <button onClick={() => onDelete(t.id, isParent)} style={{ background: '#FEE2E2', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>Sup</button>
+          <button onClick={(e) => { e.stopPropagation(); onDelete(t.id, isParent) }} style={{ background: '#FEE2E2', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>Sup</button>
         )}
       </div>
       {t.description && <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>{t.description}</div>}
@@ -130,6 +135,7 @@ export default function Taches() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editTache, setEditTache] = useState(null)
+  const [tacheOuverte, setTacheOuverte] = useState(null)
   // La photo n'est pas un champ comme les autres : elle part vers le
   // stockage APRES que la tache existe, puisque son chemin contient
   // l'identifiant de la tache.
@@ -367,9 +373,21 @@ export default function Taches() {
               onEdit={openEdit}
               onDelete={handleDelete}
               onStatutChange={handleStatutChange}
+              onOuvrir={setTacheOuverte}
             />
           ))}
         </div>
+      )}
+
+      {tacheOuverte && (
+        <DetailTache
+          tache={tacheOuverte}
+          profile={profile}
+          employes={membres}
+          departements={departements}
+          onFermer={() => setTacheOuverte(null)}
+          onChangement={fetchTaches}
+        />
       )}
 
       {showForm && (
