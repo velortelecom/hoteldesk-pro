@@ -11,6 +11,7 @@ import { useAuth } from '../hooks/useAuth'
 import { useMesDepartements } from '../hooks/useMesDepartements'
 import { useDepartements } from '../modules/organisation/hooks.js'
 import { tacheVisiblePar } from '../lib/visibiliteTaches'
+import { resumeVisibiliteTache } from '../lib/resumeVisibilite'
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   addDays, addMonths, subMonths, isToday, isSameMonth, isSameDay,
@@ -429,7 +430,13 @@ export default function Planning() {
       recurrence_fin: quickForm.recurrence_fin || null,
       entreprise_id: profile.entreprise_id,
       // Non assignee explicitement : la tache revient a son auteur.
-      assigne_a: quickForm.assigne_a || profile?.id,
+      // Sans destinataire, la tache n'appartient a PERSONNE : c'est ce qui
+      // la rend visible par le departement vise, ou par toute l'entreprise.
+      // Avant, un champ vide valait "moi" : toute tache creee depuis le
+      // planning partait au nom de son auteur, donc lui seul la voyait --
+      // exactement l'inverse de ce qu'on croyait faire en choisissant un
+      // departement.
+      assigne_a: quickForm.assigne_a || null,
       cree_par: profile?.id,
     }).select('id')
 
@@ -537,6 +544,24 @@ export default function Planning() {
                 </select>
               </div>
 
+              {(() => {
+                const resume = resumeVisibiliteTache({
+                  departement: quickForm.departement,
+                  assigneA: quickForm.assigne_a,
+                  employes, departements, moiId: profile?.id,
+                })
+                const couleurs = {
+                  personne:    { fond: '#EEF2FF', bord: '#C7D2FE', texte: '#3730A3' },
+                  departement: { fond: '#ECFDF5', bord: '#A7F3D0', texte: '#065F46' },
+                  entreprise:  { fond: '#FEF3C7', bord: '#FCD34D', texte: '#92400E' },
+                }[resume.portee]
+                return (
+                  <div style={{ background: couleurs.fond, border: '1px solid ' + couleurs.bord, color: couleurs.texte, borderRadius: 8, padding: '7px 10px', fontSize: 11, marginBottom: 12 }}>
+                    {resume.texte}
+                  </div>
+                )
+              })()}
+
               {/* Memes choix que la creation complete, en plus compact :
                   a qui, jusqu'a quelle heure, et la recurrence. */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
@@ -544,8 +569,9 @@ export default function Planning() {
                   Assigner a
                   <select value={quickForm.assigne_a} onChange={e => setQuickForm(f => ({ ...f, assigne_a: e.target.value }))}
                     style={{ width: '100%', marginTop: 3, padding: '8px 10px', border: '0.5px solid #d0cfc8', borderRadius: 8, fontSize: 12, background: '#fff', boxSizing: 'border-box' }}>
-                    <option value="">Moi</option>
-                    {employes.map(emp => <option key={emp.id} value={emp.id}>{emp.prenom} {emp.nom}</option>)}
+                    <option value="">Personne en particulier</option>
+                    {profile?.id && <option value={profile.id}>Moi</option>}
+                    {employes.filter(emp => emp.id !== profile?.id).map(emp => <option key={emp.id} value={emp.id}>{emp.prenom} {emp.nom}</option>)}
                   </select>
                 </label>
                 <label style={{ fontSize: 11, color: '#888' }}>
