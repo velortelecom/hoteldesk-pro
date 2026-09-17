@@ -4,6 +4,7 @@ import { construireEcheance, CATEGORIES_TACHE, CATEGORIE_TACHE_DEFAUT } from '..
 import { useMesDepartements } from '../hooks/useMesDepartements'
 import { useDepartements } from '../modules/organisation/hooks.js'
 import { filtrerTachesVisibles } from '../lib/visibiliteTaches'
+import { resumeVisibiliteTache } from '../lib/resumeVisibilite'
 import { useAuth } from '../hooks/useAuth'
 import { format, isToday, isTomorrow, isYesterday, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -378,6 +379,26 @@ export default function Taches() {
                 {membres.map(m => <option key={m.id} value={m.id}>{m.prenom} {m.nom} ({m.role})</option>)}
               </select>
             </div>
+
+            {(() => {
+              // Meme phrase que sur le planning : la regle ne doit pas
+              // s'apprendre ecran par ecran.
+              const resume = resumeVisibiliteTache({
+                departement: form.departement,
+                assigneA: form.assigne_a,
+                employes: membres, departements, moiId: profile?.id,
+              })
+              const couleurs = {
+                personne:    { fond: '#EEF2FF', bord: '#C7D2FE', texte: '#3730A3' },
+                departement: { fond: '#ECFDF5', bord: '#A7F3D0', texte: '#065F46' },
+                entreprise:  { fond: '#FEF3C7', bord: '#FCD34D', texte: '#92400E' },
+              }[resume.portee]
+              return (
+                <div style={{ background: couleurs.fond, border: '1px solid ' + couleurs.bord, color: couleurs.texte, borderRadius: 8, padding: '8px 11px', fontSize: 12, marginBottom: 20 }}>
+                  {resume.texte}
+                </div>
+              )
+            })()}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button type='button' onClick={() => setShowForm(false)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, padding: '8px 18px', cursor: 'pointer', fontWeight: 600 }}>Annuler</button>
