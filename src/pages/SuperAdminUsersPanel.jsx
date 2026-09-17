@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { MODULES_REGISTRY } from '../modules/registry'
 import { buildDependencyErrorMessage, filterSuperAdminUsers } from './superAdminControlUtils'
+import { messageErreurEdge } from '../lib/edgeErreur'
 
 const cardStyle = { background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 14 }
 const inputStyle = { border: '1px solid #D1D5DB', borderRadius: 8, padding: '8px 10px', fontSize: 13 }
