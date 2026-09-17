@@ -5,6 +5,7 @@ import { useMesDepartements } from '../hooks/useMesDepartements'
 import { useDepartements } from '../modules/organisation/hooks.js'
 import { filtrerTachesVisibles } from '../lib/visibiliteTaches'
 import { resumeVisibiliteTache } from '../lib/resumeVisibilite'
+import { BUCKET_PHOTOS, cheminPhoto, nomFichierPhoto, fichierAcceptable, compresserImage } from '../lib/photoTache'
 import { useAuth } from '../hooks/useAuth'
 import { format, isToday, isTomorrow, isYesterday, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -21,6 +22,26 @@ const RECURRENCES = ['quotidienne', 'hebdomadaire', 'mensuelle', 'annuelle']
 const PRIO_COLORS = { haute: '#E24B4A', moyenne: '#EF9F27', basse: '#639922' }
 const STATUT_LABELS = { planifiee: 'Planifiee', en_cours: 'En cours', terminee: 'Terminee', annulee: 'Ann.' }
 const STATUT_COLORS = { planifiee: '#3B82F6', en_cours: '#F59E0B', terminee: '#10B981', annulee: '#6B7280' }
+
+// L'espace de stockage est prive : il n'existe pas d'adresse permanente.
+// On demande un lien signe, valable une heure, au moment d'afficher.
+function VignettePhoto({ chemin }) {
+  const [url, setUrl] = useState(null)
+
+  useEffect(() => {
+    let annule = false
+    supabase.storage.from(BUCKET_PHOTOS).createSignedUrl(chemin, 3600)
+      .then(({ data }) => { if (!annule && data) setUrl(data.signedUrl) })
+    return () => { annule = true }
+  }, [chemin])
+
+  if (!url) return <span style={{ fontSize: 11, color: '#9CA3AF' }}>photo</span>
+  return (
+    <a href={url} target='_blank' rel='noreferrer' onClick={e => e.stopPropagation()}>
+      <img src={url} alt='Etat constate sur place' style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 4, border: '1px solid #e5e7eb', display: 'block' }} />
+    </a>
+  )
+}
 
 function TacheRow({ tache, enfants, profile, membres, expandedParents, setExpandedParents, onEdit, onDelete, onStatutChange }) {
   const isParent = tache.recurrence_type && !tache.tache_parente_id
@@ -61,6 +82,7 @@ function TacheRow({ tache, enfants, profile, membres, expandedParents, setExpand
             {format(parseISO(t.date_echeance), 'dd MMM', { locale: fr })}
           </span>
         )}
+        {t.photo_chemin && <VignettePhoto chemin={t.photo_chemin} />}
         {t.heure_debut && <span style={{ fontSize: 11, color: '#8B5CF6' }}>{t.heure_debut.slice(0,5)}</span>}
         {t.heure_fin && <span style={{ fontSize: 11, color: '#8B5CF6' }}>fin: {t.heure_fin.slice(0,5)}</span>}
         {(profile?.role === 'admin' || profile?.role === 'responsable' || t.assigne_a === profile?.id) && (
@@ -127,6 +149,13 @@ export default function Taches() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editTache, setEditTache] = useState(null)
+  // La photo n'est pas un champ comme les autres : elle part vers le
+  // stockage APRES que la tache existe, puisque son chemin contient
+  // l'identifiant de la tache.
+  const [photoFichier, setPhotoFichier] = useState(null)
+  const [photoApercu, setPhotoApercu] = useState(null)
+  const [photoErreur, setPhotoErreur] = useState('')
+  const [enregistrement, setEnregistrement] = useState(false)
   const [expandedParents, setExpandedParents] = useState({})
   const [filtreStatut, setFiltreStatut] = useState('tous')
   const [filtreCat, setFiltreCat] = useState('toutes')
@@ -237,13 +266,71 @@ export default function Taches() {
       recurrence_fin: form.recurrence_fin || null,
       chambre: form.chambre || null,
     }
-    if (editTache) {
-      await supabase.from('taches').update(payload).eq('id', editTache.id)
-    } else {
-      await supabase.from('taches').insert({ ...payload, cree_par: profile.id, entreprise_id: profile.entreprise_id })
+    setEnregistrement(true)
+    setPhotoErreur('')
+    try {
+      let tacheId = editTache ? editTache.id : null
+
+      if (editTache) {
+        // .select() sans quoi une ligne filtree par les regles d'acces
+        // passerait pour un enregistrement reussi.
+        const { data, error } = await supabase.from('taches').update(payload).eq('id', editTache.id).select('id')
+        if (error) throw error
+        if (!data || data.length === 0) throw new Error("Modification refusee : vous n'avez pas le droit de modifier cette tache.")
+      } else {
+        const { data, error } = await supabase.from('taches')
+          .insert({ ...payload, cree_par: profile.id, entreprise_id: profile.entreprise_id })
+          .select('id')
+          .single()
+        if (error) throw error
+        tacheId = data.id
+      }
+
+      if (photoFichier && tacheId) {
+        await envoyerPhoto(tacheId, photoFichier)
+      }
+
+      setShowForm(false)
+      setPhotoFichier(null)
+      setPhotoApercu(null)
+      fetchTaches()
+    } catch (err) {
+      setPhotoErreur(err.message || 'Enregistrement impossible.')
+    } finally {
+      setEnregistrement(false)
     }
-    setShowForm(false)
-    fetchTaches()
+  }
+
+  // La tache existe deja quand on arrive ici : son identifiant fait partie
+  // du chemin, et le premier dossier est l'entreprise -- c'est lui que la
+  // regle d'acces du stockage verifie.
+  async function envoyerPhoto(tacheId, fichier) {
+    const compressee = await compresserImage(fichier)
+    const chemin = cheminPhoto(profile.entreprise_id, tacheId, nomFichierPhoto())
+    if (!chemin) throw new Error('Chemin de photo incomplet : envoi annule.')
+
+    const { error: erreurEnvoi } = await supabase.storage
+      .from(BUCKET_PHOTOS)
+      .upload(chemin, compressee, { contentType: 'image/jpeg', upsert: true })
+    if (erreurEnvoi) throw new Error('Photo non envoyee : ' + erreurEnvoi.message)
+
+    // La tache est deja enregistree : si ce rattachement echoue, on le dit
+    // plutot que de laisser un fichier orphelin passer pour une reussite.
+    const { data, error } = await supabase.from('taches')
+      .update({ photo_chemin: chemin }).eq('id', tacheId).select('id')
+    if (error) throw error
+    if (!data || data.length === 0) throw new Error('Photo envoyee mais non rattachee a la tache.')
+  }
+
+  function choisirPhoto(fichier) {
+    setPhotoErreur('')
+    if (!fichier) { setPhotoFichier(null); setPhotoApercu(null); return }
+
+    const verdict = fichierAcceptable(fichier)
+    if (!verdict.ok) { setPhotoErreur(verdict.motif); setPhotoFichier(null); setPhotoApercu(null); return }
+
+    setPhotoFichier(fichier)
+    setPhotoApercu(URL.createObjectURL(fichier))
   }
 
   // Creer une tache n'etait offert qu'aux administrateurs et aux
@@ -409,10 +496,35 @@ export default function Taches() {
               )
             })()}
 
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 13, fontWeight: 600, display: 'block', marginBottom: 4 }}>Photo (facultatif)</label>
+              <input
+                type='file'
+                accept='image/jpeg,image/png,image/webp'
+                onChange={e => choisirPhoto(e.target.files && e.target.files[0])}
+                style={{ fontSize: 12 }}
+              />
+              <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
+                Elle est reduite avant l'envoi : une photo de telephone passe de plusieurs Mo a environ 200 Ko.
+              </div>
+              {photoApercu && (
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <img src={photoApercu} alt='Ce qui sera joint a la tache' style={{ width: 90, height: 90, objectFit: 'cover', borderRadius: 8, border: '1px solid #e5e7eb' }} />
+                  <button type='button' onClick={() => choisirPhoto(null)} style={{ background: '#FEE2E2', color: '#991B1B', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontSize: 12 }}>Retirer</button>
+                </div>
+              )}
+            </div>
+
+            {photoErreur && (
+              <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', borderRadius: 8, padding: '9px 12px', fontSize: 12, marginBottom: 14 }}>
+                {photoErreur}
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button type='button' onClick={() => setShowForm(false)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, padding: '8px 18px', cursor: 'pointer', fontWeight: 600 }}>Annuler</button>
-              <button type='submit' style={{ background: '#3B82F6', color: 'white', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 600, cursor: 'pointer' }}>
-                {editTache ? 'Modifier' : 'Creer'}
+              <button type='button' onClick={() => { setShowForm(false); choisirPhoto(null) }} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, padding: '8px 18px', cursor: 'pointer', fontWeight: 600 }}>Annuler</button>
+              <button type='submit' disabled={enregistrement} style={{ background: enregistrement ? '#93C5FD' : '#3B82F6', color: 'white', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 600, cursor: enregistrement ? 'default' : 'pointer' }}>
+                {enregistrement ? 'Enregistrement...' : (editTache ? 'Modifier' : 'Creer')}
               </button>
             </div>
           </form>
