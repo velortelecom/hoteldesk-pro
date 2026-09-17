@@ -114,8 +114,11 @@ export const OFFRES = [
     // prix reste null : rien n'est facturable tant que les modules
     // n'existent pas. prixIndicatif ne sert qu'a AFFICHER la direction.
     prix: null,
+    // 39 + 2 x 10 = 59 : le tarif indicatif EST la courbe du debordement
+    // au plafond de la bande. Les bandes ne sont pas des paliers avec des
+    // marches, ce sont des noms poses sur une progression continue.
     prixIndicatif: 59,
-    maxUtilisateurs: UTILISATEURS_INCLUS,
+    maxUtilisateurs: 20,
     debordement: PRIX_UTILISATEUR_SUP,
     vendu: false,
     modules: ['documents', 'rapports', 'facturation', 'clients', 'vehicules', 'stocks', 'reservations'],
@@ -126,8 +129,9 @@ export const OFFRES = [
     nom: 'Premium',
     couleur: '#8B5CF6',
     prix: null,
+    // 59 + 2 x 10 = 79 : meme courbe, bande suivante.
     prixIndicatif: 79,
-    maxUtilisateurs: UTILISATEURS_INCLUS,
+    maxUtilisateurs: PLAFOND_FORFAIT,
     debordement: PRIX_UTILISATEUR_SUP,
     vendu: false,
     modules: ['gps', 'qualite', 'formations', 'securite', 'planning_avance', 'multi_sites'],
@@ -181,6 +185,22 @@ export const MODULES_A_VENIR = OFFRES
 
 export function estModuleAVenir(id) {
   return MODULES_A_VENIR.includes(id)
+}
+
+/**
+ * La bande d'effectif d'une offre, sous forme { min, max }.
+ *
+ * Le minimum est DERIVE du plafond de l'offre precedente : ecrire "11" en
+ * dur a cote d'un plafond de 10 serait deux verites a maintenir, et elles
+ * finiraient par se contredire -- c'est exactement le bug qu'on passe la
+ * semaine a corriger ailleurs.
+ */
+export function bandeEffectif(offreId) {
+  const rang = rangOffre(offreId)
+  if (rang < 0) return null
+  const precedente = rang > 0 ? OFFRES[rang - 1] : null
+  const min = precedente && precedente.maxUtilisateurs != null ? precedente.maxUtilisateurs + 1 : 1
+  return { min, max: OFFRES[rang].maxUtilisateurs }
 }
 
 export function getOffre(id) {

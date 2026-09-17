@@ -16,7 +16,7 @@ import {
   PLAN_1_LABEL, PLAN_1_PRIX_MENSUEL, PLAN_1_MAX_UTILISATEURS,
   PLAN_1_SOCLE, PLAN_1_MODULES_DETAIL, PACKS_SUPERIEURS, STATUT_SUR_DEMANDE,
 } from '../lib/plan1'
-import { OFFRES, TARIF_FONDATEUR, PRIX_UTILISATEUR_SUP, PLAFOND_FORFAIT, MODULES_A_VENIR } from '../lib/offres'
+import { OFFRES, TARIF_FONDATEUR, PRIX_UTILISATEUR_SUP, PLAFOND_FORFAIT, MODULES_A_VENIR, bandeEffectif } from '../lib/offres'
 // Les libelles viennent du registre, jamais recopies : c'est la source.
 import { MODULES_REGISTRY } from '../modules/registry'
 
@@ -395,10 +395,15 @@ export default function Inscription({ onRetourConnexion }) {
                   : offre.prix === 0 ? '0 € / mois'
                   : (fondateurIci ? TARIF_FONDATEUR : offre.prix) + ' € / mois'
 
-                const plafond = offre.maxUtilisateurs != null
-                  ? 'Jusqu’a ' + offre.maxUtilisateurs + ' utilisateurs'
-                    + (offre.debordement != null ? ', puis ' + offre.debordement + ' €' : '')
-                  : 'Effectif libre'
+                // La bande d'effectif : "De 11 a 20 utilisateurs". Le
+                // minimum est derive du plafond de l'offre precedente, pas
+                // ecrit en dur -- deux verites cote a cote finissent
+                // toujours par se contredire.
+                const bande = bandeEffectif(offre.id)
+                const plafond = bande == null ? ''
+                  : bande.max == null ? 'Au-dela de ' + PLAFOND_FORFAIT + ' salaries'
+                  : bande.min === 1 ? 'Jusqu’a ' + bande.max + ' utilisateurs'
+                  : 'De ' + bande.min + ' a ' + bande.max + ' utilisateurs'
 
                 return (
                   <button

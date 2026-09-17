@@ -19,7 +19,7 @@ const {
   OFFRES, OFFRES_VENDUES, ORDRE_OFFRES, OFFRE_INSCRIPTION, OFFRE_GRATUITE,
   PRIX_STANDARD, TARIF_FONDATEUR, FONDATEURS_MAX, PLAFOND_FORFAIT,
   UTILISATEURS_INCLUS, PRIX_UTILISATEUR_SUP, MODULES_A_VENIR,
-  getOffre, modulesInclus, prixMensuel, prixSouscription, necessiteDevis,
+  getOffre, modulesInclus, prixMensuel, prixSouscription, necessiteDevis, bandeEffectif,
 } = require('./offres')
 const { MODULES_REGISTRY } = require('../modules/registry')
 const { MODULES_DEVELOPPES } = require('./modulesDeveloppes')
@@ -61,6 +61,31 @@ describe('honnetete de l offre', () => {
     // dans entreprises.plan et doit voir un nom, pas un identifiant brut.
     expect(getOffre('business')).not.toBeNull()
     expect(getOffre('premium')).not.toBeNull()
+  })
+
+  test('les tarifs indicatifs tombent PILE sur la courbe du debordement', () => {
+    // C'est ce qui fait que les bandes ne sont pas des paliers avec des
+    // marches : 39 EUR a 10 utilisateurs, +2 EUR par utilisateur, donc
+    // 59 EUR a 20 et 79 EUR a 30. Si quelqu'un change un tarif indicatif
+    // sans recalculer, on recree la falaise qui pousse le client a ne pas
+    // declarer son 11e salarie -- et un salarie non declare fausse le
+    // decompte legal qu'on lui vend.
+    OFFRES.filter(o => o.prixIndicatif != null && o.maxUtilisateurs != null).forEach(offre => {
+      const surLaCourbe = PRIX_STANDARD
+        + (offre.maxUtilisateurs - UTILISATEURS_INCLUS) * PRIX_UTILISATEUR_SUP
+      expect(offre.prixIndicatif).toBe(surLaCourbe)
+    })
+  })
+
+  test('les bandes d effectif se suivent sans trou ni chevauchement', () => {
+    let attenduMin = 1
+    OFFRES.forEach(offre => {
+      const bande = bandeEffectif(offre.id)
+      expect(bande.min).toBe(attenduMin)
+      if (bande.max == null) return          // la derniere bande est ouverte
+      expect(bande.max).toBeGreaterThanOrEqual(bande.min)
+      attenduMin = bande.max + 1
+    })
   })
 
   test('un tarif INDICATIF n est jamais facturable', () => {
