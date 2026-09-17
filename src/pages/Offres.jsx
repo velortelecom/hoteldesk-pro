@@ -273,7 +273,11 @@ export default function Offres() {
                     {pack.maxUtilisateurs != null && (
                       <span style={{ fontWeight: 400, color: '#6B7280' }}>
                         {' · jusqu’a ' + pack.maxUtilisateurs + ' utilisateurs'}
-                        {pack.debordement != null && ', puis ' + pack.debordement + ' € par utilisateur'}
+                        {/* 1.5 doit s'ecrire 1,50 : un prix affiche "1.5 EUR"
+                            fait douter du serieux de la grille. */}
+                        {pack.debordement != null && ', puis '
+                          + pack.debordement.toLocaleString('fr-FR', { minimumFractionDigits: 2 })
+                          + ' € par utilisateur'}
                       </span>
                     )}
                   </div>

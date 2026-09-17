@@ -120,6 +120,17 @@ describe('debordement', () => {
     })
   })
 
+  test('le tarif par utilisateur supplementaire est degressif', () => {
+    // Plus le pack est haut, moins l'utilisateur en plus coute cher. Un
+    // debordement qui augmenterait avec le pack punirait le client qui
+    // grandit -- exactement ce qu'on vient de supprimer avec les plafonds
+    // durs.
+    const debordements = OFFRES.filter(o => o.debordement != null).map(o => o.debordement)
+    for (let i = 1; i < debordements.length; i++) {
+      expect(debordements[i]).toBeLessThanOrEqual(debordements[i - 1])
+    }
+  })
+
   test('un plan sans debordement ne facture jamais au-dela de son forfait', () => {
     const gratuit = getOffre(OFFRE_GRATUITE)
     expect(prixMensuel(OFFRE_GRATUITE, gratuit.maxUtilisateurs + 50)).toBe(0)
