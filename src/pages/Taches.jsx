@@ -6,6 +6,7 @@ import { useDepartements } from '../modules/organisation/hooks.js'
 import { filtrerTachesVisibles } from '../lib/visibiliteTaches'
 import { resumeVisibiliteTache } from '../lib/resumeVisibilite'
 import { BUCKET_PHOTOS, cheminPhoto, nomFichierPhoto, fichierAcceptable, compresserImage } from '../lib/photoTache'
+import PhotoTache from '../components/PhotoTache'
 import { useAuth } from '../hooks/useAuth'
 import { format, isToday, isTomorrow, isYesterday, parseISO } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -22,26 +23,6 @@ const RECURRENCES = ['quotidienne', 'hebdomadaire', 'mensuelle', 'annuelle']
 const PRIO_COLORS = { haute: '#E24B4A', moyenne: '#EF9F27', basse: '#639922' }
 const STATUT_LABELS = { planifiee: 'Planifiee', en_cours: 'En cours', terminee: 'Terminee', annulee: 'Ann.' }
 const STATUT_COLORS = { planifiee: '#3B82F6', en_cours: '#F59E0B', terminee: '#10B981', annulee: '#6B7280' }
-
-// L'espace de stockage est prive : il n'existe pas d'adresse permanente.
-// On demande un lien signe, valable une heure, au moment d'afficher.
-function VignettePhoto({ chemin }) {
-  const [url, setUrl] = useState(null)
-
-  useEffect(() => {
-    let annule = false
-    supabase.storage.from(BUCKET_PHOTOS).createSignedUrl(chemin, 3600)
-      .then(({ data }) => { if (!annule && data) setUrl(data.signedUrl) })
-    return () => { annule = true }
-  }, [chemin])
-
-  if (!url) return <span style={{ fontSize: 11, color: '#9CA3AF' }}>photo</span>
-  return (
-    <a href={url} target='_blank' rel='noreferrer' onClick={e => e.stopPropagation()}>
-      <img src={url} alt='Etat constate sur place' style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 4, border: '1px solid #e5e7eb', display: 'block' }} />
-    </a>
-  )
-}
 
 function TacheRow({ tache, enfants, profile, membres, expandedParents, setExpandedParents, onEdit, onDelete, onStatutChange }) {
   const isParent = tache.recurrence_type && !tache.tache_parente_id
@@ -82,7 +63,7 @@ function TacheRow({ tache, enfants, profile, membres, expandedParents, setExpand
             {format(parseISO(t.date_echeance), 'dd MMM', { locale: fr })}
           </span>
         )}
-        {t.photo_chemin && <VignettePhoto chemin={t.photo_chemin} />}
+        {t.photo_chemin && <PhotoTache chemin={t.photo_chemin} />}
         {t.heure_debut && <span style={{ fontSize: 11, color: '#8B5CF6' }}>{t.heure_debut.slice(0,5)}</span>}
         {t.heure_fin && <span style={{ fontSize: 11, color: '#8B5CF6' }}>fin: {t.heure_fin.slice(0,5)}</span>}
         {(profile?.role === 'admin' || profile?.role === 'responsable' || t.assigne_a === profile?.id) && (
