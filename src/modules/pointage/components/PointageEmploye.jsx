@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react'
-import { createPointageEntry } from '../services.js'
+import { createPointageEntry, messageRefus, METHODES } from '../services.js'
 
 export default function PointageEmploye({ permissions, profile, sites = [] }) {
   const [nextAction, setNextAction] = useState('arrivee')
   const [selectedSiteId, setSelectedSiteId] = useState(profile?.site_id || sites[0]?.id || '')
   const [message, setMessage] = useState('En attente d’un pointage pour aujourd’hui.')
+  const [erreur, setErreur] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const canCreate = permissions?.canCreate === true
@@ -22,15 +23,23 @@ export default function PointageEmploye({ permissions, profile, sites = [] }) {
     }
 
     setSaving(true)
+    setErreur(false)
 
     try {
+      // POINTAGE D'HEURES : aucune position, et c'est volontaire.
+      //
+      // Cet appel envoyait latitude: null en se declarant 'gps'. Le
+      // serveur exigeait alors une position que personne n'avait
+      // demandee au navigateur, et refusait chaque pointage.
+      //
+      // Savoir ou se trouve quelqu'un est un autre sujet, un autre
+      // module, une autre finalite. Ici on enregistre une presence :
+      // c'est l'horodatage du serveur qui fait foi, pas le lieu.
       const result = await createPointageEntry({
         profile,
         action: nextAction,
-        latitude: null,
-        longitude: null,
-        precisionMetres: null,
-        commentaire: 'Pointage manuel depuis le module V1.',
+        methode: METHODES.NAVIGATEUR,
+        commentaire: null,
       })
 
       const serverNextAction = result?.historique_jour?.prochain_bouton_autorise || 'arrivee'
@@ -45,9 +54,11 @@ export default function PointageEmploye({ permissions, profile, sites = [] }) {
       } else if (result?.statut === 'en_attente_correction') {
         setMessage('Le pointage a été pris en compte mais doit faire l’objet d’une vérification manuelle.')
       } else {
-        setMessage(`Le pointage a été refusé : ${result?.motif_refus || 'vérification nécessaire'}.`)
+        // Le code brut (« gps_manquant ») ne dit rien a un employe.
+        setMessage(messageRefus(result))
       }
     } catch (error) {
+      setErreur(true)
       setMessage(error?.message || 'Impossible d’enregistrer le pointage en ce moment.')
     } finally {
       setSaving(false)
@@ -59,21 +70,11 @@ export default function PointageEmploye({ permissions, profile, sites = [] }) {
       <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '1rem' }}>
         <h3 style={{ marginTop: 0 }}>Pointage rapide</h3>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
-          <label style={{ display: 'grid', gap: '0.35rem' }}>
-            <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>Site</span>
-            <select
-              value={selectedSiteId}
-              onChange={(event) => setSelectedSiteId(event.target.value)}
-              style={{ padding: '0.65rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '8px' }}
-            >
-              {(siteOptions || []).map((site) => (
-                <option key={site.id} value={site.id}>
-                  {site.nom}
-                </option>
-              ))}
-            </select>
-          </label>
-
+          {/* Le selecteur de site a ete RETIRE : le site enregistre vient
+              de la fiche de l'employe (profiles.site_id), jamais de cette
+              liste. Choisir « Site B » et voir « Site A » dans
+              l'historique, c'est pire que ne pas choisir du tout. Le site
+              d'affectation est rappele plus bas. */}
           <button
             type="button"
             disabled={!canCreate || saving}
@@ -97,9 +98,20 @@ export default function PointageEmploye({ permissions, profile, sites = [] }) {
           </button>
         </div>
 
-        <div style={{ marginTop: '1rem', color: '#374151', background: '#f3f4f6', padding: '0.75rem', borderRadius: '8px' }}>
+        <div style={{
+          marginTop: '1rem', padding: '0.75rem', borderRadius: '8px',
+          background: erreur ? '#FEF2F2' : '#f3f4f6',
+          border: erreur ? '1px solid #FCA5A5' : '1px solid transparent',
+          color: erreur ? '#991B1B' : '#374151',
+        }}>
           {message}
         </div>
+
+        <p style={{ margin: '0.75rem 0 0', fontSize: '0.75rem', color: '#9ca3af', lineHeight: 1.6 }}>
+          Ce pointage enregistre une <strong>presence</strong> : la date et l&apos;heure, rien
+          d&apos;autre. Aucune position n&apos;est relevee. La geolocalisation est un module
+          distinct, reserve aux deplacements.
+        </p>
       </div>
 
       <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '1rem' }}>

@@ -267,9 +267,18 @@ export async function getPointageSettings(profile) {
   }
 }
 
+/** Methodes de pointage, telles que la base et la fonction serveur les connaissent. */
+export const METHODES = {
+  /** Les heures : depuis l'application, sans aucune position. */
+  NAVIGATEUR: 'navigateur',
+  /** L'itinerance : la position EST le sujet. */
+  GPS: 'gps',
+}
+
 export async function createPointageEntry({
   profile,
   action,
+  methode = METHODES.NAVIGATEUR,
   latitude = null,
   longitude = null,
   precisionMetres = null,
@@ -278,33 +287,84 @@ export async function createPointageEntry({
   commentaire = null,
 }) {
   if (!profile?.id || !profile?.entreprise_id) {
-    throw new Error('Impossible de lancer un pointage sans utilisateur connecté.')
+    throw new Error('Impossible de lancer un pointage sans utilisateur connecte.')
   }
 
+  // La methode n'etait PAS un parametre : tout partait en 'gps', y compris
+  // le pointage d'une receptionniste derriere son comptoir. Le serveur
+  // exigeait alors une position que le navigateur n'avait jamais demandee,
+  // et refusait le pointage. Personne ne pouvait pointer.
+  //
+  // Un pointage d'heures ne transporte aucune coordonnee. Ce n'est pas un
+  // oubli qu'on rattrape plus tard : c'est la separation entre compter le
+  // temps de travail et savoir ou se trouve quelqu'un. La CNIL interdit
+  // d'ailleurs de calculer le temps de travail a partir de la
+  // geolocalisation quand un autre moyen existe -- et il existe.
+  const sansPosition = methode === METHODES.NAVIGATEUR
+
   const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown-agent'
-  const resolvedTimezone = timezone || (typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : null)
+  const resolvedTimezone = timezone
+    || (typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : null)
 
   const { data, error } = await supabase.functions.invoke('create-pointage', {
     body: {
       action,
-      latitude,
-      longitude,
-      precision_metres: precisionMetres,
+      methode,
+      latitude: sansPosition ? null : latitude,
+      longitude: sansPosition ? null : longitude,
+      precision_metres: sansPosition ? null : precisionMetres,
       appareil,
       user_agent: userAgent,
       timezone: resolvedTimezone,
       commentaire,
-      methode: 'gps',
     },
   })
 
   if (error) {
-    throw new Error(error.message || 'Erreur de pointage côté Supabase.')
+    throw new Error(await messagePointage(error))
   }
 
   if (!data?.success) {
-    throw new Error(data?.error || 'Le pointage n’a pas pu être enregistré.')
+    throw new Error(messageRefus(data))
   }
 
   return data
+}
+
+/**
+ * Traduit ce que renvoie le serveur.
+ *
+ * L'ecran affichait le code brut : « Le pointage a ete refuse :
+ * gps_manquant ». Un employe ne sait pas quoi en faire, et un responsable
+ * non plus.
+ */
+export function messageRefus(data) {
+  const code = String(data?.error || data?.motif_refus || '').trim()
+
+  switch (code) {
+    case 'module_inactive':
+      return 'Le module Pointage n\'est pas actif pour votre entreprise. Contactez Velor One.'
+    case 'methode_disabled':
+      return 'Cette facon de pointer n\'est pas autorisee dans votre entreprise.'
+    case 'methode_unknown':
+      return 'Methode de pointage inconnue.'
+    case 'gps_manquant':
+      return 'Position introuvable. Autorisez la localisation, ou pointez sans position si votre entreprise l\'autorise.'
+    case 'site_non_configure':
+      return 'Votre site n\'a pas de coordonnees enregistrees : le pointage geolocalise est impossible tant qu\'elles manquent.'
+    case 'hors_zone':
+      return 'Vous etes en dehors de la zone du site. Le pointage est enregistre mais doit etre verifie.'
+    case 'position_non_attendue':
+      return 'Un pointage d\'heures ne transporte pas de position.'
+    case '':
+      return 'Le pointage n\'a pas pu etre enregistre.'
+    default:
+      return 'Le pointage n\'a pas pu etre enregistre (' + code + ').'
+  }
+}
+
+async function messagePointage(error) {
+  // On garde le code cote console : c'est ce qui permet de diagnostiquer.
+  console.error('[pointage] create-pointage a echoue : ' + (error?.message || '-'))
+  return error?.message || 'Le service de pointage est injoignable.'
 }

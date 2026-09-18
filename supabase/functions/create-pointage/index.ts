@@ -44,6 +44,10 @@ const MOTIFS_REFUS = [
     "pause_incoherente",
     "site_non_configure",
     "gps_manquant",
+    // Une position envoyee sur un pointage d'heures : on refuse au lieu
+    // d'ignorer, pour que le module d'heures ne devienne pas un module de
+    // localisation sans que personne l'ait decide.
+    "position_non_attendue",
   ] as const;
 type MotifRefus = typeof MOTIFS_REFUS[number];
 
@@ -54,7 +58,11 @@ const DEFAUT_PARAMETRES = {
     gps_obligatoire: true,
     autoriser_hors_zone_avec_validation: false,
     duree_max_entre_pointages_minutes: null as number | null,
-    methodes_actives: { gps: true } as Record<string, boolean>,
+    // Par defaut on pointe SANS position. Le GPS se demande, il ne se
+    // subit pas : c'etait { gps: true }, donc toute entreprise sans
+    // parametres explicites exigeait une geolocalisation pour compter des
+    // heures.
+    methodes_actives: { navigateur: true, gps: false } as Record<string, boolean>,
 };
 
 type ContexteValidation = {
@@ -141,8 +149,49 @@ async function validerGps(ctx: ContexteValidation): Promise<ResultatValidation> 
   return { statut: "accepte", motif_refus: null, distance_metres: distanceMetres, vitesse_estimee_kmh: vitesseEstimeeKmh, position_suspecte: positionSuspecte, metadonnees: null };
 }
 
+/**
+ * Pointage depuis l'application, SANS position.
+ *
+ * C'est le cas normal : une receptionniste derriere son comptoir ou un
+ * cuisinier en salle n'a aucune raison de livrer sa position pour dire
+ * qu'il est arrive. Ce validateur n'accepte donc aucune coordonnee -- il
+ * ne les ignore pas, il refuse de les enregistrer, pour que le module
+ * d'heures ne puisse pas devenir un module de localisation par accident.
+ *
+ * Il ne refuse jamais pour un motif de position : la preuve de presence
+ * est l'horodatage serveur, pas le lieu.
+ */
+function validerNavigateur(ctx: ContexteValidation): ResultatValidation {
+    if (ctx.latitude != null || ctx.longitude != null) {
+        return {
+            statut: "refuse",
+            motif_refus: "position_non_attendue",
+            distance_metres: null,
+            vitesse_estimee_kmh: null,
+            position_suspecte: false,
+            metadonnees: null,
+        };
+    }
+    return {
+        statut: "accepte",
+        motif_refus: null,
+        distance_metres: null,
+        vitesse_estimee_kmh: null,
+        position_suspecte: false,
+        metadonnees: null,
+    };
+}
+
 const REGISTRE_METHODES: Record<string, ValidateurMethode> = {
+    // Les heures : le cas normal, sans position.
+    navigateur: { valider: validerNavigateur },
+    // L'itinerance : la position est le sujet, pas un moyen de controler
+    // l'heure d'arrivee.
     gps: { valider: validerGps },
+    // 'manuel' n'est pas ici : une regularisation ne passe pas par cette
+    // fonction, elle passe par une correction tracee et validee par un
+    // responsable. L'exposer ici permettrait a un salarie de declarer
+    // l'heure de son choix.
     // nfc: { valider: validerNfc },              // stocker un HASH de l'UID, jamais l'identifiant brut
     // rfid: { valider: validerRfid },             // idem : hash ou id interne, pas l'identifiant brut
     // bluetooth_beacon: { valider: validerBeacon }, // hash de l'UUID du beacon
@@ -186,12 +235,24 @@ Deno.serve(async (req: Request) => {
     const entrepriseId = profile.entreprise_id as string;
     const siteId = profile.site_id as string | null;
 
-             // Module commercial "Pointage" -- toujours "gps", jamais la methode technique
-             const { data: moduleRow } = await supabase
+    // Le module qui autorise a pointer est "pointage", PAS "gps".
+    //
+    // Cette verification portait sur le module 'gps'. Or 'pointage' et
+    // 'gps' sont deux modules distincts du catalogue : 'pointage' est
+    // vendu dans Velor One, 'gps' ne l'est pas encore. Une entreprise
+    // abonnee recevait donc 403 module_inactive a CHAQUE pointage, avant
+    // meme toute logique de position. Personne ne pouvait pointer.
+    //
+    // C'est l'ancien melange des deux sujets : compter des heures et
+    // savoir ou se trouve un technicien. Ce sont deux modules, deux
+    // finalites, et la CNIL exige justement qu'on ne calcule pas le temps
+    // de travail a partir de la geolocalisation quand un autre moyen
+    // existe.
+    const { data: moduleRow } = await supabase
       .from("entreprise_modules")
       .select("actif")
       .eq("entreprise_id", entrepriseId)
-      .eq("module_id", "gps")
+      .eq("module_id", "pointage")
       .maybeSingle();
     if (!moduleRow || moduleRow.actif !== true) {
           return jsonResponse({ success: false, error: "module_inactive" }, 403);
@@ -210,7 +271,8 @@ Deno.serve(async (req: Request) => {
              const parametres = {
                    ...DEFAUT_PARAMETRES,
                    ...(parametresRow ?? {}),
-                   methodes_actives: (parametresRow?.methodes_actives as Record<string, boolean>) ?? { gps: true },
+                   methodes_actives: (parametresRow?.methodes_actives as Record<string, boolean>)
+                     ?? DEFAUT_PARAMETRES.methodes_actives,
              };
 
              let body: Record<string, unknown>;
@@ -231,7 +293,9 @@ Deno.serve(async (req: Request) => {
     const userAgent = (body.user_agent as string | null | undefined) ?? req.headers.get("user-agent");
     const timezone = (body.timezone as string | null | undefined) ?? null;
     const commentaire = (body.commentaire as string | null | undefined) ?? null;
-    const methode = ((body.methode as string) ?? "gps").trim();
+    // Defaut : le pointage d'heures. Une requete qui ne precise rien veut
+    // enregistrer une presence, pas une position.
+    const methode = ((body.methode as string) ?? "navigateur").trim();
 
              if (!ACTIONS_VALIDES.includes(action as Action)) {
                    return jsonResponse({ success: false, error: "invalid_action" }, 400);

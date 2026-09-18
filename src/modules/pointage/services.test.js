@@ -96,3 +96,126 @@ describe('l ecran de corrections est atteignable', () => {
     expect(codeSeul('index.jsx')).toMatch(/activeTab === 'corrections'/)
   })
 })
+
+// =====================================================================
+// POINTAGE ET GEOLOCALISATION : DEUX CHOSES DISTINCTES
+//
+// Compter le temps de travail et savoir ou se trouve un technicien sont
+// deux finalites differentes. La CNIL interdit d'ailleurs de calculer le
+// temps de travail a partir de la geolocalisation quand un autre moyen
+// existe. Le code les melangeait, et le resultat etait qu'on ne pouvait
+// pointer ni d'une facon ni de l'autre.
+// =====================================================================
+describe('le pointage d heures ne transporte aucune position', () => {
+  const services = codeSeul('services.js')
+  const ecran = codeSeul('components', 'PointageEmploye.jsx')
+
+  test('la methode est un parametre, plus une constante', () => {
+    // Tout partait en 'gps', y compris le pointage d'une receptionniste.
+    expect(services).toMatch(/methode = METHODES\.NAVIGATEUR/)
+    expect(services).not.toMatch(/methode: 'gps'/)
+  })
+
+  test('une methode navigateur force les coordonnees a null', () => {
+    // Pas « on oublie de les mettre » : on les retire explicitement, pour
+    // qu'un appelant distrait ne transforme pas le module d'heures en
+    // module de localisation.
+    expect(services).toMatch(/const sansPosition = methode === METHODES\.NAVIGATEUR/)
+    expect(services).toMatch(/latitude: sansPosition \? null : latitude/)
+  })
+
+  test('l ecran employe pointe sans position', () => {
+    expect(ecran).toMatch(/methode: METHODES\.NAVIGATEUR/)
+  })
+
+  test('le selecteur de site decoratif a ete retire', () => {
+    // Le site enregistre vient de profiles.site_id : choisir « Site B »
+    // et lire « Site A » dans l'historique est pire que ne pas choisir.
+    expect(ecran).not.toMatch(/setSelectedSiteId\(event\.target\.value\)/)
+  })
+})
+
+describe('les refus sont traduits', () => {
+  const { messageRefus } = require('./services')
+
+  test('un code technique devient une phrase utilisable', () => {
+    // L'ecran affichait « Le pointage a ete refuse : gps_manquant ». Ni
+    // l'employe ni son responsable ne savent quoi en faire.
+    expect(messageRefus({ error: 'module_inactive' })).toMatch(/module Pointage n'est pas actif/)
+    expect(messageRefus({ motif_refus: 'hors_zone' })).toMatch(/en dehors de la zone/)
+    expect(messageRefus({ motif_refus: 'site_non_configure' })).toMatch(/coordonnees/)
+  })
+
+  test('un code inconnu reste visible plutot que d etre masque', () => {
+    // Un message generique sans code rendrait le diagnostic impossible.
+    expect(messageRefus({ error: 'quelque_chose_de_neuf' })).toContain('quelque_chose_de_neuf')
+  })
+
+  test('l absence de code ne produit pas un message vide', () => {
+    expect(messageRefus({})).toMatch(/n'a pas pu etre enregistre/)
+    expect(messageRefus(null)).toMatch(/n'a pas pu etre enregistre/)
+  })
+})
+
+describe('la fonction serveur', () => {
+  const edge = fs.readFileSync(
+    path.join(__dirname, '..', '..', '..', 'supabase', 'functions', 'create-pointage', 'index.ts'),
+    'utf8',
+  )
+
+  test('le droit de pointer depend du module pointage, pas du module gps', () => {
+    // C'est ce qui bloquait TOUT : la verification portait sur le module
+    // 'gps', qui n'est vendu dans aucune offre. Chaque pointage recevait
+    // 403 module_inactive avant meme toute logique de position.
+    expect(edge).toMatch(/\.eq\("module_id", "pointage"\)/)
+    expect(edge).not.toMatch(/\.eq\("module_id", "gps"\)/)
+  })
+
+  test('la methode navigateur est enregistree et acceptee sans position', () => {
+    expect(edge).toMatch(/navigateur: \{ valider: validerNavigateur \}/)
+    expect(edge).toMatch(/function validerNavigateur/)
+  })
+
+  test('une position envoyee sur un pointage d heures est refusee, pas ignoree', () => {
+    expect(edge).toMatch(/motif_refus: "position_non_attendue"/)
+  })
+
+  test('la methode par defaut est le pointage sans position', () => {
+    expect(edge).toMatch(/\?\? "navigateur"\)\.trim\(\)/)
+    expect(edge).toMatch(/methodes_actives: \{ navigateur: true, gps: false \}/)
+  })
+
+  test('manuel n est pas expose : une regularisation passe par une correction', () => {
+    // L'exposer ici laisserait un salarie declarer l'heure de son choix.
+    expect(edge).not.toMatch(/manuel: \{ valider/)
+  })
+})
+
+describe('la migration accompagne le code', () => {
+  const sql = fs.readFileSync(
+    path.join(__dirname, '..', '..', '..', 'supabase', 'migrations', '20260918_0002_pointage_heures_sans_gps.sql'),
+    'utf8',
+  )
+
+  test('les trois methodes sont autorisees en base', () => {
+    expect(sql).toMatch(/check \(methode = any \(array\['gps'::text, 'navigateur'::text, 'manuel'::text\]\)\)/)
+  })
+
+  test('methodes_actives autorise navigateur, sinon rien ne change a l ecran', () => {
+    // La contrainte elargie ne suffit pas : create-pointage refuse toute
+    // methode absente de methodes_actives. Sans cette mise a jour, la
+    // migration serait passee sans rien debloquer.
+    expect(sql).toMatch(/methodes_actives \|\| '\{"navigateur": true\}'::jsonb/)
+  })
+
+  test('la policy UPDATE existe, sinon aucune correction n est enregistrable', () => {
+    // Sans elle, PostgREST renvoie zero ligne SANS erreur : l'ecran
+    // afficherait un succes imaginaire.
+    expect(sql).toMatch(/create policy pointages_update on public\.pointages/)
+    expect(sql).toMatch(/with check \(/)
+  })
+
+  test('aucune policy DELETE : un pointage ne s efface pas', () => {
+    expect(sql).not.toMatch(/for delete/i)
+  })
+})
