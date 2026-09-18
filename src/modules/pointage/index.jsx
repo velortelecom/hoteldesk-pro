@@ -19,7 +19,7 @@ export default function PointageModule({ profile, permissions: permissionsLoader
   const canView = permissions.canView && (permissionsLoader?.voir ?? true)
 
   const { stats } = usePointageStats(profile)
-  const { pointages } = usePointages(profile)
+  const { pointages, loading: chargementPointages, error: erreurPointages } = usePointages(profile)
   const { sites } = useSitesSummary(profile)
   const { settings } = usePointageSettings(profile)
 
@@ -51,7 +51,9 @@ export default function PointageModule({ profile, permissions: permissionsLoader
             ⏱️ Pointage
           </h1>
           <p style={{ margin: '0.25rem 0 0', color: '#6b7280', fontSize: '0.875rem' }}>
-            {stats.present} présent{stats.present !== 1 ? 's' : ''} • {stats.retards} retard{stats.retards !== 1 ? 's' : ''}
+            {stats.present} présent{stats.present !== 1 ? 's' : ''}
+            {' • '}
+            {stats.aCorriger} journée{stats.aCorriger !== 1 ? 's' : ''} à corriger
           </p>
         </div>
         <StatutPointage label="Système V1" tone="success" />
@@ -95,13 +97,23 @@ export default function PointageModule({ profile, permissions: permissionsLoader
       <div style={{ flex: 1, overflow: 'auto', padding: '1.5rem 2rem' }}>
         {activeTab === 'dashboard' && <DashboardPointage stats={stats} sites={sites} />}
         {activeTab === 'pointage' && <PointageEmploye permissions={permissions} profile={profile} sites={sites} />}
-        {activeTab === 'historique' && <HistoriquePointages pointages={pointages} />}
+        {activeTab === 'historique' && (
+          <HistoriquePointages
+            pointages={pointages}
+            chargement={chargementPointages}
+            erreur={erreurPointages}
+          />
+        )}
+        {activeTab === 'corrections' && (
+          <CorrectionsPointage
+            journees={pointages}
+            chargement={chargementPointages}
+            erreur={erreurPointages}
+          />
+        )}
         {activeTab === 'sites' && <GestionSitesPointage sites={sites} />}
         {activeTab === 'parametres' && <ParametresPointage permissions={permissions} moduleId={moduleId} settings={settings} />}
 
-        {activeTab !== 'dashboard' && activeTab !== 'pointage' && activeTab !== 'historique' && activeTab !== 'sites' && activeTab !== 'parametres' && (
-          <CorrectionsPointage />
-        )}
       </div>
     </div>
   )

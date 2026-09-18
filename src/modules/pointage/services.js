@@ -1,12 +1,18 @@
 import { supabase } from '../../lib/supabase'
 import { DEFAULT_POINTAGE_SETTINGS } from './config.js'
+import {
+  construireJournees, formaterDuree, journeesAvecAnomalie,
+  LIBELLES_ANOMALIES, totalMinutes,
+} from './journees.js'
 
 const EMPTY_STATS = {
   totalEmployes: 0,
   present: 0,
   absents: 0,
-  retards: 0,
-  tempsTotal: '0h',
+  aCorriger: 0,
+  tempsTotal: '\u2014',
+  journeesCompletes: 0,
+  journeesIncompletes: 0,
 }
 
 function getDayRange() {
@@ -20,12 +26,9 @@ function getDayRange() {
   return { start: start.toISOString(), end: end.toISOString() }
 }
 
-function formatMinutes(minutes = 0) {
-  const safeMinutes = Math.max(0, Math.round(minutes))
-  const hours = Math.floor(safeMinutes / 60)
-  const mins = safeMinutes % 60
-  return `${hours}h ${mins.toString().padStart(2, '0')}m`
-}
+// formatMinutes() a ete SUPPRIME : formaterDuree() (journees.js) est
+// desormais le seul formateur de duree du module. Deux formateurs, c'est
+// deux formats a l'ecran et, tot ou tard, deux facons d'arrondir.
 
 function formatTime(value) {
   if (!value) return '—'
@@ -60,23 +63,48 @@ export function formatStatut(statut) {
   }
 }
 
-export async function getPointages(profile) {
+/**
+ * L'historique, en JOURNEES.
+ *
+ * Cette fonction renvoyait une ligne par EVENEMENT, avec la colonne
+ * « entree » remplie pour une arrivee et « sortie » pour un depart --
+ * donc deux lignes par journee, chacune a moitie vide, et aucune duree
+ * nulle part. On ne pouvait ni lire une feuille d'heures, ni la donner a
+ * un comptable, ni la produire en cas de litige.
+ *
+ * L'appariement se fait dans journees.js, une seule fois, teste.
+ */
+export async function getPointages(profile, options = {}) {
   if (!profile?.entreprise_id) return []
+
+  const limite = options.limite || 500
 
   const { data: pointagesRaw, error } = await supabase
     .from('pointages')
     .select('*')
     .eq('entreprise_id', profile.entreprise_id)
     .order('horodatage_evenement', { ascending: false })
-    .limit(50)
+    .limit(limite)
 
   if (error) {
-    console.error('Pointage: erreur lors du chargement de l’historique', error)
-    return []
+    // On ne renvoie pas une liste vide sans rien dire : un historique
+    // vide se lit « personne n'a pointe », ce qui est un mensonge quand
+    // la lecture a simplement echoue.
+    console.error(
+      '[pointage] lecture de l\'historique impossible. '
+      + 'code=' + (error.code || '-')
+      + ' message=' + (error.message || '-')
+      + ' details=' + (error.details || '-')
+      + ' hint=' + (error.hint || '-'),
+    )
+    throw new Error(error.message || 'Historique illisible.')
   }
 
-  const profileIds = [...new Set((pointagesRaw || []).map((pointage) => pointage.profile_id).filter(Boolean))]
-  const siteIds = [...new Set((pointagesRaw || []).map((pointage) => pointage.site_id).filter(Boolean))]
+  const evenements = pointagesRaw || []
+  const journees = construireJournees(evenements)
+
+  const profileIds = [...new Set(evenements.map(p => p.profile_id).filter(Boolean))]
+  const siteIds = [...new Set(evenements.map(p => p.site_id).filter(Boolean))]
 
   const [{ data: profilesData = [] }, { data: sitesData = [] }] = await Promise.all([
     profileIds.length > 0
@@ -87,63 +115,108 @@ export async function getPointages(profile) {
       : Promise.resolve({ data: [] }),
   ])
 
-  const profilesById = new Map((profilesData || []).map((entry) => [entry.id, entry]))
-  const sitesById = new Map((sitesData || []).map((entry) => [entry.id, entry]))
+  const profilesById = new Map((profilesData || []).map(e => [e.id, e]))
+  const sitesById = new Map((sitesData || []).map(e => [e.id, e]))
 
-  return (pointagesRaw || []).map((pointage) => {
-    const personnel = profilesById.get(pointage.profile_id) || {}
-    const site = sitesById.get(pointage.site_id) || {}
-    const employeLabel = [personnel.prenom, personnel.nom].filter(Boolean).join(' ').trim() || 'Employé'
+  return journees
+    .slice()
+    .sort((a, b) => {
+      const da = a.debut || a.fin
+      const db = b.debut || b.fin
+      return (db ? db.getTime() : 0) - (da ? da.getTime() : 0)
+    })
+    .map(journee => {
+      const personnel = profilesById.get(journee.profileId) || {}
+      const site = sitesById.get(journee.siteId) || {}
 
-    return {
-      id: pointage.id,
-      employe: employeLabel,
-      site: site.nom || 'Site inconnu',
-      date: formatDate(pointage.horodatage_evenement),
-      entree: pointage.action === 'arrivee' || pointage.action === 'debut_pause' ? formatTime(pointage.horodatage_evenement) : '—',
-      sortie: pointage.action === 'depart' || pointage.action === 'fin_pause' ? formatTime(pointage.horodatage_evenement) : '—',
-      statut: formatStatut(pointage.statut),
-      rawStatut: pointage.statut,
-    }
-  })
+      return {
+        id: journee.profileId + '@' + (journee.date || 'sans-date')
+          + '@' + (journee.debut ? journee.debut.getTime() : (journee.fin ? journee.fin.getTime() : '0')),
+        profileId: journee.profileId,
+        employe: [personnel.prenom, personnel.nom].filter(Boolean).join(' ').trim() || 'Employe',
+        site: site.nom || 'Site inconnu',
+        date: formatDate(journee.debut || journee.fin),
+        entree: formatTime(journee.debut),
+        sortie: formatTime(journee.fin),
+        pause: journee.minutesPause > 0 ? formaterDuree(journee.minutesPause) : '\u2014',
+        duree: formaterDuree(journee.minutesTravaillees),
+        minutesTravaillees: journee.minutesTravaillees,
+        complete: journee.complete,
+        anomalies: journee.anomalies,
+        // Libelles lisibles : l'ecran n'a pas a connaitre les codes.
+        anomaliesLisibles: journee.anomalies.map(code => LIBELLES_ANOMALIES[code] || code),
+      }
+    })
 }
 
+/**
+ * Le tableau de bord du jour.
+ *
+ * CE QUI ETAIT FAUX
+ *   const totalMinutes = presentProfiles.size * 8 * 60
+ *
+ *   Autrement dit : « toute personne ayant pointe une arrivee a
+ *   travaille huit heures ». Le « temps total » affiche n'etait pas une
+ *   mesure mais une hypothese, et personne ne pouvait le savoir en
+ *   regardant l'ecran. C'est la seule chose que ce module ne doit jamais
+ *   faire : le decompte des heures est ce qui a une valeur legale.
+ *
+ *   Le compteur « retards » comptait, lui, les pointages refuses ou en
+ *   attente de correction. Ce ne sont pas des retards -- ce sont des
+ *   journees a verifier. Il est renomme.
+ *
+ * Desormais le temps vient de journees.js : mesure, et seulement sur les
+ * journees completes. Les incompletes sont affichees a part.
+ */
 export async function getTodaySummary(profile) {
   if (!profile?.entreprise_id) return EMPTY_STATS
 
   const { start, end } = getDayRange()
 
-  const [{ data: employees = [] }, { data: pointagesRaw = [] }] = await Promise.all([
+  const [employesRes, pointagesRes] = await Promise.all([
     supabase.from('profiles').select('id').eq('entreprise_id', profile.entreprise_id).eq('actif', true),
     supabase
       .from('pointages')
-      .select('profile_id, action, statut, horodatage_evenement')
+      .select('id, profile_id, site_id, action, statut, horodatage_evenement')
       .eq('entreprise_id', profile.entreprise_id)
       .gte('horodatage_evenement', start)
       .lte('horodatage_evenement', end),
   ])
 
-  const presentProfiles = new Set()
-  const retards = new Set()
-
-  for (const pointage of pointagesRaw || []) {
-    if (pointage.statut === 'accepte' && pointage.action === 'arrivee') {
-      presentProfiles.add(pointage.profile_id)
-    }
-
-    if (pointage.statut === 'en_attente_correction' || pointage.statut === 'refuse') {
-      retards.add(pointage.profile_id)
-    }
+  const echec = employesRes.error || pointagesRes.error
+  if (echec) {
+    console.error(
+      '[pointage] tableau de bord illisible. '
+      + 'code=' + (echec.code || '-')
+      + ' message=' + (echec.message || '-')
+      + ' details=' + (echec.details || '-')
+      + ' hint=' + (echec.hint || '-'),
+    )
+    throw new Error(echec.message || 'Tableau de bord illisible.')
   }
 
-  const totalMinutes = Math.max(0, presentProfiles.size) * 8 * 60
+  const employes = employesRes.data || []
+  const evenements = pointagesRes.data || []
+
+  const journees = construireJournees(evenements)
+  const total = totalMinutes(journees)
+
+  // Present = a pointe une arrivee aujourd'hui, quel que soit l'etat de
+  // sa journee. Quelqu'un dont le depart manque est bien present.
+  const presents = new Set(
+    journees.filter(j => j.debut != null).map(j => j.profileId),
+  )
 
   return {
-    totalEmployes: employees.length,
-    present: presentProfiles.size,
-    absents: Math.max(0, employees.length - presentProfiles.size),
-    retards: retards.size,
-    tempsTotal: formatMinutes(totalMinutes),
+    totalEmployes: employes.length,
+    present: presents.size,
+    absents: Math.max(0, employes.length - presents.size),
+    aCorriger: journeesAvecAnomalie(journees).length,
+    // Un tiret quand rien n'est mesurable : « 0h » se lirait « personne
+    // n'a travaille », ce qui est different de « on ne sait pas encore ».
+    tempsTotal: total.completes > 0 ? formaterDuree(total.minutes) : '\u2014',
+    journeesCompletes: total.completes,
+    journeesIncompletes: total.incompletes,
   }
 }
 
