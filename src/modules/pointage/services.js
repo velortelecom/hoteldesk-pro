@@ -1,9 +1,13 @@
 import { supabase } from '../../lib/supabase'
 import { DEFAULT_POINTAGE_SETTINGS } from './config.js'
 import {
-  construireJournees, formaterDuree, journeesAvecAnomalie,
-  LIBELLES_ANOMALIES, totalMinutes,
+  ANOMALIES, construireJournees, etatJournee, formaterDuree,
+  journeesAvecAnomalie, LIBELLES_ANOMALIES, minutesEnCours, STATUTS_ETAT,
+  totalMinutes,
 } from './journees.js'
+import {
+  LIBELLES_PROVENANCE, marquerProvenance, PROVENANCES, reseauDeReference,
+} from './reseau.js'
 
 const EMPTY_STATS = {
   totalEmployes: 0,
@@ -101,7 +105,21 @@ export async function getPointages(profile, options = {}) {
   }
 
   const evenements = pointagesRaw || []
-  const journees = construireJournees(evenements)
+
+  // TEMOIN RESEAU. La reference se deduit de la majorite des pointages
+  // lus -- soit plusieurs semaines pour une petite equipe. Aucun reglage,
+  // personne a former : le reseau que la plupart des gens utilisent la
+  // plupart du temps est celui de l'etablissement.
+  //
+  // Sous le seuil, reseauDeReference renvoie etabli: false et
+  // marquerProvenance ne touche a rien. On n'accuse personne tant qu'on
+  // ne sait pas.
+  const reference = reseauDeReference(evenements)
+  const journees = marquerProvenance(
+    construireJournees(evenements),
+    reference,
+    ANOMALIES.RESEAU_INCONNU,
+  )
 
   const profileIds = [...new Set(evenements.map(p => p.profile_id).filter(Boolean))]
   const siteIds = [...new Set(evenements.map(p => p.site_id).filter(Boolean))]
@@ -145,6 +163,8 @@ export async function getPointages(profile, options = {}) {
         anomalies: journee.anomalies,
         // Libelles lisibles : l'ecran n'a pas a connaitre les codes.
         anomaliesLisibles: journee.anomalies.map(code => LIBELLES_ANOMALIES[code] || code),
+        provenance: journee.provenance || PROVENANCES.INCONNUE,
+        provenanceLisible: LIBELLES_PROVENANCE[journee.provenance || PROVENANCES.INCONNUE],
       }
     })
 }
@@ -244,8 +264,28 @@ export async function getSitesSummary(profile) {
   }))
 }
 
+/**
+ * Les parametres REELS du pointage.
+ *
+ * CE QUI ETAIT FAUX
+ *   Cette fonction inventait quatre reglages qui n'existent nulle part en
+ *   base, en les branchant sur des colonnes sans rapport :
+ *
+ *     toleranceRetardMinutes   <- precision_gps_max_metres
+ *     heuresParJour            <- duree_max_entre_pointages_minutes
+ *     autoriserPointageMobile  <- gps_obligatoire
+ *     notificationRetards      <- autoriser_hors_zone_avec_validation
+ *
+ *   L'ecran affichait donc « Tolerance de retard : 50 minutes » alors que
+ *   50 etait une precision GPS EN METRES. Quatre valeurs lues, quatre
+ *   mensonges, et rien pour s'en apercevoir.
+ *
+ * On renvoie maintenant ce que la table contient vraiment. Les reglages
+ * qui n'existent pas ne sont plus affiches : mieux vaut un ecran court et
+ * vrai qu'un ecran complet et faux.
+ */
 export async function getPointageSettings(profile) {
-  if (!profile?.entreprise_id) return DEFAULT_POINTAGE_SETTINGS
+  if (!profile?.entreprise_id) return null
 
   const { data, error } = await supabase
     .from('entreprise_parametres_pointage')
@@ -254,16 +294,77 @@ export async function getPointageSettings(profile) {
     .maybeSingle()
 
   if (error) {
-    console.error('Pointage: impossible de lire les paramètres', error)
-    return DEFAULT_POINTAGE_SETTINGS
+    console.error(
+      '[pointage] parametres illisibles. '
+      + 'code=' + (error.code || '-')
+      + ' message=' + (error.message || '-')
+      + ' details=' + (error.details || '-')
+      + ' hint=' + (error.hint || '-'),
+    )
+    throw new Error(error.message || 'Parametres illisibles.')
   }
 
+  // Aucune ligne : l'entreprise n'a jamais ete parametree. On le DIT, au
+  // lieu d'afficher des valeurs par defaut que personne n'a choisies.
+  if (!data) return { ...DEFAULT_POINTAGE_SETTINGS, parametree: false }
+
+  const methodes = data.methodes_actives || {}
+
   return {
-    ...DEFAULT_POINTAGE_SETTINGS,
-    toleranceRetardMinutes: data?.precision_gps_max_metres ?? DEFAULT_POINTAGE_SETTINGS.toleranceRetardMinutes,
-    heuresParJour: data?.duree_max_entre_pointages_minutes ?? DEFAULT_POINTAGE_SETTINGS.heuresParJour,
-    autoriserPointageMobile: data?.gps_obligatoire ?? DEFAULT_POINTAGE_SETTINGS.autoriserPointageMobile,
-    notificationRetards: data?.autoriser_hors_zone_avec_validation ?? DEFAULT_POINTAGE_SETTINGS.notificationRetards,
+    parametree: true,
+    precisionGpsMaxMetres: data.precision_gps_max_metres,
+    gpsObligatoire: data.gps_obligatoire === true,
+    autoriserHorsZoneAvecValidation: data.autoriser_hors_zone_avec_validation === true,
+    dureeMaxEntrePointagesMinutes: data.duree_max_entre_pointages_minutes,
+    methodesActives: Object.keys(methodes).filter(cle => methodes[cle] === true),
+  }
+}
+
+/**
+ * Ou en est la personne connectee, MAINTENANT.
+ *
+ * L'ecran gardait cet etat dans une variable locale, remise a « arrivee »
+ * a chaque rechargement de page : quelqu'un deja pointe se voyait
+ * proposer une seconde arrivee, que le serveur refusait ensuite pour
+ * double_arrivee sans que personne comprenne. On lit donc la base.
+ *
+ * On remonte 48 heures et pas « depuis minuit » : une equipe de nuit
+ * arrivee a 22h est toujours en service a 2h du matin. Couper a minuit la
+ * remettrait hors service en pleine nuit de travail.
+ */
+export async function getEtatJour(profile) {
+  if (!profile?.id) return null
+
+  const depuis = new Date(Date.now() - 48 * 3600 * 1000).toISOString()
+
+  const { data, error } = await supabase
+    .from('pointages')
+    .select('id, action, statut, horodatage_evenement')
+    .eq('profile_id', profile.id)
+    .in('statut', STATUTS_ETAT)
+    .gte('horodatage_evenement', depuis)
+    .order('horodatage_evenement', { ascending: true })
+
+  if (error) {
+    // Sans etat lisible, l'ecran ne doit PAS retomber sur « arrivee » :
+    // ce serait proposer un pointage qui sera refuse.
+    console.error(
+      '[pointage] etat du jour illisible. '
+      + 'code=' + (error.code || '-')
+      + ' message=' + (error.message || '-')
+      + ' details=' + (error.details || '-')
+      + ' hint=' + (error.hint || '-'),
+    )
+    throw new Error(error.message || 'Impossible de lire votre journee en cours.')
+  }
+
+  const evenements = data || []
+  const etat = etatJournee(evenements)
+
+  return {
+    ...etat,
+    minutesJour: minutesEnCours(evenements),
+    evenements,
   }
 }
 
@@ -367,4 +468,63 @@ async function messagePointage(error) {
   // On garde le code cote console : c'est ce qui permet de diagnostiquer.
   console.error('[pointage] create-pointage a echoue : ' + (error?.message || '-'))
   return error?.message || 'Le service de pointage est injoignable.'
+}
+
+/**
+ * Tous les evenements d'un mois, pour l'export de paie.
+ *
+ * On lit LARGE : du 1er du mois moins deux jours au 1er du mois suivant
+ * plus deux jours. Une nuit du 31 au 1er doit etre complete pour etre
+ * appariee -- si on coupait pile aux bornes du mois, il manquerait
+ * l'arrivee ou le depart, et la nuit deviendrait une anomalie au lieu
+ * d'une journee payee. Le decoupage par mois se fait ensuite sur la
+ * journee construite, pas sur les evenements.
+ */
+export async function getEvenementsMois(profile, periode) {
+  if (!profile?.entreprise_id) return { evenements: [], noms: {} }
+
+  const bouts = String(periode || '').split('-')
+  const annee = Number(bouts[0])
+  const mois = Number(bouts[1])
+  if (!Number.isFinite(annee) || !Number.isFinite(mois)) {
+    throw new Error('Periode illisible : ' + periode)
+  }
+
+  const debut = new Date(annee, mois - 1, 1)
+  debut.setDate(debut.getDate() - 2)
+  const fin = new Date(annee, mois, 1)
+  fin.setDate(fin.getDate() + 2)
+
+  const { data, error } = await supabase
+    .from('pointages')
+    .select('id, profile_id, site_id, action, statut, horodatage_evenement')
+    .eq('entreprise_id', profile.entreprise_id)
+    .gte('horodatage_evenement', debut.toISOString())
+    .lt('horodatage_evenement', fin.toISOString())
+    .order('horodatage_evenement', { ascending: true })
+
+  if (error) {
+    console.error(
+      '[pointage] evenements du mois illisibles. '
+      + 'code=' + (error.code || '-')
+      + ' message=' + (error.message || '-')
+      + ' details=' + (error.details || '-')
+      + ' hint=' + (error.hint || '-'),
+    )
+    throw new Error(error.message || 'Impossible de lire les pointages du mois.')
+  }
+
+  const evenements = data || []
+  const profileIds = [...new Set(evenements.map(e => e.profile_id).filter(Boolean))]
+
+  const { data: profils } = profileIds.length > 0
+    ? await supabase.from('profiles').select('id, prenom, nom').in('id', profileIds)
+    : { data: [] }
+
+  const noms = {}
+  ;(profils || []).forEach(p => {
+    noms[p.id] = [p.prenom, p.nom].filter(Boolean).join(' ').trim() || p.id
+  })
+
+  return { evenements, noms }
 }

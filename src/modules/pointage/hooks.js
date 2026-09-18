@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react'
-import { DEFAULT_POINTAGE_SETTINGS } from './config.js'
-import { getPointages, getPointageSettings, getSitesSummary, getTodaySummary } from './services.js'
+import { useCallback, useEffect, useState } from 'react'
+import { getEtatJour, getPointages, getPointageSettings, getSitesSummary, getTodaySummary } from './services.js'
 
 const EMPTY_STATS = {
   totalEmployes: 0,
@@ -85,7 +84,9 @@ export function usePointages(profile) {
 }
 
 export function usePointageSettings(profile) {
-  const [settings, setSettings] = useState(DEFAULT_POINTAGE_SETTINGS)
+  // null tant qu'on ne sait pas : retomber sur des valeurs par defaut
+  // ferait afficher des reglages que personne n'a choisis, sans le dire.
+  const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -102,7 +103,7 @@ export function usePointageSettings(profile) {
       } catch (caughtError) {
         if (isMounted) {
           setError(caughtError?.message || 'Erreur lors du chargement des paramètres.')
-          setSettings(DEFAULT_POINTAGE_SETTINGS)
+          setSettings(null)
         }
       } finally {
         if (isMounted) {
@@ -156,4 +157,35 @@ export function useSitesSummary(profile) {
   }, [profile?.id, profile?.entreprise_id])
 
   return { sites, loading, error }
+}
+
+/**
+ * L'etat de la journee en cours de la personne connectee.
+ *
+ * recharger() est expose pour que l'ecran puisse se remettre a jour
+ * apres un pointage, sans recharger toute la page.
+ */
+export function useEtatJour(profile) {
+  const [etat, setEtat] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  const charger = useCallback(async () => {
+    if (!profile?.id) { setEtat(null); setLoading(false); return }
+    setLoading(true)
+    try {
+      const prochain = await getEtatJour(profile)
+      setEtat(prochain)
+      setError(null)
+    } catch (err) {
+      setError(err?.message || 'Impossible de lire votre journee en cours.')
+      setEtat(null)
+    } finally {
+      setLoading(false)
+    }
+  }, [profile?.id])
+
+  useEffect(() => { charger() }, [charger])
+
+  return { etat, loading, error, recharger: charger }
 }

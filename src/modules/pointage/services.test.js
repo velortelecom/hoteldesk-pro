@@ -219,3 +219,84 @@ describe('la migration accompagne le code', () => {
     expect(sql).not.toMatch(/for delete/i)
   })
 })
+
+describe('les parametres affichent la base, pas une invention', () => {
+  const services = codeSeul('services.js')
+  const ecran = codeSeul('components', 'ParametresPointage.jsx')
+  const config = codeSeul('config.js')
+
+  test('les quatre reglages inventes ont disparu', () => {
+    // toleranceRetardMinutes lisait precision_gps_max_metres : l'ecran
+    // affichait « tolerance de retard : 50 minutes » pour une precision
+    // GPS de 50 METRES. Quatre valeurs lues, quatre mensonges.
+    ;['toleranceRetardMinutes', 'heuresParJour', 'autoriserPointageMobile', 'notificationRetards']
+      .forEach(invente => {
+        expect(services).not.toContain(invente)
+        expect(ecran).not.toContain(invente)
+        expect(config).not.toContain(invente)
+      })
+  })
+
+  test('l ecran dit quand l entreprise n a jamais ete parametree', () => {
+    // Afficher les valeurs par defaut sans le dire, c'est presenter des
+    // reglages que personne n'a choisis comme des decisions.
+    expect(ecran).toMatch(/settings\.parametree/)
+  })
+})
+
+describe('le pointage se pilote par l etat reel de la journee', () => {
+  const ecran = codeSeul('components', 'PointageEmploye.jsx')
+  const services = codeSeul('services.js')
+
+  test('l ecran lit l etat au lieu de le supposer', () => {
+    // L'etat vivait dans un useState initialise a « arrivee » : apres un
+    // rechargement, quelqu'un deja pointe se voyait proposer une seconde
+    // arrivee, refusee ensuite sans explication.
+    expect(ecran).not.toMatch(/useState\('arrivee'\)/)
+    expect(ecran).toMatch(/etatJour/)
+    expect(services).toMatch(/export async function getEtatJour/)
+  })
+
+  test('les quatre actions sont atteignables', () => {
+    expect(ecran).toMatch(/actionsAutorisees/)
+    expect(ecran).toMatch(/LIBELLES_ACTIONS\[action\]/)
+  })
+
+  test('l ecran se recharge apres chaque pointage, meme refuse', () => {
+    // Sinon il continue d'afficher ce qu'il croyait, pas ce que la base
+    // sait.
+    expect(ecran).toMatch(/finally \{[\s\S]{0,200}onPointage/)
+  })
+})
+
+describe('le temoin reseau', () => {
+  const services = codeSeul('services.js')
+
+  test('la provenance est calculee et remontee a l ecran', () => {
+    expect(services).toMatch(/reseauDeReference\(evenements\)/)
+    expect(services).toMatch(/marquerProvenance\(/)
+    expect(services).toMatch(/provenanceLisible/)
+  })
+
+  test('aucun reglage manuel du reseau n est demande', () => {
+    // Un reglage qu'il faut penser a faire est un reglage jamais fait.
+    expect(services).not.toMatch(/ip_reference|enregistrerIpSite|declarerReseau/)
+  })
+})
+
+describe('l export de paie', () => {
+  const ecran = codeSeul('components', 'ExportPaie.jsx')
+  const permissions = codeSeul('permissions.js')
+
+  test('un salarie ne peut pas exporter les heures de ses collegues', () => {
+    expect(permissions).toMatch(/canExport: false/)
+    expect(ecran).toMatch(/permissions\?\.canExport === true/)
+  })
+
+  test('l ecran previent avant d exporter un total incomplet', () => {
+    // Decouvrir apres coup qu'il manquait trois journees, c'est le
+    // decouvrir apres avoir paye.
+    expect(ecran).toMatch(/totalNonCalcule > 0/)
+    expect(ecran).toMatch(/n&apos;entre/)
+  })
+})

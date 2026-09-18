@@ -320,3 +320,134 @@ describe('affichage', () => {
     expect(cleJour(new Date(2026, 0, 1, 0, 5))).toBe('2026-01-01')
   })
 })
+
+// =====================================================================
+// L'ETAT DE LA JOURNEE EN COURS
+//
+// Quatre pointages par jour. L'ecran doit savoir ou en est la personne
+// AVANT qu'elle clique. C'est ce qui manquait : l'etat vivait dans une
+// variable locale remise a zero a chaque rechargement, et le serveur ne
+// proposait qu'une seule action suivante.
+// =====================================================================
+const { ETATS, etatJournee, minutesEnCours, LIBELLES_ACTIONS, STATUTS_ETAT } = require('./journees')
+
+describe('l etat de la journee', () => {
+  test('sans aucun pointage, on ne peut que pointer son arrivee', () => {
+    const e = etatJournee([])
+    expect(e.etat).toBe(ETATS.HORS_SERVICE)
+    expect(e.actionsAutorisees).toEqual([ACTIONS.ARRIVEE])
+  })
+
+  test('apres une arrivee, DEUX actions sont possibles', () => {
+    // C'est le bug de fond : le serveur ne proposait que « depart », donc
+    // la pause etait inatteignable et personne ne pouvait la deduire de
+    // son temps de travail.
+    const e = etatJournee([ev(ALICE, ACTIONS.ARRIVEE, '08:00')])
+    expect(e.etat).toBe(ETATS.EN_SERVICE)
+    expect(e.actionsAutorisees).toEqual([ACTIONS.DEBUT_PAUSE, ACTIONS.DEPART])
+  })
+
+  test('en pause, on ne peut que reprendre', () => {
+    const e = etatJournee([
+      ev(ALICE, ACTIONS.ARRIVEE, '08:00'),
+      ev(ALICE, ACTIONS.DEBUT_PAUSE, '12:00'),
+    ])
+    expect(e.etat).toBe(ETATS.EN_PAUSE)
+    expect(e.actionsAutorisees).toEqual([ACTIONS.FIN_PAUSE])
+  })
+
+  test('apres la reprise, on peut repartir en pause ou terminer', () => {
+    const e = etatJournee([
+      ev(ALICE, ACTIONS.ARRIVEE, '08:00'),
+      ev(ALICE, ACTIONS.DEBUT_PAUSE, '12:00'),
+      ev(ALICE, ACTIONS.FIN_PAUSE, '13:00'),
+    ])
+    expect(e.etat).toBe(ETATS.EN_SERVICE)
+    expect(e.actionsAutorisees).toEqual([ACTIONS.DEBUT_PAUSE, ACTIONS.DEPART])
+  })
+
+  test('apres le depart, la journee est finie', () => {
+    const e = etatJournee([
+      ev(ALICE, ACTIONS.ARRIVEE, '08:00'),
+      ev(ALICE, ACTIONS.DEPART, '17:00'),
+    ])
+    expect(e.etat).toBe(ETATS.HORS_SERVICE)
+    expect(e.actionsAutorisees).toEqual([ACTIONS.ARRIVEE])
+  })
+
+  test('l equipe de nuit reste en service apres minuit', () => {
+    // Filtrer sur la date du jour remettrait cette personne « hors
+    // service » a minuit, en pleine nuit de travail, et lui proposerait
+    // une seconde arrivee.
+    const e = etatJournee([ev(BOB, ACTIONS.ARRIVEE, '22:00', { jour: 10 })])
+    expect(e.etat).toBe(ETATS.EN_SERVICE)
+  })
+
+  test('un pointage refuse ne change pas l etat', () => {
+    // Il a ete refuse : il ne s'est rien passe.
+    const e = etatJournee([ev(ALICE, ACTIONS.ARRIVEE, '08:00', { statut: 'refuse' })])
+    expect(e.etat).toBe(ETATS.HORS_SERVICE)
+  })
+
+  test('un pointage a verifier, lui, change l etat', () => {
+    // Il a bien eu lieu. Sans ca, quelqu'un dont l'arrivee est en attente
+    // se verrait proposer une seconde arrivee -- que le serveur
+    // refuserait pour double_arrivee, sans explication lisible.
+    expect(STATUTS_ETAT).toContain('en_attente_correction')
+    const e = etatJournee([ev(ALICE, ACTIONS.ARRIVEE, '08:00', { statut: 'en_attente_correction' })])
+    expect(e.etat).toBe(ETATS.EN_SERVICE)
+  })
+
+  test('chaque action a un libelle affichable', () => {
+    Object.values(ACTIONS).forEach(a => {
+      expect(typeof LIBELLES_ACTIONS[a]).toBe('string')
+      expect(LIBELLES_ACTIONS[a].length).toBeGreaterThan(0)
+    })
+  })
+})
+
+describe('le compteur du jour', () => {
+  test('il additionne les sessions fermees', () => {
+    const m = minutesEnCours([
+      ev(ALICE, ACTIONS.ARRIVEE, '08:00'),
+      ev(ALICE, ACTIONS.DEBUT_PAUSE, '12:00'),
+      ev(ALICE, ACTIONS.FIN_PAUSE, '13:00'),
+      ev(ALICE, ACTIONS.DEPART, '17:00'),
+    ], new Date(2026, 2, 10, 18, 0))
+    expect(m).toBe(8 * 60)
+  })
+
+  test('il continue de courir tant que le depart n est pas pointe', () => {
+    // C'est voulu A L'ECRAN : un salarie veut voir son temps avancer.
+    // Ce n'est PAS ce qu'on paie -- construireJournees refuse de chiffrer
+    // une journee non terminee, et c'est lui qui alimente la paie.
+    const m = minutesEnCours(
+      [ev(ALICE, ACTIONS.ARRIVEE, '08:00')],
+      new Date(2026, 2, 10, 11, 30),
+    )
+    expect(m).toBe(3 * 60 + 30)
+  })
+
+  test('le temps ne court pas pendant la pause', () => {
+    const m = minutesEnCours([
+      ev(ALICE, ACTIONS.ARRIVEE, '08:00'),
+      ev(ALICE, ACTIONS.DEBUT_PAUSE, '12:00'),
+    ], new Date(2026, 2, 10, 12, 45))
+    expect(m).toBe(4 * 60)
+  })
+
+  test('les deux calculs ne se contredisent pas sur une journee terminee', () => {
+    // Le compteur d'ecran et le calcul de paie doivent tomber d'accord
+    // des que la journee est close. S'ils divergent, l'employe voit un
+    // chiffre et recoit l'autre.
+    const evenements = [
+      ev(ALICE, ACTIONS.ARRIVEE, '08:00'),
+      ev(ALICE, ACTIONS.DEBUT_PAUSE, '12:00'),
+      ev(ALICE, ACTIONS.FIN_PAUSE, '13:00'),
+      ev(ALICE, ACTIONS.DEPART, '17:00'),
+    ]
+    const journee = construireJournees(evenements)[0]
+    expect(minutesEnCours(evenements, new Date(2026, 2, 10, 20, 0)))
+      .toBe(journee.minutesTravaillees)
+  })
+})

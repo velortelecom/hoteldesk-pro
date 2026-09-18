@@ -21,6 +21,8 @@ export default function HistoriquePointages({ pointages = [], chargement = false
       <p style={{ margin: '0 0 1rem', fontSize: '0.8125rem', color: '#6b7280' }}>
         Temps de travail = sortie &minus; entree &minus; pauses. Une journee incomplete
         n&apos;affiche pas de duree : elle en a une, on ne la connait pas.
+        La provenance indique si le pointage venait du reseau de l&apos;etablissement &mdash;
+        rien n&apos;est refuse, c&apos;est une information.
       </p>
 
       {erreur ? (
@@ -43,6 +45,7 @@ export default function HistoriquePointages({ pointages = [], chargement = false
                 <th style={th}>Sortie</th>
                 <th style={th}>Pause</th>
                 <th style={th}>Temps</th>
+                <th style={th}>Provenance</th>
                 <th style={th}>Etat</th>
               </tr>
             </thead>
@@ -59,6 +62,17 @@ export default function HistoriquePointages({ pointages = [], chargement = false
                   <td style={td}>{journee.sortie}</td>
                   <td style={td}>{journee.pause}</td>
                   <td style={{ ...td, fontWeight: 700 }}>{journee.duree}</td>
+                  <td style={td}>
+                    {journee.provenance === 'autre' ? (
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#92400E' }}>
+                        {journee.provenanceLisible}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                        {journee.provenanceLisible}
+                      </span>
+                    )}
+                  </td>
                   <td style={td}>
                     {journee.complete ? (
                       <span style={{ fontSize: '0.75rem', fontWeight: 700, background: '#ECFDF5', color: '#065F46', borderRadius: 999, padding: '2px 8px' }}>

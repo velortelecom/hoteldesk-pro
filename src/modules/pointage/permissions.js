@@ -1,3 +1,12 @@
+// src/modules/pointage/permissions.js
+// =====================================================================
+// canExport : qui peut sortir le classeur des heures.
+//
+// Un salarie voit SES heures, il n'exporte pas celles de toute
+// l'entreprise -- ce serait lui donner le detail des horaires de ses
+// collegues. C'est le meme decoupage que partout ailleurs : consulter
+// ce qui vous concerne, ce n'est pas lire le dossier des autres.
+// =====================================================================
 export const ROLE_POINTAGE_PERMISSIONS = {
   employe: {
     canView: true,
@@ -5,6 +14,7 @@ export const ROLE_POINTAGE_PERMISSIONS = {
     canEdit: false,
     canDelete: false,
     canManageSettings: false,
+    canExport: false,
   },
   responsable: {
     canView: true,
@@ -12,6 +22,7 @@ export const ROLE_POINTAGE_PERMISSIONS = {
     canEdit: true,
     canDelete: false,
     canManageSettings: true,
+    canExport: true,
   },
   admin: {
     canView: true,
@@ -19,6 +30,7 @@ export const ROLE_POINTAGE_PERMISSIONS = {
     canEdit: true,
     canDelete: true,
     canManageSettings: true,
+    canExport: true,
   },
   super_admin: {
     canView: true,
@@ -26,6 +38,7 @@ export const ROLE_POINTAGE_PERMISSIONS = {
     canEdit: true,
     canDelete: true,
     canManageSettings: true,
+    canExport: true,
   },
 }
 

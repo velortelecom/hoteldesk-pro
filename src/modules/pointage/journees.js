@@ -55,6 +55,7 @@ export const ANOMALIES = {
   PAUSE_HORS_JOURNEE: 'pause_hors_journee',
   DUREE_INVRAISEMBLABLE: 'duree_invraisemblable',
   POINTAGE_NON_VALIDE: 'pointage_non_valide',
+  RESEAU_INCONNU: 'reseau_inconnu',
 }
 
 export const LIBELLES_ANOMALIES = {
@@ -65,6 +66,7 @@ export const LIBELLES_ANOMALIES = {
   [ANOMALIES.PAUSE_HORS_JOURNEE]: 'Pause en dehors d’une periode de travail',
   [ANOMALIES.DUREE_INVRAISEMBLABLE]: 'Duree anormalement longue',
   [ANOMALIES.POINTAGE_NON_VALIDE]: 'Contient un pointage refuse ou a verifier',
+  [ANOMALIES.RESEAU_INCONNU]: 'Pointe depuis un autre reseau que l\u2019etablissement',
 }
 
 /**
@@ -303,4 +305,128 @@ export function formaterDuree(minutes) {
 /** Les journees qui demandent une intervention humaine. */
 export function journeesAvecAnomalie(journees = []) {
   return journees.filter(j => j && j.anomalies && j.anomalies.length > 0)
+}
+
+// =====================================================================
+// L'ETAT DE LA JOURNEE EN COURS
+//
+// Quatre pointages par jour : arrivee, debut de pause, fin de pause,
+// depart. L'ecran doit donc savoir ou en est la personne AVANT qu'elle
+// clique, sinon il propose n'importe quoi.
+//
+// CE QUI NE MARCHAIT PAS
+//   L'ecran gardait l'etat dans une variable locale, remise a « arrivee »
+//   a chaque rechargement de page. Quelqu'un deja pointe se voyait donc
+//   proposer une deuxieme arrivee -- que le serveur refusait ensuite pour
+//   double_arrivee, sans que personne comprenne pourquoi.
+//
+//   Et le serveur ne renvoyait qu'UNE action suivante. En service, il
+//   proposait « depart » et rien d'autre : la pause etait structurellement
+//   inatteignable, donc la deduction des pauses ne pouvait jamais se
+//   produire. Tout le monde etait compte comme travaillant son dejeuner.
+//
+// LA MEME REGLE EXISTE DANS create-pointage (index.ts), qui refuse les
+// enchainements impossibles. C'est volontaire : le serveur ne fait jamais
+// confiance a l'ecran. services.test.js relit sa source pour verifier que
+// les deux disent la meme chose.
+// =====================================================================
+
+export const ETATS = {
+  HORS_SERVICE: 'hors_service',
+  EN_SERVICE: 'en_service',
+  EN_PAUSE: 'en_pause',
+}
+
+/**
+ * Statuts qui comptent pour determiner l'etat courant.
+ *
+ * Volontairement plus large que STATUTS_COMPTES : un pointage a verifier
+ * a bien eu lieu, il change donc l'etat de la personne, meme s'il ne
+ * comptera pas dans les heures tant qu'il n'est pas corrige. Sans ca,
+ * quelqu'un dont l'arrivee est en attente se verrait proposer une
+ * seconde arrivee.
+ */
+export const STATUTS_ETAT = ['accepte', 'corrige', 'en_attente_correction']
+
+/**
+ * Ou en est la personne, et ce qu'elle peut faire maintenant.
+ *
+ * @param evenements  ses pointages (le dernier pertinent suffit, mais on
+ *                    accepte une liste pour eviter un tri a l'appelant)
+ */
+export function etatJournee(evenements = []) {
+  const pertinents = (evenements || [])
+    .filter(e => e && horodatage(e) && STATUTS_ETAT.includes(String(e.statut || '').trim()))
+    .slice()
+    .sort((a, b) => horodatage(a) - horodatage(b))
+
+  const dernier = pertinents[pertinents.length - 1] || null
+  const action = dernier ? dernier.action : null
+
+  // On regarde le DERNIER pointage, pas le dernier d'aujourd'hui : une
+  // equipe de nuit arrivee a 22h part a 6h le lendemain. Filtrer sur la
+  // date du jour la remettrait « hors service » a minuit, en pleine nuit
+  // de travail.
+  if (action === ACTIONS.ARRIVEE || action === ACTIONS.FIN_PAUSE) {
+    return {
+      etat: ETATS.EN_SERVICE,
+      depuis: horodatage(dernier),
+      // DEUX actions possibles, et c'est tout le sujet : on peut partir
+      // en pause ou terminer sa journee.
+      actionsAutorisees: [ACTIONS.DEBUT_PAUSE, ACTIONS.DEPART],
+    }
+  }
+
+  if (action === ACTIONS.DEBUT_PAUSE) {
+    return {
+      etat: ETATS.EN_PAUSE,
+      depuis: horodatage(dernier),
+      actionsAutorisees: [ACTIONS.FIN_PAUSE],
+    }
+  }
+
+  return {
+    etat: ETATS.HORS_SERVICE,
+    depuis: dernier ? horodatage(dernier) : null,
+    actionsAutorisees: [ACTIONS.ARRIVEE],
+  }
+}
+
+export const LIBELLES_ACTIONS = {
+  [ACTIONS.ARRIVEE]: 'Arrivee',
+  [ACTIONS.DEBUT_PAUSE]: 'Debut de pause',
+  [ACTIONS.FIN_PAUSE]: 'Fin de pause',
+  [ACTIONS.DEPART]: 'Depart',
+}
+
+/**
+ * Temps travaille depuis le debut de la journee en cours.
+ *
+ * ATTENTION : ce compteur inclut la session ouverte, donc il AVANCE tant
+ * que la personne n'a pas pointe son depart. C'est ce qu'on veut a
+ * l'ecran -- un salarie veut voir son temps courir. Ce n'est PAS ce
+ * qu'on paie : la paie lit construireJournees(), qui refuse de chiffrer
+ * une journee non terminee.
+ */
+export function minutesEnCours(evenements = [], maintenant = new Date()) {
+  const pertinents = (evenements || [])
+    .filter(e => e && horodatage(e) && STATUTS_ETAT.includes(String(e.statut || '').trim()))
+    .slice()
+    .sort((a, b) => horodatage(a) - horodatage(b))
+
+  let total = 0
+  let debutSession = null
+
+  pertinents.forEach(e => {
+    const t = horodatage(e)
+    if (e.action === ACTIONS.ARRIVEE || e.action === ACTIONS.FIN_PAUSE) {
+      debutSession = t
+    } else if ((e.action === ACTIONS.DEPART || e.action === ACTIONS.DEBUT_PAUSE) && debutSession) {
+      total += minutesEntre(debutSession, t) || 0
+      debutSession = null
+    }
+  })
+
+  if (debutSession) total += minutesEntre(debutSession, maintenant) || 0
+  return total
 }

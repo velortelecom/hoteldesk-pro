@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { MODULE_TABS } from './config.js'
 import { getPermissionsForRole } from './permissions.js'
-import { usePointageStats, usePointages, usePointageSettings, useSitesSummary } from './hooks.js'
+import { useEtatJour, usePointageStats, usePointages, usePointageSettings, useSitesSummary } from './hooks.js'
 
 import DashboardPointage from './components/DashboardPointage.jsx'
 import PointageEmploye from './components/PointageEmploye.jsx'
@@ -10,6 +10,7 @@ import GestionSitesPointage from './components/GestionSitesPointage.jsx'
 import ParametresPointage from './components/ParametresPointage.jsx'
 import StatutPointage from './components/StatutPointage.jsx'
 import CorrectionsPointage from './components/CorrectionsPointage.jsx'
+import ExportPaie from './components/ExportPaie.jsx'
 
 export default function PointageModule({ profile, permissions: permissionsLoader, moduleId }) {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -21,7 +22,13 @@ export default function PointageModule({ profile, permissions: permissionsLoader
   const { stats } = usePointageStats(profile)
   const { pointages, loading: chargementPointages, error: erreurPointages } = usePointages(profile)
   const { sites } = useSitesSummary(profile)
-  const { settings } = usePointageSettings(profile)
+  const { settings, loading: chargementSettings, error: erreurSettings } = usePointageSettings(profile)
+  const {
+    etat: etatJour,
+    loading: chargementEtat,
+    error: erreurEtat,
+    recharger: rechargerEtat,
+  } = useEtatJour(profile)
 
   if (!canView) {
     return (
@@ -96,7 +103,17 @@ export default function PointageModule({ profile, permissions: permissionsLoader
 
       <div style={{ flex: 1, overflow: 'auto', padding: '1.5rem 2rem' }}>
         {activeTab === 'dashboard' && <DashboardPointage stats={stats} sites={sites} />}
-        {activeTab === 'pointage' && <PointageEmploye permissions={permissions} profile={profile} sites={sites} />}
+        {activeTab === 'pointage' && (
+          <PointageEmploye
+            permissions={permissions}
+            profile={profile}
+            sites={sites}
+            etatJour={etatJour}
+            chargementEtat={chargementEtat}
+            erreurEtat={erreurEtat}
+            onPointage={rechargerEtat}
+          />
+        )}
         {activeTab === 'historique' && (
           <HistoriquePointages
             pointages={pointages}
@@ -111,8 +128,16 @@ export default function PointageModule({ profile, permissions: permissionsLoader
             erreur={erreurPointages}
           />
         )}
+        {activeTab === 'paie' && <ExportPaie profile={profile} permissions={permissions} />}
         {activeTab === 'sites' && <GestionSitesPointage sites={sites} />}
-        {activeTab === 'parametres' && <ParametresPointage permissions={permissions} moduleId={moduleId} settings={settings} />}
+        {activeTab === 'parametres' && (
+          <ParametresPointage
+            permissions={permissions}
+            settings={settings}
+            chargement={chargementSettings}
+            erreur={erreurSettings}
+          />
+        )}
 
       </div>
     </div>

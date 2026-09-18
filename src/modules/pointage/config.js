@@ -7,15 +7,26 @@ export const MODULE_TABS = [
   // ce qui n'arrivait jamais. Personne n'a donc jamais vu -- ni ses
   // fausses donnees, ni les vraies anomalies qu'il aurait du montrer.
   { id: 'corrections', label: 'A corriger', icon: '⚠️' },
+  { id: 'paie', label: 'Heures & paie', icon: '💶' },
   { id: 'sites', label: 'Sites', icon: '📍' },
   { id: 'parametres', label: 'Paramètres', icon: '⚙️' },
 ]
 
+// DEFAULT_POINTAGE_SETTINGS decrivait quatre reglages qui n'existent dans
+// aucune table : tolerance de retard, heures par jour, pointage mobile,
+// notifications. Le service les fabriquait en lisant des colonnes sans
+// rapport -- « Tolerance de retard : 50 minutes » etait en realite une
+// precision GPS en METRES.
+//
+// Ce qui suit reflete la table entreprise_parametres_pointage, et rien
+// d'autre. Les valeurs sont celles que la base pose elle-meme par defaut.
 export const DEFAULT_POINTAGE_SETTINGS = {
-  toleranceRetardMinutes: 5,
-  heuresParJour: 8,
-  autoriserPointageMobile: true,
-  notificationRetards: true,
+  parametree: false,
+  precisionGpsMaxMetres: 50,
+  gpsObligatoire: true,
+  autoriserHorsZoneAvecValidation: false,
+  dureeMaxEntrePointagesMinutes: null,
+  methodesActives: ['navigateur'],
 }
 
 export const MODULE_METADATA = {
