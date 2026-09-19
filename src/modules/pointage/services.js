@@ -155,6 +155,12 @@ export async function getPointages(profile, options = {}) {
         employe: [personnel.prenom, personnel.nom].filter(Boolean).join(' ').trim() || 'Employe',
         site: site.nom || 'Site inconnu',
         date: formatDate(journee.debut || journee.fin),
+        // La cle de jour LOCALE (AAAA-MM-JJ), gardee telle quelle a cote
+        // de la date affichee : « 19/09/2026 » se lit bien mais ne se
+        // trie ni ne se regroupe par mois sans la reanalyser -- et la
+        // reanalyser, c'est se tromper un jour sur le fuseau.
+        jour: journee.date || null,
+        periode: (journee.date || '').slice(0, 7) || null,
         entree: formatTime(journee.debut),
         sortie: formatTime(journee.fin),
         pause: journee.minutesPause > 0 ? formaterDuree(journee.minutesPause) : '\u2014',

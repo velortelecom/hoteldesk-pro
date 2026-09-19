@@ -10,6 +10,7 @@ import GestionSitesPointage from './components/GestionSitesPointage.jsx'
 import ParametresPointage from './components/ParametresPointage.jsx'
 import StatutPointage from './components/StatutPointage.jsx'
 import CorrectionsPointage from './components/CorrectionsPointage.jsx'
+import MesHeures from './components/MesHeures.jsx'
 import ExportPaie from './components/ExportPaie.jsx'
 
 export default function PointageModule({ profile, permissions: permissionsLoader, moduleId }) {
@@ -140,6 +141,14 @@ export default function PointageModule({ profile, permissions: permissionsLoader
             chargementEtat={chargementEtat}
             erreurEtat={erreurEtat}
             onPointage={rechargerEtat}
+          />
+        )}
+        {activeTab === 'mes-heures' && (
+          <MesHeures
+            journees={pointages}
+            profile={profile}
+            chargement={chargementPointages}
+            erreur={erreurPointages}
           />
         )}
         {activeTab === 'historique' && (

@@ -19,12 +19,15 @@ export const ROLES_ENCADREMENT = ['responsable', 'admin', 'super_admin']
 
 export const MODULE_TABS = [
   { id: 'dashboard', label: 'Tableau de bord', icon: '📊', roles: ROLES_ENCADREMENT },
-  // Le seul onglet ouvert a tous : c'est la raison d'etre du module.
+  // Ouvert a tous : c'est la raison d'etre du module.
   { id: 'pointage', label: 'Pointage', icon: '⏱️', roles: ROLES_TOUS },
-  // Historique montre les journees de TOUTE l'equipe (ce que la base
-  // veut bien renvoyer). Ce n'est pas l'ecran « mes heures a moi » ;
-  // celui-la reste a faire, et le salarie voit sa journee en cours dans
-  // l'onglet Pointage.
+  // Ouvert a tous aussi, et il le faut : un decompte d'heures que
+  // l'interesse ne peut pas verifier n'est pas un decompte (art.
+  // D.3171-8). L'ecran ne montre que les journees de celui qui regarde.
+  { id: 'mes-heures', label: 'Mes heures', icon: '🕒', roles: ROLES_TOUS },
+  // Historique montre les journees de TOUTE l'equipe. C'est pour ca
+  // qu'il n'est pas l'ecran « mes heures » : on ne donne pas a chacun
+  // les horaires de ses collegues pour qu'il puisse lire les siens.
   { id: 'historique', label: 'Historique', icon: '🗂️', roles: ROLES_ENCADREMENT },
   // L'ecran Corrections existait mais n'etait atteignable par aucun
   // onglet : il ne s'affichait que si activeTab n'etait aucun des cinq,

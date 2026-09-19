@@ -38,13 +38,19 @@ describe('declaration des onglets', () => {
   })
 })
 
-describe('un salarie ne voit que le pointage', () => {
-  test('exactement un onglet', () => {
-    expect(ids('employe')).toEqual(['pointage'])
+describe('un salarie : pointer, et verifier ses propres heures', () => {
+  test('exactement deux onglets', () => {
+    expect(ids('employe')).toEqual(['pointage', 'mes-heures'])
   })
 
-  test('il arrive directement dessus', () => {
+  test('il arrive sur Pointage, pas sur ses heures', () => {
+    // C'est ce qu'il vient faire neuf fois sur dix.
     expect(ongletParDefaut('employe')).toBe('pointage')
+  })
+
+  test('mes-heures lui est ouvert -- sinon son decompte est invérifiable', () => {
+    // Art. D.3171-8 : le salarie doit pouvoir consulter son decompte.
+    expect(ids('employe')).toContain('mes-heures')
   })
 
   test.each(['dashboard', 'historique', 'corrections', 'paie', 'sites', 'parametres'])(
@@ -92,9 +98,9 @@ describe('le super admin passe par is_super_admin, pas par role', () => {
 describe('roles douteux', () => {
   test('un role inconnu est traite en salarie, jamais en admin', () => {
     expect(roleConnu('directeur_general')).toBe('employe')
-    expect(ids('directeur_general')).toEqual(['pointage'])
-    expect(ids(undefined)).toEqual(['pointage'])
-    expect(ids(null)).toEqual(['pointage'])
+    expect(ids('directeur_general')).toEqual(['pointage', 'mes-heures'])
+    expect(ids(undefined)).toEqual(['pointage', 'mes-heures'])
+    expect(ids(null)).toEqual(['pointage', 'mes-heures'])
   })
 
   test('un profil absent ne donne aucun droit', () => {
