@@ -1,26 +1,36 @@
-// DRAFT -- NON EXECUTE -- NON VALIDE EN PRODUCTION
-// Ce fichier depend de la verification du schema reel Supabase.
-//
 // supabase/functions/create-pointage/index.ts
 // Point d'ecriture unique pour la table pointages. Le frontend ne decide
 // jamais du statut ni du motif_refus : tout est calcule ici, cote serveur.
+//
+// =====================================================================
+// LE CORS VIENT DE _shared/http.ts, COMME LES HUIT AUTRES FONCTIONS
+//
+// Cette fonction etait la seule a refabriquer ses en-tetes CORS dans son
+// coin. Les deux versions avaient diverge, et c'est ce qui a casse le
+// pointage en production -- avec le pire symptome possible : « Failed to
+// send a request to the Edge Function », c'est-a-dire une requete que le
+// navigateur bloque AVANT qu'elle parte. Rien dans les logs Supabase,
+// puisque la fonction n'est jamais appelee.
+//
+// Deux defauts, chacun suffisant a lui seul :
+//
+//   1. Allow-Headers ne listait que « authorization, content-type ».
+//      supabase-js envoie aussi « apikey » et « x-client-info ». Le
+//      preflight demandait donc une permission que la reponse ne donnait
+//      pas, et le navigateur jetait l'appel.
+//
+//   2. Allow-Origin renvoyait la valeur BRUTE d'ALLOWED_ORIGIN. Or ce
+//      secret est une LISTE separee par des virgules (production +
+//      previews Vercel). Un en-tete Allow-Origin n'accepte qu'UNE seule
+//      origine : la liste entiere n'en est pas une.
+//
+// _shared/http.ts resout les deux depuis le debut. Le probleme n'etait
+// pas qu'il manquait du code, c'est qu'une regle existait a deux
+// endroits et qu'un seul des deux a ete corrige.
+// =====================================================================
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-const ALLOWED_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") ?? "*";
-
-const corsHeaders = {
-    "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
-    "Access-Control-Allow-Headers": "authorization, content-type",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-function jsonResponse(body: unknown, status: number) {
-    return new Response(JSON.stringify(body), {
-          status,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-}
+import { buildCorsHeaders, jsonResponse as repondreJson } from "../_shared/http.ts";
 
 function haversineMetres(lat1: number, lon1: number, lat2: number, lon2: number): number {
     const R = 6371000;
@@ -199,8 +209,12 @@ const REGISTRE_METHODES: Record<string, ValidateurMethode> = {
 };
 
 Deno.serve(async (req: Request) => {
+    // Les en-tetes dependent de l'origine de CETTE requete : ils se
+    // calculent donc ici, pas une fois pour toutes au chargement.
+    const jsonResponse = (body: unknown, status: number) => repondreJson(body, status, req);
+
     if (req.method === "OPTIONS") {
-          return new Response(null, { headers: corsHeaders });
+          return new Response(null, { headers: buildCorsHeaders(req) });
     }
     if (req.method !== "POST") {
           return jsonResponse({ success: false, error: "method_not_allowed" }, 405);
