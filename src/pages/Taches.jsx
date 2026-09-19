@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { ACTIONS_RELEVE, enregistrerReleve } from '../modules/geolocalisation/services'
 import { construireEcheance, CATEGORIES_TACHE, CATEGORIE_TACHE_DEFAUT } from '../lib/taches'
 import { useMesDepartements } from '../hooks/useMesDepartements'
 import { useDepartements } from '../modules/organisation/hooks.js'
@@ -231,6 +232,18 @@ export default function Taches() {
 
   async function handleStatutChange(id, statut) {
     await supabase.from('taches').update({ statut }).eq('id', id)
+
+    // RELEVE DE POSITION -- seulement a la cloture, et seulement pour
+    // les personnes inscrites au module. Passer une tache « en cours »
+    // n'est pas un acte de presence quelque part ; la terminer, si.
+    //
+    // Volontairement SANS await : la tache est deja enregistree, et
+    // l'ecran ne doit pas attendre apres un GPS. Si le releve echoue,
+    // il echoue seul -- enregistrerReleve ne leve jamais.
+    if (statut === 'terminee') {
+      enregistrerReleve(ACTIONS_RELEVE.TACHE_TERMINEE, { actionId: id })
+    }
+
     fetchTaches()
   }
 
@@ -307,6 +320,10 @@ export default function Taches() {
       .update({ photo_chemin: chemin }).eq('id', tacheId).select('id')
     if (error) throw error
     if (!data || data.length === 0) throw new Error('Photo envoyee mais non rattachee a la tache.')
+
+    // Une photo prise sur place est un acte de presence : on releve.
+    // Sans await, pour la meme raison qu'a la cloture.
+    enregistrerReleve(ACTIONS_RELEVE.PHOTO, { actionId: tacheId })
   }
 
   function choisirPhoto(fichier) {

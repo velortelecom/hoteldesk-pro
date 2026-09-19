@@ -17,6 +17,7 @@ const path = require('path')
 
 const {
   OFFRES, OFFRES_VENDUES, ORDRE_OFFRES, OFFRE_INSCRIPTION, OFFRE_GRATUITE,
+  MODULES_A_LA_CARTE,
   PRIX_STANDARD, TARIF_FONDATEUR, FONDATEURS_MAX, PLAFOND_FORFAIT,
   UTILISATEURS_INCLUS, PRIX_UTILISATEUR_SUP, MODULES_A_VENIR,
   getOffre, rangOffre, modulesInclus, prixMensuel, bandeEffectif,
@@ -192,17 +193,29 @@ describe('registry.js contre offres.js', () => {
     OFFRES.forEach(o => o.modules.forEach(id => expect(ids).toContain(id)))
   })
 
-  test('chaque module est SOIT dans une offre, SOIT a venir -- jamais les deux, jamais aucun', () => {
+  test('chaque module est dans EXACTEMENT une categorie', () => {
     // Depuis que l'effectif et les modules sont deux axes separes, les
     // bandes superieures ne portent plus de contenu. Un module est donc
     // soit disponible (dans une offre), soit pas encore livre (a venir).
     // Un module dans aucune des deux listes serait invisible partout ;
     // dans les deux, il serait annonce comme dispo ET comme a venir.
+    // Trois categories depuis la geolocalisation : dans une offre,
+    // a venir, ou vendu a la carte. Un module dans aucune serait
+    // invisible partout ; dans deux, il serait annonce deux fois.
     const dansUneOffre = OFFRES.flatMap(o => o.modules)
     MODULES_REGISTRY.forEach(mod => {
       const offres = dansUneOffre.filter(id => id === mod.id).length
       const aVenir = MODULES_A_VENIR.includes(mod.id) ? 1 : 0
-      expect(offres + aVenir).toBe(1)
+      const aLaCarte = MODULES_A_LA_CARTE.includes(mod.id) ? 1 : 0
+      expect(offres + aVenir + aLaCarte).toBe(1)
+    })
+  })
+
+  test('un module a la carte EXISTE vraiment', () => {
+    // Vendre a part quelque chose qui n'est pas ecrit serait pire que
+    // de l'annoncer « bientot » : le client paierait pour un squelette.
+    MODULES_A_LA_CARTE.forEach(id => {
+      expect(MODULES_DEVELOPPES).toContain(id)
     })
   })
 
@@ -211,7 +224,8 @@ describe('registry.js contre offres.js', () => {
     // donc c'est ce test qui l'empeche de deriver. Livrer un module sans
     // le retirer d'ici le ferait annoncer "BIENTOT" alors qu'il existe.
     const dansUneOffre = OFFRES.flatMap(o => o.modules)
-    const attendu = MODULES_REGISTRY.map(m => m.id).filter(id => !dansUneOffre.includes(id))
+    const attendu = MODULES_REGISTRY.map(m => m.id)
+      .filter(id => !dansUneOffre.includes(id) && !MODULES_A_LA_CARTE.includes(id))
     expect([...MODULES_A_VENIR].sort()).toEqual([...attendu].sort())
   })
 

@@ -19,7 +19,27 @@ test('le Plan 1 est le plan starter', () => {
 })
 
 test('le Plan 1 ne contient que des modules reellement developpes', () => {
-  expect([...PLAN_1_MODULES].sort()).toEqual([...MODULES_DEVELOPPES].sort())
+  // INCLUSION, plus egalite.
+  //
+  // La regle qui compte est « on ne vend pas ce qui n'existe pas ».
+  // L'egalite disait en plus « tout ce qui existe est dans le pack de
+  // base » -- ce qui etait vrai par hasard, tant qu'aucun module
+  // n'avait vocation a se vendre a part.
+  //
+  // La geolocalisation change ca : elle existe, elle fonctionne, et
+  // elle n'est PAS incluse dans Velor One. La garder dans l'egalite
+  // l'aurait offerte a 39 EUR sans que personne le decide.
+  PLAN_1_MODULES.forEach(id => {
+    expect(MODULES_DEVELOPPES).toContain(id)
+  })
+})
+
+test('un module developpe hors pack de base est un choix, pas un oubli', () => {
+  // Si un module developpe n'est dans aucune offre, c'est qu'il se vend
+  // a part. Ce test ne l'interdit pas -- il oblige a le declarer ici,
+  // pour qu'on sache que la question a ete posee.
+  const horsPackDeBase = MODULES_DEVELOPPES.filter(id => !PLAN_1_MODULES.includes(id))
+  expect(horsPackDeBase).toEqual(['gps'])
 })
 
 test('chaque module du Plan 1 existe dans le registre et est actif', () => {

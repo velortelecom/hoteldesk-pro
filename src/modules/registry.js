@@ -92,13 +92,20 @@ export const MODULES_REGISTRY = [
     widgets: { stats: true, alertes: true },
   },
   {
-    id: 'gps', nom: 'Geolocalisation', version: '0.1.0',
+    id: 'gps', nom: 'Geolocalisation', version: '1.0.0',
     icone: '📍', iconeLib: 'map-pin',
-    description: 'Suivi GPS des equipes terrain en temps reel',
+    // « Suivi en temps reel » etait faux, et pas qu'un peu : une
+    // application web ne peut PAS relever de position en arriere-plan.
+    // Promettre du temps reel a un client, c'est lui vendre ce qu'aucun
+    // navigateur n'autorise.
+    description: 'Ou le travail a ete fait : position relevee a chaque action metier',
     route: '/gps',
-    composant: lazy(() => Promise.resolve({ default: createModuleSquelette('gps') })),
+    composant: lazy(() => import('./geolocalisation/index.jsx')),
     permissionsParRole: {
-      employe:     { voir: true,  creer: false, modifier: false, supprimer: false, exporter: false },
+      // Le salarie n'a rien a faire dans cet ecran : il n'a pas a voir
+      // les positions de ses collegues. Ce qui le concerne -- etre
+      // suivi lui-meme -- lui est dit par le bandeau, en permanence.
+      employe:     { voir: false, creer: false, modifier: false, supprimer: false, exporter: false },
       responsable: { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: true  },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true  },
     },

@@ -14,7 +14,7 @@
 // depend pas de la vigilance de qui que ce soit.
 // =====================================================================
 
-export const MODULES_DEVELOPPES = ['organisation', 'pointage', 'conges']
+export const MODULES_DEVELOPPES = ['organisation', 'pointage', 'conges', 'gps']
 
 export function estModuleDeveloppe(moduleId) {
   return MODULES_DEVELOPPES.indexOf(moduleId) !== -1

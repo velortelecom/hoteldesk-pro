@@ -234,9 +234,27 @@ export const OFFRE_GRATUITE = 'gratuit'
  *   lignes, un fichier, et tout le monde l'a -- du client de 4 personnes
  *   a celui de 30.
  */
+/**
+ * MODULES VENDUS A PART.
+ *
+ * Un module qui EXISTE mais qui n'est dans aucun pack. Ce n'est ni un
+ * oubli ni un module a venir : c'est une decision commerciale.
+ *
+ * La geolocalisation en est le premier cas. Elle fonctionne, mais elle
+ * n'est pas incluse dans Velor One : le Super Admin l'active entreprise
+ * par entreprise, au prix convenu. Le pointage la rend plus exacte, et
+ * elle donne une raison de plus de prendre le pointage -- les deux se
+ * vendent mieux ensemble que l'un des deux offert.
+ *
+ * Sans cette liste, le module tombait entre deux chaises : plus « a
+ * venir » puisqu'il existe, mais dans aucune offre -- donc invisible
+ * partout, ou offert a 39 EUR selon le test qu'on relachait.
+ */
+export const MODULES_A_LA_CARTE = ['gps']
+
 export const MODULES_A_VENIR = [
   'documents', 'rapports', 'facturation', 'clients', 'vehicules', 'stocks',
-  'reservations', 'gps', 'qualite', 'formations', 'securite',
+  'reservations', 'qualite', 'formations', 'securite',
   'planning_avance', 'multi_sites', 'api', 'white_label', 'ia',
 ]
 

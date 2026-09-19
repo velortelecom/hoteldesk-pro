@@ -67,9 +67,15 @@ export const PLAN_GRATUIT_MODULES: readonly string[] = ['organisation'];
 // Liste fermee et verifiee cote serveur : un navigateur ne doit pas pouvoir
 // faire passer 'organisation' ou 'pointage' pour un interet, ni inventer un
 // identifiant.
+// 'gps' n'est PLUS ici depuis le 19/09/2026 : le module existe, il est
+// livre. Il ne fait pas partie d'un pack pour autant -- il se vend a la
+// carte (voir MODULES_A_LA_CARTE dans src/lib/offres.js), active par le
+// super admin entreprise par entreprise. Le laisser dans « a venir »
+// aurait permis a un visiteur de declarer un interet pour quelque chose
+// qui est deja disponible.
 export const MODULES_A_VENIR: readonly string[] = [
   'documents', 'rapports', 'facturation', 'clients', 'vehicules', 'stocks',
-  'reservations', 'gps', 'qualite', 'formations', 'securite',
+  'reservations', 'qualite', 'formations', 'securite',
   'planning_avance', 'multi_sites', 'api', 'white_label', 'ia',
 ];
 
