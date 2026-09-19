@@ -1,16 +1,81 @@
+// =====================================================================
+// QUI VOIT QUOI
+//
+// Un salarie vient pointer. Il n'a rien a faire dans le tableau de bord
+// de l'equipe, dans l'export de paie ni dans les parametres. Chaque
+// onglet declare donc les roles qui y ont droit -- et il DOIT le
+// declarer : un onglet ajoute demain sans liste de roles fait echouer le
+// test, au lieu de s'afficher discretement pour tout le monde.
+//
+// Ce n'est pas la securite : la securite est dans la base. La politique
+// pointages_select n'autorise un salarie a lire QUE ses propres
+// pointages (profile_id = auth.uid()). Meme en forcant un onglet, il ne
+// verrait pas les heures de ses collegues -- PostgreSQL ne les lui
+// enverrait pas. Ce qui suit sert a ne pas montrer a quelqu'un des
+// ecrans qui ne le concernent pas.
+// =====================================================================
+export const ROLES_TOUS = ['employe', 'responsable', 'admin', 'super_admin']
+export const ROLES_ENCADREMENT = ['responsable', 'admin', 'super_admin']
+
 export const MODULE_TABS = [
-  { id: 'dashboard', label: 'Tableau de bord', icon: '📊' },
-  { id: 'pointage', label: 'Pointage', icon: '⏱️' },
-  { id: 'historique', label: 'Historique', icon: '🗂️' },
+  { id: 'dashboard', label: 'Tableau de bord', icon: '📊', roles: ROLES_ENCADREMENT },
+  // Le seul onglet ouvert a tous : c'est la raison d'etre du module.
+  { id: 'pointage', label: 'Pointage', icon: '⏱️', roles: ROLES_TOUS },
+  // Historique montre les journees de TOUTE l'equipe (ce que la base
+  // veut bien renvoyer). Ce n'est pas l'ecran « mes heures a moi » ;
+  // celui-la reste a faire, et le salarie voit sa journee en cours dans
+  // l'onglet Pointage.
+  { id: 'historique', label: 'Historique', icon: '🗂️', roles: ROLES_ENCADREMENT },
   // L'ecran Corrections existait mais n'etait atteignable par aucun
   // onglet : il ne s'affichait que si activeTab n'etait aucun des cinq,
   // ce qui n'arrivait jamais. Personne n'a donc jamais vu -- ni ses
   // fausses donnees, ni les vraies anomalies qu'il aurait du montrer.
-  { id: 'corrections', label: 'A corriger', icon: '⚠️' },
-  { id: 'paie', label: 'Heures & paie', icon: '💶' },
-  { id: 'sites', label: 'Sites', icon: '📍' },
-  { id: 'parametres', label: 'Paramètres', icon: '⚙️' },
+  { id: 'corrections', label: 'A corriger', icon: '⚠️', roles: ROLES_ENCADREMENT },
+  { id: 'paie', label: 'Heures & paie', icon: '💶', roles: ROLES_ENCADREMENT },
+  { id: 'sites', label: 'Sites', icon: '📍', roles: ROLES_ENCADREMENT },
+  { id: 'parametres', label: 'Paramètres', icon: '⚙️', roles: ROLES_ENCADREMENT },
 ]
+
+/** Un role inconnu est traite comme un salarie, jamais comme un admin. */
+export function roleConnu(role) {
+  return ROLES_TOUS.includes(role) ? role : 'employe'
+}
+
+/**
+ * Le role qui compte ici -- celui du PROFIL, pas la seule colonne `role`.
+ *
+ * Un super administrateur n'a pas role = 'super_admin' : il porte
+ * is_super_admin = true, et sa colonne role vaut ce qu'elle vaut dans
+ * l'entreprise qu'il consulte (souvent 'employe', parfois rien). En ne
+ * lisant que `role`, il serait donc traite en salarie et n'aurait qu'un
+ * onglet quand il entre dans une entreprise par le contexte Super Admin.
+ *
+ * C'est aussi ce qui rendait l'entree `super_admin` de permissions.js
+ * inatteignable : un jeu de permissions ecrit pour personne. Il sert
+ * enfin.
+ */
+export function rolePointage(profile) {
+  if (profile?.is_super_admin === true) return 'super_admin'
+  return roleConnu(profile?.role)
+}
+
+/** Les onglets auxquels ce role a droit, dans l'ordre d'affichage. */
+export function ongletsPourRole(role) {
+  const r = roleConnu(role)
+  return MODULE_TABS.filter((tab) => tab.roles.includes(r))
+}
+
+/**
+ * L'onglet ouvert a l'arrivee.
+ *
+ * Un salarie tombe sur « Pointage » : c'est ce qu'il vient faire, et
+ * c'est le seul onglet qu'il a. L'encadrement garde le tableau de bord.
+ */
+export function ongletParDefaut(role) {
+  const visibles = ongletsPourRole(role)
+  const dashboard = visibles.find((tab) => tab.id === 'dashboard')
+  return (dashboard || visibles[0] || { id: 'pointage' }).id
+}
 
 // DEFAULT_POINTAGE_SETTINGS decrivait quatre reglages qui n'existent dans
 // aucune table : tolerance de retard, heures par jour, pointage mobile,

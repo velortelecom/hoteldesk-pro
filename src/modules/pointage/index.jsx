@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { MODULE_TABS } from './config.js'
+import { ongletParDefaut, ongletsPourRole, rolePointage, ROLES_ENCADREMENT } from './config.js'
 import { getPermissionsForRole } from './permissions.js'
 import { useEtatJour, usePointageStats, usePointages, usePointageSettings, useSitesSummary } from './hooks.js'
 
@@ -13,11 +13,27 @@ import CorrectionsPointage from './components/CorrectionsPointage.jsx'
 import ExportPaie from './components/ExportPaie.jsx'
 
 export default function PointageModule({ profile, permissions: permissionsLoader, moduleId }) {
-  const [activeTab, setActiveTab] = useState('dashboard')
+  // Ce que l'utilisateur a CLIQUE. Ce n'est pas forcement ce qu'on
+  // affiche : voir activeTab plus bas.
+  const [ongletDemande, setOngletDemande] = useState(null)
 
-  const role = profile?.role || 'employe'
+  // is_super_admin compris : un super admin entre dans une entreprise
+  // par le contexte, avec la colonne role de cette entreprise.
+  const role = rolePointage(profile)
   const permissions = useMemo(() => getPermissionsForRole(role), [role])
   const canView = permissions.canView && (permissionsLoader?.voir ?? true)
+
+  const onglets = useMemo(() => ongletsPourRole(role), [role])
+  const encadrement = ROLES_ENCADREMENT.includes(role)
+
+  // L'onglet affiche est RECALCULE a partir des onglets autorises, a
+  // chaque rendu. Un onglet auquel le role n'a pas droit ne peut donc
+  // pas devenir actif -- ni par un clic, ni par un etat reste d'un
+  // profil precedent, ni parce que le profil est arrive apres le premier
+  // rendu. Une seule mecanique, pas deux qui peuvent diverger.
+  const activeTab = onglets.some((tab) => tab.id === ongletDemande)
+    ? ongletDemande
+    : ongletParDefaut(role)
 
   const { stats } = usePointageStats(profile)
   const { pointages, loading: chargementPointages, error: erreurPointages } = usePointages(profile)
@@ -57,30 +73,42 @@ export default function PointageModule({ profile, permissions: permissionsLoader
           <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: '#111827' }}>
             ⏱️ Pointage
           </h1>
+          {/* Ces compteurs portent sur l'equipe. Un salarie ne lit que
+              ses propres pointages (la base y veille), alors « 0 presents »
+              lui parlerait de lui a la troisieme personne. On lui dit
+              simplement ce que fait cet ecran. */}
           <p style={{ margin: '0.25rem 0 0', color: '#6b7280', fontSize: '0.875rem' }}>
-            {stats.present} présent{stats.present !== 1 ? 's' : ''}
-            {' • '}
-            {stats.aCorriger} journée{stats.aCorriger !== 1 ? 's' : ''} à corriger
+            {encadrement ? (
+              <>
+                {stats.present} présent{stats.present !== 1 ? 's' : ''}
+                {' • '}
+                {stats.aCorriger} journée{stats.aCorriger !== 1 ? 's' : ''} à corriger
+              </>
+            ) : (
+              'Enregistrez vos arrivées, pauses et départs.'
+            )}
           </p>
         </div>
         <StatutPointage label="Système V1" tone="success" />
       </div>
 
+      {/* Une barre d'onglets avec un seul onglet n'est pas une
+          navigation, c'est une decoration. Le salarie n'en a qu'un. */}
       <div
         style={{
           background: 'white',
           borderBottom: '1px solid #e5e7eb',
           padding: '0 2rem',
-          display: 'flex',
+          display: onglets.length > 1 ? 'flex' : 'none',
           gap: '0',
           overflowX: 'auto',
         }}
       >
-        {MODULE_TABS.map((tab) => (
+        {onglets.map((tab) => (
           <button
             key={tab.id}
             type="button"
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => setOngletDemande(tab.id)}
             style={{
               padding: '0.875rem 1.25rem',
               border: 'none',
