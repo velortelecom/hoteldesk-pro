@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase'
+import { messageErreurEdge } from '../../lib/edgeErreur'
 import { DEFAULT_POINTAGE_SETTINGS } from './config.js'
 import {
   ANOMALIES, construireJournees, etatJournee, formaterDuree,
@@ -444,11 +445,26 @@ export function messageRefus(data) {
 
   switch (code) {
     case 'module_inactive':
-      return 'Le module Pointage n\'est pas actif pour votre entreprise. Contactez Velor One.'
+      return 'Le module Pointage n\'est pas actif pour votre entreprise. '
+        + 'Si vous y etes abonne, la fonction create-pointage doit etre redeployee.'
     case 'methode_disabled':
       return 'Cette facon de pointer n\'est pas autorisee dans votre entreprise.'
     case 'methode_unknown':
-      return 'Methode de pointage inconnue.'
+      // Cas typique : la fonction serveur n'a pas ete redeployee et ne
+      // connait pas encore la methode « navigateur ».
+      return 'Cette facon de pointer n\'est pas reconnue par le serveur. '
+        + 'La fonction create-pointage doit etre redeployee.'
+    case 'double_arrivee':
+      return 'Vous avez deja pointe votre arrivee. Rechargez la page.'
+    case 'depart_sans_arrivee':
+      return 'Aucune arrivee en cours : impossible de pointer un depart.'
+    case 'pause_incoherente':
+      return 'Cette pause ne s\'enchaine pas avec votre dernier pointage. Rechargez la page.'
+    case 'invalid_token':
+    case 'missing_token':
+      return 'Votre session a expire. Reconnectez-vous.'
+    case 'profile_not_found':
+      return 'Votre profil est introuvable. Reconnectez-vous.'
     case 'gps_manquant':
       return 'Position introuvable. Autorisez la localisation, ou pointez sans position si votre entreprise l\'autorise.'
     case 'site_non_configure':
@@ -464,10 +480,36 @@ export function messageRefus(data) {
   }
 }
 
+/**
+ * Le VRAI motif du refus, pas « non-2xx status code ».
+ *
+ * supabase.functions.invoke() rend toujours la meme erreur :
+ * « Edge Function returned a non-2xx status code ». Le motif reel --
+ * module_inactive, methode_disabled, gps_manquant -- est dans le CORPS
+ * de la reponse, accessible via error.context.
+ *
+ * Je l'ai appris a mes depens : l'ecran affichait cette phrase inutile
+ * alors que la fonction disait precisement ce qui n'allait pas. Le
+ * helper qui lit ce corps existait deja dans le projet (lib/edgeErreur),
+ * ecrit pour exactement ce probleme sur un autre ecran -- je ne l'avais
+ * pas branche ici.
+ */
 async function messagePointage(error) {
-  // On garde le code cote console : c'est ce qui permet de diagnostiquer.
-  console.error('[pointage] create-pointage a echoue : ' + (error?.message || '-'))
+  // Le helper renvoie « explication (code) » quand il trouve un code.
+  const detaille = await messageErreurEdge(error, '')
+  console.error('[pointage] create-pointage a echoue : ' + (detaille || error?.message || '-'))
+
+  const code = extraireCode(detaille)
+  if (code) return messageRefus({ error: code })
+  if (detaille) return detaille
+
   return error?.message || 'Le service de pointage est injoignable.'
+}
+
+/** « Explication (module_inactive) » -> « module_inactive ». */
+function extraireCode(texte) {
+  const trouve = /\(([a-z_]+)\)\s*$/.exec(String(texte || ''))
+  return trouve ? trouve[1] : null
 }
 
 /**
@@ -497,7 +539,7 @@ export async function getEvenementsMois(profile, periode) {
 
   const { data, error } = await supabase
     .from('pointages')
-    .select('id, profile_id, site_id, action, statut, horodatage_evenement')
+    .select('id, profile_id, site_id, action, statut, ip_address, horodatage_evenement')
     .eq('entreprise_id', profile.entreprise_id)
     .gte('horodatage_evenement', debut.toISOString())
     .lt('horodatage_evenement', fin.toISOString())

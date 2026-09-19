@@ -300,3 +300,30 @@ describe('l export de paie', () => {
     expect(ecran).toMatch(/n&apos;entre/)
   })
 })
+
+describe('les erreurs de la fonction serveur sont lisibles', () => {
+  const services = codeSeul('services.js')
+
+  test('le corps de la reponse est lu, pas seulement le message generique', () => {
+    // supabase.functions.invoke rend toujours « Edge Function returned a
+    // non-2xx status code ». Le motif reel est dans error.context, et
+    // c'est ce qu'on affichait a l'utilisateur : rien.
+    expect(services).toMatch(/messageErreurEdge\(/)
+    expect(services).toMatch(/from '\.\.\/\.\.\/lib\/edgeErreur'/)
+  })
+
+  test('les codes d enchainement du serveur sont traduits', () => {
+    const { messageRefus } = require('./services')
+    expect(messageRefus({ error: 'double_arrivee' })).toMatch(/deja pointe votre arrivee/)
+    expect(messageRefus({ error: 'depart_sans_arrivee' })).toMatch(/Aucune arrivee en cours/)
+    expect(messageRefus({ error: 'pause_incoherente' })).toMatch(/ne s'enchaine pas/)
+  })
+
+  test('un serveur pas a jour le dit au lieu de rester muet', () => {
+    // C'est le cas exact rencontre en production : le front envoyait
+    // « navigateur », la fonction deployee ne connaissait que « gps ».
+    const { messageRefus } = require('./services')
+    expect(messageRefus({ error: 'methode_unknown' })).toMatch(/redeployee/)
+    expect(messageRefus({ error: 'module_inactive' })).toMatch(/redeployee/)
+  })
+})
