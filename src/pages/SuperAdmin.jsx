@@ -333,10 +333,18 @@ export default function SuperAdmin() {
     const modsDefaut = PLAN_MODULES[plan] || MODULES_REGISTRY.filter(m => m.actif).map(m => m.id)
     setForm(f => ({
       ...f, plan,
+      // Sur mesure : prix null dans la grille, donc 0 ici. C'est voulu --
+      // il n'y a pas de tarif a proposer, il se negocie et se saisit
+      // juste en dessous. La facturation signale une entreprise restee
+      // a 0 plutot que d'emettre une facture vide en silence.
       prix_mensuel: planData?.prix || 0,
-      // 999 signifiait « pas de limite », ce qui revenait a n'jamais
+      // 999 signifiait « pas de limite », ce qui revenait a ne jamais
       // facturer de supplement. La limite est celle du PACK.
-      max_utilisateurs: planData?.max_utilisateurs || limiteUtilisateurs(planData?.plan),
+      //
+      // (planData.plan n'existe pas -- PLANS derive de OFFRES et porte
+      // « id ». Passer l'argument recu est a la fois juste et plus
+      // direct.)
+      max_utilisateurs: planData?.max_utilisateurs || limiteUtilisateurs(plan),
       modules_selectionnes: modsDefaut,
     }))
   }
