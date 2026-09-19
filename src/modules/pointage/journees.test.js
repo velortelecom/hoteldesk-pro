@@ -451,3 +451,43 @@ describe('le compteur du jour', () => {
       .toBe(journee.minutesTravaillees)
   })
 })
+
+// =====================================================================
+// LE SEUIL DE JOURNEE INVRAISEMBLABLE VIT A DEUX ENDROITS
+//
+// Ici, pour signaler une journee a corriger. Et en SQL, pour que la
+// geolocalisation CESSE de relever la position de quelqu'un qui a
+// simplement oublie un bouton -- le suivre toute la nuit pour cette
+// raison serait indefendable.
+//
+// Les deux ont diverge une fois, le temps d'un commit : 16 h ici, 15 h
+// en SQL. Ce test existe pour que ca ne recommence pas.
+// =====================================================================
+describe('le seuil est le meme en JS et en SQL', () => {
+  const fs = require('fs')
+  const path = require('path')
+  const { DUREE_INVRAISEMBLABLE_HEURES, DUREE_INVRAISEMBLABLE_MINUTES } = require('./journees')
+
+  const sql = fs.readFileSync(
+    path.join(__dirname, '..', '..', '..', 'supabase', 'migrations',
+      '20260919_0005_geoloc_temps_de_travail.sql'),
+    'utf8',
+  )
+
+  test('les deux unites du meme seuil restent coherentes', () => {
+    expect(DUREE_INVRAISEMBLABLE_MINUTES).toBe(DUREE_INVRAISEMBLABLE_HEURES * 60)
+  })
+
+  test('le SQL declare exactement le meme nombre d heures', () => {
+    const trouve = sql.match(/duree_service_invraisemblable_heures\(\)[\s\S]{0,200}?select\s+(\d+)\s*;/)
+    // Sans ce garde-fou, une fonction renommee ferait passer le test
+    // suivant sur null -- il reussirait sans rien verifier.
+    expect(trouve).not.toBeNull()
+    expect(Number(trouve[1])).toBe(DUREE_INVRAISEMBLABLE_HEURES)
+  })
+
+  test('la geolocalisation coupe bien au-dela de ce seuil', () => {
+    expect(sql).toMatch(/v_heures <= public\.duree_service_invraisemblable_heures\(\)/)
+    expect(sql).toMatch(/suivi interrompu/)
+  })
+})

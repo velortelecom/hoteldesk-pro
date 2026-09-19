@@ -73,8 +73,18 @@ export const LIBELLES_ANOMALIES = {
  * Au-dela de cette duree, une journee est signalee. Ce n'est pas une
  * limite legale, c'est un detecteur d'oubli : le cas courant est un
  * depart jamais pointe le soir, ferme par l'arrivee du lendemain.
+ *
+ * LE MEME SEUIL VIT EN SQL -- duree_service_invraisemblable_heures(),
+ * migration 20260919_0005. La geolocalisation s'en sert pour CESSER de
+ * relever la position de quelqu'un qui a simplement oublie un bouton :
+ * le suivre toute la nuit pour cette raison serait indefendable.
+ *
+ * Les deux doivent dire le meme nombre. Ils ont diverge une fois -- 16
+ * ici, 15 en SQL -- le temps d'un commit, et journees.test.js relit
+ * desormais le SQL pour casser le build si ca recommence.
  */
-export const DUREE_INVRAISEMBLABLE_MINUTES = 16 * 60
+export const DUREE_INVRAISEMBLABLE_HEURES = 15
+export const DUREE_INVRAISEMBLABLE_MINUTES = DUREE_INVRAISEMBLABLE_HEURES * 60
 
 const MS_PAR_MINUTE = 60000
 
