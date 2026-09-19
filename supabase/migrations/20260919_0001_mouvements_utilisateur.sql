@@ -105,8 +105,31 @@ begin
     v_mouvement := case when coalesce(new.actif, true) then 'entree' else 'sortie' end;
   end if;
 
-  insert into public.mouvements_utilisateur (entreprise_id, profile_id, mouvement, origine)
-  values (new.entreprise_id, new.id, v_mouvement, 'declencheur');
+  -- ======================================================
+  -- RIEN ICI NE DOIT EMPECHER DE CREER UN COMPTE.
+  --
+  -- Un declencheur qui leve une exception annule TOUTE la
+  -- transaction : la ligne profiles ne serait pas ecrite et
+  -- l'inscription echouerait. Autrement dit, un defaut dans
+  -- une fonction comptable empecherait d'embaucher.
+  --
+  -- L'ordre des priorites est clair : creer le compte est le
+  -- metier, tracer le mouvement est la comptabilite. En cas
+  -- d'echec, on perd la trace, pas le compte.
+  --
+  -- On ne se tait pas pour autant. L'echec part en WARNING
+  -- dans les journaux Postgres AVEC sa raison, et le controle
+  -- « Comptes ACTIFS sans aucune trace » en fin de fichier
+  -- rend le trou visible a tout moment. Une erreur avalee sans
+  -- bruit serait pire que le probleme qu'on evite.
+  -- ======================================================
+  begin
+    insert into public.mouvements_utilisateur (entreprise_id, profile_id, mouvement, origine)
+    values (new.entreprise_id, new.id, v_mouvement, 'declencheur');
+  exception when others then
+    raise warning 'mouvement_utilisateur non trace (profil=%, mouvement=%) : % / %',
+      new.id, v_mouvement, sqlstate, sqlerrm;
+  end;
 
   return new;
 end $$;
