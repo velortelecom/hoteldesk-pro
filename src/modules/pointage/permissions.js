@@ -2,10 +2,20 @@
 // =====================================================================
 // canExport : qui peut sortir le classeur des heures.
 //
-// Un salarie voit SES heures, il n'exporte pas celles de toute
-// l'entreprise -- ce serait lui donner le detail des horaires de ses
-// collegues. C'est le meme decoupage que partout ailleurs : consulter
-// ce qui vous concerne, ce n'est pas lire le dossier des autres.
+// Un salarie voit SES heures dans l'onglet « Mes heures », il n'exporte
+// rien -- ni celles de l'entreprise, ni les siennes. C'est le meme
+// decoupage que partout ailleurs : consulter ce qui vous concerne, ce
+// n'est pas lire le dossier des autres.
+//
+// LA QUESTION A ETE POSEE, ET TRANCHEE
+//   « Et s'il veut son releve ? » Il le demande a son responsable, qui
+//   l'exporte et le lui envoie. Une piece qui sert de preuve d'heures
+//   sort par une personne identifiee, pas par un telechargement
+//   silencieux -- et le responsable sait alors qu'une contestation
+//   arrive.
+//
+//   C'est une decision, pas un oubli : n'ajoutez pas de bouton
+//   « exporter mes heures » pour rendre service. Un test le refuse.
 // =====================================================================
 export const ROLE_POINTAGE_PERMISSIONS = {
   employe: {

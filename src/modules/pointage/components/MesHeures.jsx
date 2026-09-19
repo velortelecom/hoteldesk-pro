@@ -30,6 +30,7 @@
 import React, { useMemo, useState } from 'react'
 import { formaterDuree } from '../journees.js'
 import { libelleMois } from '../exportPaie.js'
+import { ROLES_ENCADREMENT, rolePointage } from '../config.js'
 
 const carte = { background: 'white', border: '1px solid #e5e7eb', borderRadius: '12px', padding: '1rem' }
 const th = { padding: '0.75rem 0.5rem', textAlign: 'left', color: '#6b7280', fontWeight: 600, whiteSpace: 'nowrap' }
@@ -41,6 +42,8 @@ function periodeCourante() {
 }
 
 export default function MesHeures({ journees = [], profile, chargement = false, erreur = null }) {
+  const encadrement = ROLES_ENCADREMENT.includes(rolePointage(profile))
+
   const miennes = useMemo(
     () => (journees || []).filter((j) => j && j.profileId && j.profileId === profile?.id),
     [journees, profile?.id],
@@ -173,6 +176,16 @@ export default function MesHeures({ journees = [], profile, chargement = false, 
                 Une journee en jaune n&apos;a pas pu etre calculee &mdash; il y manque un
                 pointage. Signalez-la a votre responsable : vous ne pouvez pas corriger
                 vos propres heures, c&apos;est ce qui leur donne leur valeur.
+              </p>
+            )}
+
+            {/* Dire ou s'adresser vaut mieux qu'un bouton absent sans
+                explication : sinon la personne cherche, ne trouve pas,
+                et croit que ca ne se fait pas. */}
+            {!encadrement && (
+              <p style={{ margin: '0.75rem 0 0', fontSize: '0.8125rem', color: '#6b7280', lineHeight: 1.6 }}>
+                Besoin de ce releve par ecrit ? Demandez-le a votre responsable :
+                il peut l&apos;exporter et vous l&apos;envoyer.
               </p>
             )}
           </div>
