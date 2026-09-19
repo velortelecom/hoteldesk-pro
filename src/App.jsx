@@ -20,6 +20,8 @@ import Inscription from './pages/Inscription'
 import Offres from './pages/Offres'
 import { ModuleNonAutorise } from './pages/ModuleEnPreparation'
 import { BrandMark } from './branding/Brand'
+import { useGeolocalisation } from './modules/geolocalisation/hooks'
+import BandeauGeolocalisation from './modules/geolocalisation/components/BandeauGeolocalisation'
 
 // Module Conges charge en lazy (disponible pour tous les admins)
 const CongesModule = lazy(() => import('./modules/conges/index.jsx'))
@@ -69,6 +71,11 @@ export default function App() {
 
 function AppInner() {
   const { user, profile, loading: authLoading, signOut, isSuperAdmin, entrepriseId, setContexteEntreprise } = useAuth()
+
+  // Suivi de position : l'etat, et le releve de connexion. Le hook ne
+  // fait rien pour quelqu'un qui n'est pas inscrit au module -- pas
+  // meme demander sa position au navigateur.
+  const geo = useGeolocalisation(profile)
   const { modulesActifs, catalogue } = useModules()
   const [page, setPage] = useState(() => normalizePageHash())
   const [menuOpen, setMenuOpen] = useState(false)
@@ -237,6 +244,11 @@ function AppInner() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#F5F6FA', fontFamily: "'Inter', sans-serif" }}>
       <MobileStyles />
+      {/* Information permanente, et non une alerte : une personne suivie
+          toute l'annee n'a pas besoin d'un bandeau rouge a chaque ecran,
+          mais l'information doit etre la au moment ou la question se
+          pose -- un dimanche soir, en ouvrant l'application. */}
+      <BandeauGeolocalisation inscrit={geo.inscrit} charge={geo.charge} />
       {/* Header */}
       <header style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '0 24px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
