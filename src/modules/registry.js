@@ -109,7 +109,11 @@ export const MODULES_REGISTRY = [
       responsable: { voir: true,  creer: true,  modifier: true,  supprimer: false, exporter: true  },
       admin:       { voir: true,  creer: true,  modifier: true,  supprimer: true,  exporter: true  },
     },
-    // Pas encore livre : n'appartient a aucune offre.
+    // plans: [] n'est PAS un oubli et ne veut plus dire « pas livre ».
+    // Le module existe et fonctionne ; il n'est dans aucun pack parce
+    // qu'il se vend A LA CARTE (MODULES_A_LA_CARTE dans offres.js), et
+    // le Super Admin l'active entreprise par entreprise, au prix
+    // convenu. Le remettre dans un pack, c'est l'offrir a 39 EUR.
     dependances: [], plans: [],
     templates: ['btp', 'nettoyage', 'maintenance', 'collectivite'],
     ordre: 20, categorie: 'terrain', couleur: '#10B981', badge: 'BETA', actif: true,

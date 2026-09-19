@@ -11,7 +11,7 @@ import { BrandMark, APP_URL } from '../branding/Brand'
 import { buildCreationSlug, buildEditionForm } from './superAdminUtils'
 import { buildDependencyErrorMessage, buildEntrepriseUpdatePayload, diffModulesEntreprise, mapSuperAdminError } from './superAdminControlUtils'
 import { MODULES_DEVELOPPES } from '../lib/modulesDeveloppes'
-import { OFFRES, PRIX_STANDARD, UTILISATEURS_INCLUS, limiteUtilisateurs } from '../lib/offres'
+import { MODULES_A_LA_CARTE, OFFRES, PRIX_STANDARD, UTILISATEURS_INCLUS, limiteUtilisateurs, modulesApresChangementDePack } from '../lib/offres'
 import { messageSuppressionMembre } from '../lib/erreurSuppressionMembre'
 import SelecteurPoste from '../components/SelecteurPoste'
 import { departementsApresChoixPoste } from '../lib/postesDepartements'
@@ -54,12 +54,18 @@ function infoEssai(e) {
   if (jours <= 3) return { texte: 'Essai - J-' + jours + ', a rappeler', fond: '#FFFBEB', trait: '#FDE68A', encre: '#92400E' }
   return { texte: 'Essai - ' + jours + ' j restants', fond: '#EFF6FF', trait: '#BFDBFE', encre: '#1E40AF' }
 }
-const PLAN_MODULES = {
-  starter: ['organisation','conges'],
-  business: ['organisation','conges','documents','rapports'],
-  premium: ['organisation','conges','documents','rapports','vehicules','stocks','qualite','statistiques','planning_avance'],
-  enterprise: null,
-}
+// PLAN_MODULES a ete supprime le 19/09/2026.
+//
+// C'etait une CINQUIEME table de ce que contient un pack, ecrite en dur
+// ici, et elle avait deja diverge de la grille :
+//   - starter n'y contenait pas 'pointage' -- toucher au pack d'un
+//     client Velor One lui RETIRAIT le pointage ;
+//   - elle listait 'statistiques', qui n'existe nulle part ailleurs ;
+//   - enterprise valait null, donc « tous les modules actifs » -- un
+//     client Sur mesure recevait la geolocalisation gratuitement.
+//
+// La seule source est maintenant modulesInclus() dans offres.js, la meme
+// que la page d'inscription et la facturation.
 
 function StatCard({ titre, valeur, couleur }) {
   return (
@@ -289,7 +295,14 @@ export default function SuperAdmin() {
       secteur: secteurKey,
       departements_selectionnes: depts,
       postes_selectionnes: postesDefaut,
-      modules_selectionnes: modsReco,
+      // Meme raison que pour le pack : changer le secteur d'activite ne
+      // doit pas retirer un module vendu a la carte.
+      modules_selectionnes: [
+        ...modsReco,
+        ...(f.modules_selectionnes || []).filter(
+          id => MODULES_A_LA_CARTE.includes(id) && !modsReco.includes(id),
+        ),
+      ],
     }))
   }
 
@@ -330,7 +343,6 @@ export default function SuperAdmin() {
 
   function changerPlan(plan) {
     const planData = PLANS[plan]
-    const modsDefaut = PLAN_MODULES[plan] || MODULES_REGISTRY.filter(m => m.actif).map(m => m.id)
     setForm(f => ({
       ...f, plan,
       // Sur mesure : prix null dans la grille, donc 0 ici. C'est voulu --
@@ -345,7 +357,10 @@ export default function SuperAdmin() {
       // « id ». Passer l'argument recu est a la fois juste et plus
       // direct.)
       max_utilisateurs: planData?.max_utilisateurs || limiteUtilisateurs(plan),
-      modules_selectionnes: modsDefaut,
+      // Les modules du pack, PLUS ceux vendus a la carte que l'entreprise
+      // a deja. Un changement de tarif ne retire pas un module paye a
+      // part : pour le retirer, on le decoche.
+      modules_selectionnes: modulesApresChangementDePack(plan, f.modules_selectionnes),
     }))
   }
 
@@ -1313,6 +1328,17 @@ async function createEmploye(entrepriseId) {
                     <div style={{ fontSize: 12, marginTop: 6 }}>
                       Le client perdra ces menus. Ses donnees ne sont pas supprimees.
                     </div>
+                    {/* Un module a la carte est facture a part : le retirer
+                        n'est pas un ajustement de pack, c'est une
+                        resiliation. L'ecran doit le dire ici, pas laisser
+                        le decouvrir sur la facture suivante. */}
+                    {diff.aRetirer.some(id => MODULES_A_LA_CARTE.includes(id)) && (
+                      <div style={{ fontSize: 12, marginTop: 6, fontWeight: 700 }}>
+                        {diff.aRetirer.filter(id => MODULES_A_LA_CARTE.includes(id)).map(nomModule).join(', ')}
+                        {' '}se vend a la carte, hors pack : c&apos;est une resiliation, pas un
+                        ajustement de tarif.
+                      </div>
+                    )}
                   </div>
                 )}
 

@@ -292,6 +292,30 @@ export function modulesInclus(offreId) {
   return vus
 }
 
+/**
+ * Ce que devient la selection de modules quand on change le pack.
+ *
+ * POURQUOI CETTE FONCTION EXISTE
+ *   Le formulaire du Super Admin remplacait la selection par celle du
+ *   pack. Tant que tout module appartenait a un pack, c'etait sans
+ *   consequence. Depuis que la geolocalisation se vend A LA CARTE, ca ne
+ *   l'est plus : changer le pack d'un client qui paie la geoloc a part la
+ *   lui RETIRAIT, en silence, comme effet de bord d'une modification de
+ *   tarif. Personne n'aurait fait le lien.
+ *
+ *   Un module a la carte ne s'active pas avec un pack ; il ne se
+ *   desactive donc pas avec un pack non plus. Pour le retirer, on le
+ *   decoche -- c'est explicite, et l'apercu le montre avant d'ecrire.
+ *
+ * @param offreId           le pack vise
+ * @param selectionActuelle les modules actuellement coches
+ */
+export function modulesApresChangementDePack(offreId, selectionActuelle = []) {
+  const duPack = modulesInclus(offreId)
+  const aLaCarteGardes = (selectionActuelle || [])
+    .filter(id => MODULES_A_LA_CARTE.includes(id) && !duPack.includes(id))
+  return [...duPack, ...aLaCarteGardes]
+}
 
 /**
  * Prix mensuel d'une offre pour un effectif donne.
