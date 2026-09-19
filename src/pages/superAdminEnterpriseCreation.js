@@ -1,3 +1,5 @@
+import { limiteUtilisateurs } from '../lib/offres'
+
 export function buildEnterpriseCreationPayload(form, entData) {
   return {
     entreprise: {
@@ -7,7 +9,11 @@ export function buildEnterpriseCreationPayload(form, entData) {
       plan: entData.plan,
       actif: entData.actif !== false,
       prix_mensuel: Number(entData.prix_mensuel || 0),
-      max_utilisateurs: Number(entData.max_utilisateurs || 0),
+      // Un 0 ferait facturer CHAQUE utilisateur en supplement. A defaut
+      // de valeur saisie, la limite est celle du pack choisi.
+      max_utilisateurs: Number(entData.max_utilisateurs) > 0
+        ? Number(entData.max_utilisateurs)
+        : limiteUtilisateurs(entData.plan),
       email_contact: entData.email_contact || null,
       telephone: entData.telephone || null,
       adresse: entData.adresse || null,

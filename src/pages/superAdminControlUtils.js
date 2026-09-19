@@ -1,3 +1,5 @@
+import { limiteUtilisateurs } from '../lib/offres'
+
 export function buildEntrepriseUpdatePayload(form) {
   return {
     nom: form.nom,
@@ -6,7 +8,10 @@ export function buildEntrepriseUpdatePayload(form) {
     plan: form.plan,
     actif: form.actif !== false,
     prix_mensuel: Number(form.prix_mensuel || 0),
-    max_utilisateurs: Number(form.max_utilisateurs || 0),
+    // Un 0 ferait facturer CHAQUE utilisateur en supplement.
+    max_utilisateurs: Number(form.max_utilisateurs) > 0
+      ? Number(form.max_utilisateurs)
+      : limiteUtilisateurs(form.plan),
     email_contact: form.email_contact || null,
     telephone: form.telephone || null,
     adresse: form.adresse || null,

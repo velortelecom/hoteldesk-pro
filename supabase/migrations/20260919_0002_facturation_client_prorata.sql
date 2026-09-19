@@ -235,7 +235,7 @@ begin
       v_ent.id, v_ent.nom, v_ent.inscrite, v_ent.plan,
       v_ent.prix_mensuel, v_ent.tarif_fondateur, v_dernier,
       v_debut, p_jusqu_au, 0,
-      public.utilisateurs_inclus(v_ent.max_utilisateurs),
+      public.utilisateurs_inclus(v_ent.plan, v_ent.max_utilisateurs),
       0::numeric, 0::numeric, 0::numeric, '[]'::jsonb, '[]'::jsonb,
       case
         when v_dernier is not null
@@ -251,7 +251,7 @@ begin
   -- n'en a pas : son plafond est un VRAI plafond, le depasser veut dire
   -- passer a Velor One, pas payer 2 EUR de plus.
   v_inclus := case when v_ent.plan = 'gratuit' then null
-                   else public.utilisateurs_inclus(v_ent.max_utilisateurs) end;
+                   else public.utilisateurs_inclus(v_ent.plan, v_ent.max_utilisateurs) end;
 
   select * into v_sup
   from public.prorata_utilisateurs_sup(p_entreprise_id, v_inclus, 2::numeric, v_debut, p_jusqu_au);
@@ -477,27 +477,54 @@ grant execute on function public.annuler_facturation_client(uuid, text) to authe
 -- recopier -- une regle recopiee est une regle qui divergera. Le
 -- controle en fin de fichier compare les deux a chaque passage.
 drop function if exists public.utilisateurs_inclus(integer);
+drop function if exists public.utilisateurs_inclus(text, integer);
 
-create function public.utilisateurs_inclus(p_max_utilisateurs integer)
+create function public.utilisateurs_inclus(
+  p_plan             text,
+  p_max_utilisateurs integer default null
+)
 returns integer
 language sql
 immutable
 as $$
-  -- max_utilisateurs a ete rempli avec 0 ou 999 par d'anciens ecrans.
-  -- Un 0 ferait facturer chaque utilisateur en supplement, un 999 n'en
-  -- ferait facturer aucun. Quand la valeur n'est pas utilisable, on
-  -- renvoie NULL : pas de supplement, et l'ecran peut le dire.
+  -- LA LIMITE APPARTIENT AU PACK.
+  --
+  -- entreprises.max_utilisateurs etait ecrit par six endroits avec des
+  -- replis contradictoires : 0 ici, 999 la, 10 ailleurs. Un 0 ferait
+  -- facturer CHAQUE utilisateur en supplement ; un 999 n'en ferait
+  -- facturer aucun. Meme entreprise, deux factures opposees selon
+  -- l'ecran par lequel elle a ete creee.
+  --
+  -- La colonne reste un amenagement -- un forfait negocie par le Super
+  -- Admin doit etre respecte -- mais seulement si elle est EXPLOITABLE.
+  -- Sinon on retombe sur ce que le client a achete, au lieu de renoncer
+  -- a facturer.
+  --
+  -- Ces limites sont la copie SQL de OFFRES (src/lib/offres.js).
+  -- offres.test.js relit ce fichier et casse le build si elles
+  -- divergent -- meme verrou que pour la RPC d'inscription.
   select case
-           when p_max_utilisateurs is null then null
-           when p_max_utilisateurs <= 0 then null
-           when p_max_utilisateurs > 30 then null
-           else p_max_utilisateurs
+           when p_max_utilisateurs is not null
+                and p_max_utilisateurs > 0
+                and p_max_utilisateurs <= 30
+             then p_max_utilisateurs
+           else (
+             select o.limite
+             from (values
+               ('gratuit',    3),
+               ('starter',    10),
+               ('business',   20),
+               ('premium',    30),
+               ('enterprise', null::integer)
+             ) as o(plan, limite)
+             where o.plan = p_plan
+           )
          end;
 $$;
 
-comment on function public.utilisateurs_inclus(integer) is
-  'Utilisateurs inclus dans le forfait. NULL = valeur inexploitable, '
-  'donc aucun supplement facture. Copie unique de la regle.';
+comment on function public.utilisateurs_inclus(text, integer) is
+  'Utilisateurs inclus : la limite du PACK, la colonne ne servant que '
+  'd''amenagement quand elle est exploitable. NULL = aucun supplement.';
 
 drop function if exists public.prorata_utilisateurs_sup(uuid, integer, numeric, date, date);
 
@@ -611,4 +638,16 @@ select cas,
        obtenu,
        attendu,
        case when obtenu = attendu then 'OK' else 'A REVOIR' end as verdict
-from essais;
+from essais
+union all
+select 'Limite du pack Velor One', (select public.utilisateurs_inclus('starter', 0))::numeric, 10::numeric,
+       case when public.utilisateurs_inclus('starter', 0) = 10 then 'OK' else 'A REVOIR' end
+union all
+select 'Limite du pack Business', (select public.utilisateurs_inclus('business', 999))::numeric, 20::numeric,
+       case when public.utilisateurs_inclus('business', 999) = 20 then 'OK' else 'A REVOIR' end
+union all
+select 'Forfait negocie respecte', (select public.utilisateurs_inclus('starter', 15))::numeric, 15::numeric,
+       case when public.utilisateurs_inclus('starter', 15) = 15 then 'OK' else 'A REVOIR' end
+union all
+select 'Sur mesure : aucune limite', coalesce((select public.utilisateurs_inclus('enterprise', null))::numeric, -1), -1::numeric,
+       case when public.utilisateurs_inclus('enterprise', null) is null then 'OK' else 'A REVOIR' end;

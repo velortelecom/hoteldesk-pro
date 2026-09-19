@@ -11,7 +11,7 @@ import { BrandMark, APP_URL } from '../branding/Brand'
 import { buildCreationSlug, buildEditionForm } from './superAdminUtils'
 import { buildDependencyErrorMessage, buildEntrepriseUpdatePayload, diffModulesEntreprise, mapSuperAdminError } from './superAdminControlUtils'
 import { MODULES_DEVELOPPES } from '../lib/modulesDeveloppes'
-import { OFFRES, PRIX_STANDARD, UTILISATEURS_INCLUS } from '../lib/offres'
+import { OFFRES, PRIX_STANDARD, UTILISATEURS_INCLUS, limiteUtilisateurs } from '../lib/offres'
 import { messageSuppressionMembre } from '../lib/erreurSuppressionMembre'
 import SelecteurPoste from '../components/SelecteurPoste'
 import { departementsApresChoixPoste } from '../lib/postesDepartements'
@@ -333,7 +333,9 @@ export default function SuperAdmin() {
     setForm(f => ({
       ...f, plan,
       prix_mensuel: planData?.prix || 0,
-      max_utilisateurs: planData?.max_utilisateurs || 999,
+      // 999 signifiait « pas de limite », ce qui revenait a n'jamais
+      // facturer de supplement. La limite est celle du PACK.
+      max_utilisateurs: planData?.max_utilisateurs || limiteUtilisateurs(planData?.plan),
       modules_selectionnes: modsDefaut,
     }))
   }

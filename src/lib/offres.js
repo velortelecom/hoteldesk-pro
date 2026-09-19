@@ -290,6 +290,59 @@ export function prixMensuel(offreId, nbUtilisateurs = 0, prixBase = null) {
 // =====================================================================
 
 /**
+ * LA LIMITE D'UTILISATEURS D'UNE ENTREPRISE.
+ *
+ * ELLE APPARTIENT AU PACK, PAS A UNE COLONNE LIBRE.
+ *   entreprises.max_utilisateurs a ete rempli par six endroits
+ *   differents, avec des replis qui se contredisent : 0 ici, 999 la, 10
+ *   ailleurs. Un 0 facturerait CHAQUE utilisateur en supplement ; un 999
+ *   n'en facturerait jamais aucun. C'est la meme entreprise, et deux
+ *   factures opposees selon l'ecran par lequel elle a ete creee.
+ *
+ *   La limite vient donc d'abord de l'OFFRE : Gratuit 3, Velor One 10,
+ *   Business 20, Premium 30, Sur mesure aucune. C'est ce que le client
+ *   a achete, c'est ce qu'on lui facture.
+ *
+ * LA COLONNE RESTE UN AMENAGEMENT POSSIBLE
+ *   Un forfait negocie par le Super Admin doit etre respecte. La colonne
+ *   l'emporte donc -- mais seulement si elle est EXPLOITABLE (entre 1 et
+ *   le plafond du forfait). Sinon on retombe sur le pack au lieu de
+ *   renoncer a facturer, ce qui etait l'ancien comportement.
+ *
+ * ON NE BLOQUE JAMAIS
+ *   Cette limite sert a CALCULER un supplement, jamais a refuser la
+ *   creation d'un compte. Un plafond dur pousserait le client a ne pas
+ *   creer le 11e compte -- et le 11e salarie pointerait sur le telephone
+ *   d'un collegue, ce qui fausserait le decompte des heures, la seule
+ *   chose qui ait ici une valeur legale.
+ *
+ * @returns {number|null} null = aucune limite facturable (Sur mesure, ou
+ *          plan inconnu sans colonne exploitable). Aucun supplement.
+ */
+export function limiteUtilisateurs(plan, maxColonne = undefined) {
+  const brut = Number(maxColonne)
+  const colonneExploitable = maxColonne != null
+    && Number.isFinite(brut)
+    && brut > 0
+    && brut <= PLAFOND_FORFAIT
+
+  if (colonneExploitable) return Math.trunc(brut)
+
+  const offre = OFFRES.find(o => o.id === plan)
+  if (!offre) return null
+
+  // Sur mesure : maxUtilisateurs vaut null, et c'est une reponse, pas un
+  // trou -- le montant vient d'un devis.
+  return offre.maxUtilisateurs == null ? null : offre.maxUtilisateurs
+}
+
+/** Le prix de l'utilisateur supplementaire, pour ce pack. */
+export function supplementUtilisateur(plan) {
+  const offre = OFFRES.find(o => o.id === plan)
+  return offre ? (offre.debordement ?? 0) : PRIX_UTILISATEUR_SUP
+}
+
+/**
  * Detail de ce que doit une entreprise pour un effectif donne.
  *
  * @param entreprise  ligne « entreprises » : { plan, prix_mensuel, max_utilisateurs }
@@ -301,15 +354,9 @@ export function detailFacture(entreprise, nbUtilisateurs = 0) {
   const utilisateurs = Math.max(0, Math.trunc(Number(nbUtilisateurs) || 0))
   const prixBase = ent.prix_mensuel != null ? Number(ent.prix_mensuel) : null
 
-  // max_utilisateurs a ete rempli avec 0 ou 999 par d'anciens ecrans du
-  // Super Admin. Un 0 facturerait chaque utilisateur en supplement, un
-  // 999 n'en facturerait jamais aucun. On ne devine pas : valeur
-  // inutilisable => pas de supplement, et inclus reste null pour que
-  // l'affichage puisse se taire plutot que mentir.
-  const brut = ent.max_utilisateurs
-  const inclus = brut == null || Number(brut) <= 0 || Number(brut) > PLAFOND_FORFAIT
-    ? null
-    : Number(brut)
+  // La limite vient du PACK, la colonne ne servant que d'amenagement
+  // quand elle est exploitable. Voir limiteUtilisateurs().
+  const inclus = limiteUtilisateurs(plan, ent.max_utilisateurs)
 
   const surplus = inclus == null ? 0 : Math.max(0, utilisateurs - inclus)
   const surDevis = utilisateurs > PLAFOND_FORFAIT

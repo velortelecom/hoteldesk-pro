@@ -404,7 +404,9 @@ describe('definitions serveur contre offres.js', () => {
 // surtout son accord avec le calcul SQL -- parce que c'est le SQL qui
 // facture.
 // ---------------------------------------------------------------------
-const { detailFacture, impactUtilisateurEnPlus } = require('./offres')
+const {
+  detailFacture, impactUtilisateurEnPlus, limiteUtilisateurs, supplementUtilisateur,
+} = require('./offres')
 
 const FACTURATION_SQL = path.join(
   RACINE, 'supabase', 'migrations', '20260917_0007_facturation_debordement.sql',
@@ -474,13 +476,64 @@ describe('facturation du debordement', () => {
     expect(d.passageRequis).toBe(true)
   })
 
-  test('un max_utilisateurs inutilisable ne facture rien plutot que de facturer faux', () => {
-    // D'anciens ecrans du Super Admin ont ecrit 0 et 999. Un 0 facturerait
-    // CHAQUE utilisateur en supplement, un 999 n'en facturerait jamais
-    // aucun. Dans les deux cas on ne facture rien.
-    expect(detailFacture({ plan: OFFRE_INSCRIPTION, prix_mensuel: PRIX_STANDARD, max_utilisateurs: 0 }, 8).supplement).toBe(0)
-    expect(detailFacture({ plan: OFFRE_INSCRIPTION, prix_mensuel: PRIX_STANDARD, max_utilisateurs: 999 }, 8).supplement).toBe(0)
-    expect(detailFacture({ plan: OFFRE_INSCRIPTION, prix_mensuel: PRIX_STANDARD, max_utilisateurs: null }, 8).inclus).toBeNull()
+  test('un max_utilisateurs inutilisable retombe sur la limite du PACK', () => {
+    // D'anciens ecrans du Super Admin ont ecrit 0, 999 et rien du tout,
+    // selon l'ecran par lequel l'entreprise avait ete creee. Un 0
+    // facturerait CHAQUE utilisateur en supplement ; un 999 n'en
+    // facturerait jamais aucun. C'est la meme entreprise et deux factures
+    // opposees.
+    //
+    // On ne renonce plus a facturer : on retombe sur ce que le client a
+    // achete. Velor One, c'est 10 inclus, quelle que soit la valeur que
+    // l'ecran a ecrite dans la colonne.
+    const base = { plan: OFFRE_INSCRIPTION, prix_mensuel: PRIX_STANDARD }
+    const attendu = getOffre(OFFRE_INSCRIPTION).maxUtilisateurs
+
+    ;[0, 999, null, undefined, -3, 'douze'].forEach(valeur => {
+      expect(detailFacture({ ...base, max_utilisateurs: valeur }, 8).inclus).toBe(attendu)
+    })
+  })
+
+  test('la limite vient du pack, pour chaque pack', () => {
+    OFFRES.forEach(offre => {
+      expect(limiteUtilisateurs(offre.id)).toBe(offre.maxUtilisateurs ?? null)
+    })
+  })
+
+  test('un forfait negocie par le Super Admin l emporte, s il est exploitable', () => {
+    // Un client a qui on a accorde 15 inclus garde ses 15.
+    expect(limiteUtilisateurs(OFFRE_INSCRIPTION, 15)).toBe(15)
+    expect(detailFacture(
+      { plan: OFFRE_INSCRIPTION, prix_mensuel: PRIX_STANDARD, max_utilisateurs: 15 }, 17,
+    ).surplus).toBe(2)
+  })
+
+  test('« Sur mesure » n a pas de limite facturable', () => {
+    // Ce n'est pas un trou dans les donnees : le montant vient d'un devis.
+    expect(limiteUtilisateurs('enterprise')).toBeNull()
+  })
+
+  test('un plan inconnu ne facture pas de supplement au hasard', () => {
+    expect(limiteUtilisateurs('pack_legacy')).toBeNull()
+    expect(detailFacture({ plan: 'pack_legacy', prix_mensuel: 39 }, 50).supplement).toBe(0)
+  })
+
+  test('le supplement annonce est celui du pack', () => {
+    expect(supplementUtilisateur(OFFRE_INSCRIPTION)).toBe(PRIX_UTILISATEUR_SUP)
+    // Le gratuit n'a pas de debordement : son plafond est un vrai plafond.
+    expect(supplementUtilisateur(OFFRE_GRATUITE)).toBe(0)
+  })
+
+  test('depasser la limite ne bloque jamais, ca ajoute au montant', () => {
+    // C'est la regle commerciale : on ne refuse pas la creation d'un
+    // compte, on facture le supplement. Un plafond dur pousserait le 11e
+    // salarie a pointer sur le telephone d'un collegue.
+    const ent = { plan: OFFRE_INSCRIPTION, prix_mensuel: PRIX_STANDARD, max_utilisateurs: 10 }
+    const d = detailFacture(ent, 13)
+    expect(d.surplus).toBe(3)
+    expect(d.supplement).toBe(3 * PRIX_UTILISATEUR_SUP)
+    expect(d.prixTotal).toBe(PRIX_STANDARD + 3 * PRIX_UTILISATEUR_SUP)
+    expect(d.passageRequis).toBe(false)
   })
 
   test('un compte desactive ne se facture pas : c est l appelant qui compte les actifs', () => {
@@ -632,5 +685,127 @@ describe('le plan gratuit n expire pas', () => {
     expect(g.prix).toBe(0)
     expect(g.maxUtilisateurs).toBeGreaterThan(0)
     expect(g.debordement).toBeNull()
+  })
+})
+
+// =====================================================================
+// LA LIMITE SE FACTURE, ELLE NE BLOQUE PAS
+//
+// Regle commerciale : on cree les limites pour calculer le supplement,
+// on n'interdit jamais au client de creer un compte de plus.
+//
+// Un plafond dur aurait un effet pervers mesurable : le client ne
+// creerait pas le 11e compte, et le 11e salarie pointerait sur le
+// telephone d'un collegue. Le decompte des heures -- la seule chose qui
+// ait ici une valeur legale -- deviendrait faux pour economiser 2 EUR.
+// =====================================================================
+describe('aucun ecran ne bloque la creation au-dela de la limite', () => {
+  const fs = require('fs')
+  const path = require('path')
+  const RACINE = path.join(__dirname, '..')
+
+  function fichiers(dossier, acc = []) {
+    fs.readdirSync(dossier, { withFileTypes: true }).forEach((e) => {
+      const complet = path.join(dossier, e.name)
+      if (e.isDirectory()) return fichiers(complet, acc)
+      if (!/\.(js|jsx)$/.test(e.name)) return
+      if (/\.test\.(js|jsx)$/.test(e.name)) return
+      acc.push(complet)
+      return acc
+    })
+    return acc
+  }
+
+  /** Le code seul : nos propres commentaires ne doivent pas declencher. */
+  function codeSeul(chemin) {
+    return fs.readFileSync(chemin, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/^\s*\/\/.*$/gm, ' ')
+  }
+
+  // Les formes qu'aurait un blocage : une comparaison de l'effectif a la
+  // limite, suivie d'un refus. On cherche la comparaison ; s'il y en a
+  // une, c'est a un humain de dire si elle bloque.
+  const SUSPECTES = [
+    /utilisateurs\s*>=?\s*(max_utilisateurs|maxUtilisateurs|limite)/,
+    /(max_utilisateurs|maxUtilisateurs)\s*<=?\s*(utilisateurs|nbUtilisateurs)/,
+    /limite_atteinte|limiteAtteinte|quota_depasse|quotaDepasse/,
+  ]
+
+  test('aucune comparaison effectif / limite ne sert de refus', () => {
+    const coupables = []
+    fichiers(RACINE).forEach((f) => {
+      const code = codeSeul(f)
+      SUSPECTES.forEach((motif) => {
+        if (motif.test(code)) coupables.push(path.relative(RACINE, f) + ' : ' + motif)
+      })
+    })
+    expect(coupables).toEqual([])
+  })
+
+  test('depasser reste possible et se facture', () => {
+    const ent = { plan: OFFRE_INSCRIPTION, prix_mensuel: PRIX_STANDARD, max_utilisateurs: 10 }
+    // 50 utilisateurs : au-dela du plafond du forfait, donc sur devis --
+    // mais toujours aucune notion de refus.
+    expect(detailFacture(ent, 50).surDevis).toBe(true)
+    // Juste au-dessus de la limite : ca passe, et ca coute 2 EUR.
+    expect(detailFacture(ent, 11).supplement).toBe(PRIX_UTILISATEUR_SUP)
+    expect(impactUtilisateurEnPlus(ent, 10).cout).toBe(PRIX_UTILISATEUR_SUP)
+  })
+})
+
+// =====================================================================
+// LA GRILLE ET LE SQL DISENT LA MEME CHOSE
+//
+// utilisateurs_inclus() porte une copie SQL des limites de chaque pack.
+// Une copie est une divergence en attente : ce test la relit et casse le
+// build si elle s'ecarte de OFFRES. Meme verrou que pour la RPC
+// d'inscription et pour etat_facturation.
+// =====================================================================
+describe('les limites de packs sont identiques en JS et en SQL', () => {
+  const fs = require('fs')
+  const path = require('path')
+
+  const sql = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'supabase', 'migrations',
+      '20260919_0002_facturation_client_prorata.sql'),
+    'utf8',
+  )
+
+  /** Les couples ('plan', limite) declares dans la fonction SQL. */
+  function limitesSql() {
+    const bloc = sql.match(/from \(values([\s\S]*?)\) as o\(plan, limite\)/)
+    if (!bloc) return null
+    const out = {}
+    const motif = /\('([a-z_]+)',\s*(\d+|null::integer)\)/g
+    let m
+    while ((m = motif.exec(bloc[1])) !== null) {
+      out[m[1]] = m[2] === 'null::integer' ? null : Number(m[2])
+    }
+    return out
+  }
+
+  test('le bloc de limites est bien trouve dans le SQL', () => {
+    // Sans ce garde-fou, une fonction renommee ferait passer les tests
+    // suivants sur un objet vide -- ils reussiraient sans rien verifier.
+    const l = limitesSql()
+    expect(l).not.toBeNull()
+    expect(Object.keys(l).length).toBe(OFFRES.length)
+  })
+
+  test.each(OFFRES.map(o => [o.id, o.maxUtilisateurs ?? null]))(
+    'pack %s : la limite SQL vaut %s',
+    (id, attendu) => {
+      expect(limitesSql()[id]).toBe(attendu)
+    },
+  )
+
+  test('le prix de l utilisateur supplementaire est le meme des deux cotes', () => {
+    // 2 EUR est passe en dur a prorata_utilisateurs_sup.
+    expect(sql).toMatch(new RegExp(String(PRIX_UTILISATEUR_SUP) + '::numeric, v_debut, p_jusqu_au'))
+  })
+
+  test('le plafond du forfait est le meme des deux cotes', () => {
+    expect(sql).toMatch(new RegExp('p_max_utilisateurs <= ' + PLAFOND_FORFAIT))
   })
 })

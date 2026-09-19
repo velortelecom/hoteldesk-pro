@@ -1,3 +1,5 @@
+import { limiteUtilisateurs } from '../lib/offres'
+
 export function normalizeEntrepriseSlug(nom) {
   return (nom || '')
     .toLowerCase()
@@ -19,7 +21,9 @@ export function buildEditionForm(ent, activeModuleRows = []) {
     secteur: ent?.secteur || 'hotel',
     plan: ent?.plan || 'starter',
     prix_mensuel: ent?.prix_mensuel || 29,
-    max_utilisateurs: ent?.max_utilisateurs || 10,
+    // 10 en dur etait la limite de Velor One recopiee : elle devenait
+    // fausse pour tout autre pack.
+    max_utilisateurs: ent?.max_utilisateurs || limiteUtilisateurs(ent?.plan),
     actif: ent?.actif !== false,
     modules_selectionnes,
     departements_selectionnes: [],
