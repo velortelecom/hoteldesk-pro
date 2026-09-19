@@ -132,3 +132,48 @@ describe('le salarie ne consulte pas ses positions dans l appli', () => {
     expect(ongletsPourRole('employe')).toEqual([])
   })
 })
+
+// =====================================================================
+// 3. LA CASE « SUIT SON POINTAGE » DOIT RESTER COCHABLE
+// =====================================================================
+describe('le mode se compare a ce qui est STOCKE, pas a l effectif', () => {
+  const sql = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'supabase', 'migrations',
+      '20260919_0008_geoloc_mode_reellement_modifiable.sql'),
+    'utf8',
+  )
+
+  test('inscrire_geolocalisation lit la valeur stockee', () => {
+    // Comparer au mode EFFECTIF rendait le premier clic impossible :
+    // pour quelqu'un sans choix enregistre, l'effectif valait deja
+    // true, donc cocher « true » n'etait « pas un changement ». La case
+    // revenait decochee indefiniment.
+    const i = sql.indexOf('create function public.inscrire_geolocalisation')
+    expect(i).toBeGreaterThan(-1)
+    const corps = sql.slice(i, sql.indexOf('$$;', i))
+    expect(corps).toMatch(/mode_geolocalisation_stocke\(p_profile_id\)/)
+    expect(corps).not.toMatch(/mode_geolocalisation\(p_profile_id\)\s*;/)
+  })
+
+  test('la fonction du stocke ne fait AUCUN repli', () => {
+    // C'est tout son interet : mode_geolocalisation() repond « ce qui
+    // va s'appliquer », celle-ci « ce qu'on a decide ». Les confondre
+    // est exactement ce qui a produit le bug.
+    const i = sql.indexOf('create function public.mode_geolocalisation_stocke')
+    const corps = sql.slice(i, sql.indexOf('$$;', i))
+    expect(corps).not.toMatch(/geolocalisation_parametres/)
+    expect(corps).not.toMatch(/coalesce/i)
+  })
+
+  test('l ecran lit le mode effectif depuis la base, sans le recalculer', () => {
+    const ecran = fs.readFileSync(
+      path.join(__dirname, '..', 'modules', 'geolocalisation',
+        'components', 'InscriptionsGeo.jsx'),
+      'utf8',
+    )
+    expect(ecran).toMatch(/getModes\(profile\)/)
+    // Refaire la cascade des replis cote ecran, c'etait la seconde regle
+    // a maintenir -- et c'est toujours celle qu'on oublie.
+    expect(ecran).not.toMatch(/geolocalisation_parametres/)
+  })
+})

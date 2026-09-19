@@ -203,6 +203,47 @@ export async function getInscriptions(profile, options = {}) {
 }
 
 /**
+ * Le mode qui S'APPLIQUERA a chaque personne, et d'ou il vient.
+ *
+ * POURQUOI ON DEMANDE A LA BASE PLUTOT QUE DE CALCULER ICI
+ *   Le mode effectif est une cascade : choix de la personne, sinon
+ *   reglage de l'entreprise, sinon le pointage par defaut. Refaire cette
+ *   cascade dans l'ecran, c'etait une seconde regle a maintenir -- et
+ *   c'est toujours celle qu'on oublie de corriger.
+ *
+ *   L'ecran affichait d'ailleurs « reglage de l'entreprise », case
+ *   decochee, pour quelqu'un dont le mode effectif etait « suit son
+ *   pointage ». Il disait le contraire de ce qui allait se passer.
+ *
+ * @returns [{ profileId, inscrit, suivrePointage, origine, choixExplicite }]
+ */
+export async function getModes(profile, options = {}) {
+  const { rpc = (nom, params) => supabase.rpc(nom, params) } = options
+  if (!profile?.entreprise_id) return []
+
+  const { data, error } = await rpc('modes_geolocalisation_entreprise', {})
+  if (error) {
+    console.error('[geo] modes illisibles : ' + (error.message || '-'))
+    throw new Error(error.message || 'Modes illisibles.')
+  }
+
+  return (data || []).map((l) => ({
+    profileId: l.profile_id,
+    inscrit: l.inscrit === true,
+    suivrePointage: l.suivre_pointage === true,
+    origine: l.origine || 'defaut',
+    choixExplicite: l.choix_explicite === true,
+  }))
+}
+
+/** D'ou vient le mode, en francais, pour l'ecran. */
+export const ORIGINES_MODE = {
+  personne: 'choisi pour cette personne',
+  entreprise: 'réglage de l’entreprise',
+  defaut: 'par défaut',
+}
+
+/**
  * L'etat ACTUEL de chaque personne, deduit de l'historique.
  *
  * La table est une suite de decisions ; l'ecran a besoin de la

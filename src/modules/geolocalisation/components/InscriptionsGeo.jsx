@@ -24,7 +24,7 @@
 // =====================================================================
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../../lib/supabase'
-import { etatActuelParProfil, getInscriptions, inscrire } from '../services.js'
+import { ORIGINES_MODE, etatActuelParProfil, getInscriptions, getModes, inscrire } from '../services.js'
 
 const carte = { background: 'white', border: '1px solid #E5E7EB', borderRadius: 12, padding: 16 }
 const th = { textAlign: 'left', padding: '8px 10px', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em' }
@@ -33,6 +33,7 @@ const td = { padding: '8px 10px', fontSize: 13, borderTop: '1px solid #F3F4F6' }
 export default function InscriptionsGeo({ profile }) {
   const [membres, setMembres] = useState([])
   const [etats, setEtats] = useState([])
+  const [modes, setModes] = useState([])
   const [chargement, setChargement] = useState(true)
   const [erreur, setErreur] = useState(null)
   const [enCours, setEnCours] = useState(null)
@@ -42,13 +43,17 @@ export default function InscriptionsGeo({ profile }) {
     setChargement(true)
     setErreur(null)
     try {
-      const [{ data: profils, error: errProfils }, inscriptions] = await Promise.all([
+      const [{ data: profils, error: errProfils }, inscriptions, modesEffectifs] = await Promise.all([
         supabase
           .from('profiles')
           .select('id, prenom, nom, role, actif, is_super_admin')
           .eq('entreprise_id', profile?.entreprise_id)
           .order('nom'),
         getInscriptions(profile),
+        // Le mode qui S'APPLIQUERA, calcule par la base. L'ecran ne
+        // refait pas la cascade des replis de son cote : c'est comme ca
+        // qu'il en etait venu a afficher le contraire de la realite.
+        getModes(profile),
       ])
       if (errProfils) throw errProfils
 
@@ -56,10 +61,12 @@ export default function InscriptionsGeo({ profile }) {
       // rien a faire dans une liste de personnes a geolocaliser.
       setMembres((profils || []).filter((p) => p.is_super_admin !== true))
       setEtats(etatActuelParProfil(inscriptions))
+      setModes(modesEffectifs)
     } catch (err) {
       setErreur(err?.message || 'Lecture impossible.')
       setMembres([])
       setEtats([])
+      setModes([])
     }
     setChargement(false)
   }, [profile?.entreprise_id]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -71,6 +78,12 @@ export default function InscriptionsGeo({ profile }) {
     etats.forEach((e) => { table[e.profileId] = e })
     return table
   }, [etats])
+
+  const modeParProfil = useMemo(() => {
+    const table = {}
+    modes.forEach((m) => { table[m.profileId] = m })
+    return table
+  }, [modes])
 
   const appliquer = async (membre, champs) => {
     const etat = parProfil[membre.id] || {}
@@ -155,6 +168,7 @@ export default function InscriptionsGeo({ profile }) {
             <tbody>
               {membres.map((m) => {
                 const etat = parProfil[m.id] || {}
+                const mode = modeParProfil[m.id] || { suivrePointage: true, origine: 'defaut' }
                 const suivi = etat.inscrit === true
                 const occupe = enCours === m.id
 
@@ -188,21 +202,28 @@ export default function InscriptionsGeo({ profile }) {
                           regler un mode pour quelqu'un qui n'est pas
                           geolocalise donnerait l'impression d'avoir regle
                           quelque chose. */}
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, opacity: suivi ? 1 : 0.4 }}>
+                      {/* La case montre le mode QUI S'APPLIQUERA, calcule
+                          par la base, pas la seule valeur stockee. Elle
+                          affichait « reglage de l'entreprise » decochee a
+                          quelqu'un dont le mode effectif etait « suit son
+                          pointage » : elle disait le contraire de ce qui
+                          allait se passer.
+                          La ligne du dessous dit d'ou vient ce mode, ce
+                          que la case seule ne peut pas exprimer. */}
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 6, opacity: suivi ? 1 : 0.4 }}>
                         <input
                           type="checkbox"
-                          checked={etat.suivrePointage === true}
+                          checked={suivi && mode.suivrePointage === true}
                           disabled={!suivi || occupe}
                           onChange={(e) => appliquer(m, { suivrePointage: e.target.checked })}
                         />
                         <span style={{ fontSize: 12.5 }}>
-                          {!suivi
-                            ? '—'
-                            : etat.suivrePointage == null
-                              ? 'réglage de l’entreprise'
-                              : etat.suivrePointage
-                                ? 'son arrivée et son départ'
-                                : 'plage horaire'}
+                          {!suivi ? '—' : (mode.suivrePointage ? 'son arrivée et son départ' : 'plage horaire')}
+                          {suivi && (
+                            <span style={{ display: 'block', fontSize: 11, color: '#9CA3AF' }}>
+                              {ORIGINES_MODE[mode.origine] || mode.origine}
+                            </span>
+                          )}
                         </span>
                       </label>
                     </td>

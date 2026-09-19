@@ -50,11 +50,12 @@ jest.mock('./services.js', () => {
     ...vrai,
     getReleves: jest.fn(),
     getInscriptions: jest.fn(),
+    getModes: jest.fn(),
     inscrire: jest.fn(),
   }
 })
 
-const { ACTIONS_RELEVE, getInscriptions, getReleves, inscrire } = require('./services.js')
+const { ACTIONS_RELEVE, getInscriptions, getModes, getReleves, inscrire } = require('./services.js')
 const CarteReleves = require('./components/CarteReleves.jsx').default
 const InscriptionsGeo = require('./components/InscriptionsGeo.jsx').default
 const Module = require('./index.jsx').default
@@ -95,6 +96,8 @@ function releve(sur = {}) {
 
 beforeEach(() => {
   jest.clearAllMocks()
+  // Par defaut : aucun mode connu. Chaque test qui s'y interesse le dit.
+  getModes.mockResolvedValue([])
   global.__reponseProfiles = { ...reponsesProfiles }
   jest.spyOn(console, 'error').mockImplementation(() => {})
 })
@@ -241,17 +244,55 @@ describe('l ecran des personnes suivies', () => {
     vue.demonter()
   })
 
-  test('une personne suivie sans mode affiche « réglage de l’entreprise »', async () => {
+  test('la case montre le mode QUI S APPLIQUERA, pas la valeur stockee', async () => {
+    // Le bug du 19/09 : la case s'affichait decochee avec « reglage de
+    // l'entreprise » pour quelqu'un dont le mode effectif etait « suit
+    // son pointage ». L'ecran disait le contraire de ce qui allait se
+    // passer, et cocher ne changeait rien -- la base comparait elle
+    // aussi a l'effectif et repondait « rien n'a change ».
     global.__reponseProfiles = { data: [EQUIPE[0]], error: null }
     getInscriptions.mockResolvedValue([inscription('p-tech')])
+    getModes.mockResolvedValue([
+      { profileId: 'p-tech', inscrit: true, suivrePointage: true, origine: 'defaut', choixExplicite: false },
+    ])
 
     const vue = await rendre(<InscriptionsGeo profile={ADMIN} />)
     const [suivi, mode] = vue.cases()
 
     expect(suivi.checked).toBe(true)
     expect(mode.disabled).toBe(false)
-    expect(vue.texte).toContain('réglage de l’entreprise')
+    // Cochee, parce que c'est ce qui s'applique.
+    expect(mode.checked).toBe(true)
+    expect(vue.texte).toContain('son arrivée et son départ')
+    // Et on dit d'ou ca vient : la case seule ne peut pas l'exprimer.
+    expect(vue.texte).toContain('par défaut')
     expect(vue.texte).toContain('19/09/2026')
+    vue.demonter()
+  })
+
+  test('un mode herite de l entreprise le dit', async () => {
+    global.__reponseProfiles = { data: [EQUIPE[0]], error: null }
+    getInscriptions.mockResolvedValue([inscription('p-tech')])
+    getModes.mockResolvedValue([
+      { profileId: 'p-tech', inscrit: true, suivrePointage: false, origine: 'entreprise', choixExplicite: false },
+    ])
+
+    const vue = await rendre(<InscriptionsGeo profile={ADMIN} />)
+    expect(vue.cases()[1].checked).toBe(false)
+    expect(vue.texte).toContain('plage horaire')
+    expect(vue.texte).toContain('réglage de l’entreprise')
+    vue.demonter()
+  })
+
+  test('un choix pose pour la personne le dit aussi', async () => {
+    global.__reponseProfiles = { data: [EQUIPE[0]], error: null }
+    getInscriptions.mockResolvedValue([inscription('p-tech', { suivre_pointage: true })])
+    getModes.mockResolvedValue([
+      { profileId: 'p-tech', inscrit: true, suivrePointage: true, origine: 'personne', choixExplicite: true },
+    ])
+
+    const vue = await rendre(<InscriptionsGeo profile={ADMIN} />)
+    expect(vue.texte).toContain('choisi pour cette personne')
     vue.demonter()
   })
 
@@ -261,6 +302,9 @@ describe('l ecran des personnes suivies', () => {
     // case redeviendrait « réglage de l’entreprise » a chaque clic.
     global.__reponseProfiles = { data: [EQUIPE[0]], error: null }
     getInscriptions.mockResolvedValue([inscription('p-tech', { suivre_pointage: true })])
+    getModes.mockResolvedValue([
+      { profileId: 'p-tech', inscrit: true, suivrePointage: true, origine: 'personne', choixExplicite: true },
+    ])
     inscrire.mockResolvedValue({ ok: true, id: 'nouvelle', sansChangement: false })
 
     const vue = await rendre(<InscriptionsGeo profile={ADMIN} />)
