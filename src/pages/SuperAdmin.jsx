@@ -27,6 +27,7 @@ import SuperAdminAssistance from './SuperAdminAssistance'
 import SuperAdminEnterpriseStructure from './SuperAdminEnterpriseStructure'
 import SuperAdminPlatformHealth from './SuperAdminPlatformHealth'
 import SuperAdminFacturation from './SuperAdminFacturation'
+import SuperAdminFacturationProrata from './SuperAdminFacturationProrata'
 import BlocAbonnement from '../components/BlocAbonnement'
 import SelecteurMenus from '../components/SelecteurMenus'
 import { messageErreurEdge } from '../lib/edgeErreur'
@@ -1135,7 +1136,27 @@ async function createEmploye(entrepriseId) {
       )}
 
       {onglet === 'facturation' && (
-        <SuperAdminFacturation profile={profile} />
+        <div style={{ display: 'grid', gap: 24 }}>
+          {/* La facturation au prorata part de la date d'inscription de
+              chaque client et s'arrete au jour choisi. C'est elle qui
+              sert a facturer. L'etat de facturation ci-dessous reste
+              affiche : il montre ce que chaque entreprise coute AU
+              FORFAIT, ce qui repond a une autre question. */}
+          <SuperAdminFacturationProrata profile={profile} />
+
+          <div style={{ borderTop: '1px solid #E5E7EB', paddingTop: 24 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 4px' }}>
+              Etat des forfaits
+            </h2>
+            <p style={{ fontSize: 12.5, color: '#6B7280', margin: '0 0 16px', lineHeight: 1.6 }}>
+              Ce que chaque entreprise coute au forfait, a l&apos;instant present.
+              Sert a suivre les depassements &mdash; pas a facturer : pour
+              facturer, c&apos;est le tableau du dessus, qui tient compte des
+              dates.
+            </p>
+            <SuperAdminFacturation profile={profile} />
+          </div>
+        </div>
       )}
 
       {onglet === 'demandes' && (

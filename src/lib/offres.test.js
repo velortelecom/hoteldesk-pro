@@ -809,3 +809,60 @@ describe('les limites de packs sont identiques en JS et en SQL', () => {
     expect(sql).toMatch(new RegExp('p_max_utilisateurs <= ' + PLAFOND_FORFAIT))
   })
 })
+
+// =====================================================================
+// LE SUR-MESURE NE SE CHOISIT PAS TOUT SEUL
+//
+// Des modules choisis a un prix negocie, ca se decide dans une
+// conversation. Le Super Admin l'applique ensuite a l'entreprise.
+//
+// La regle existait deja, mais par effet de bord : l'ecran ne proposait
+// pas l'offre parce que son prix valait null. Le jour ou quelqu'un lui
+// donne un prix indicatif pour l'afficher joliment, elle redeviendrait
+// selectionnable sans que personne l'ait voulu.
+// =====================================================================
+describe('offres reservees au Super Admin', () => {
+  const { OFFRES_PUBLIQUES, choisissableALInscription } = require('./offres')
+  const fs = require('fs')
+  const path = require('path')
+
+  test('le sur-mesure n est pas choisissable a l inscription', () => {
+    expect(choisissableALInscription('enterprise')).toBe(false)
+    expect(OFFRES_PUBLIQUES.map(o => o.id)).not.toContain('enterprise')
+  })
+
+  test('mais il reste affiche : le visiteur doit savoir qu il existe', () => {
+    // L'exclure de la page entierement reviendrait a cacher une offre
+    // qu'on vend vraiment.
+    expect(OFFRES.map(o => o.id)).toContain('enterprise')
+  })
+
+  test('toute offre reservee est exclue, pas seulement celle-la', () => {
+    OFFRES.filter(o => o.reserveSuperAdmin).forEach(o => {
+      expect(choisissableALInscription(o.id)).toBe(false)
+    })
+  })
+
+  test('les offres publiques ont toutes un prix', () => {
+    // Sans prix, l'inscription creerait une entreprise a facturer zero.
+    OFFRES_PUBLIQUES.forEach(o => {
+      expect(typeof o.prix).toBe('number')
+    })
+  })
+
+  test('l ecran d inscription passe par la regle, pas par le prix', () => {
+    const ecran = fs.readFileSync(path.join(__dirname, '..', 'pages', 'Inscription.jsx'), 'utf8')
+    expect(ecran).toMatch(/choisissableALInscription\(offre\.id\)/)
+    expect(ecran).not.toMatch(/const choisissable = offre\.vendu && offre\.prix != null/)
+  })
+
+  test('le serveur refuse de lui-meme toute autre formule', () => {
+    // La vraie barriere est la : un navigateur bricole n'obtient pas un
+    // pack qu'il n'a pas le droit de choisir.
+    const fonction = fs.readFileSync(
+      path.join(__dirname, '..', '..', 'supabase', 'functions', 'public-signup', 'index.ts'),
+      'utf8',
+    )
+    expect(fonction).toMatch(/formuleBrute === PLAN_GRATUIT_ID \|\| formuleBrute === PLAN_1_ID/)
+  })
+})

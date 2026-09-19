@@ -159,6 +159,22 @@ export const OFFRES = [
     maxUtilisateurs: null,
     debordement: null,
     vendu: true,
+    // RESERVE AU SUPER ADMIN.
+    //
+    // Un sur-mesure, ce sont des modules choisis a un prix negocie : ca
+    // se decide dans une conversation, pas en cochant une case sur une
+    // page d'inscription.
+    //
+    // Le serveur le refusait deja -- public-signup n'accepte que
+    // 'gratuit' et 'starter', quoi qu'envoie le navigateur -- et l'ecran
+    // ne le proposait pas, mais seulement parce que prix vaut null.
+    // C'etait donc une regle par effet de bord : le jour ou quelqu'un
+    // donne un prix indicatif a cette offre pour l'afficher joliment,
+    // elle redevient selectionnable sans que personne l'ait voulu.
+    //
+    // On la DECLARE. Un test verifie qu'elle n'apparait jamais dans les
+    // offres proposees a l'inscription.
+    reserveSuperAdmin: true,
     modules: [],
     resume: 'Au-dela de ' + PLAFOND_FORFAIT + ' salaries, ou besoins specifiques : nous en parlons',
   },
@@ -174,6 +190,23 @@ export function rangOffre(id) {
 
 /** Les offres reellement proposees a la vente aujourd'hui. */
 export const OFFRES_VENDUES = OFFRES.filter(o => o.vendu)
+
+/**
+ * Les offres qu'un visiteur peut choisir LUI-MEME a l'inscription.
+ *
+ * Le sur-mesure en est exclu : ses modules et son prix se negocient,
+ * puis le Super Admin l'applique a l'entreprise. Une offre reservee
+ * reste AFFICHEE sur la page -- le visiteur doit savoir qu'elle existe
+ * et qu'il faut nous appeler -- mais elle n'est pas selectionnable.
+ */
+export const OFFRES_PUBLIQUES = OFFRES.filter(
+  o => o.vendu && o.prix != null && !o.reserveSuperAdmin,
+)
+
+/** Cette offre se choisit-elle seul, a l'inscription ? */
+export function choisissableALInscription(id) {
+  return OFFRES_PUBLIQUES.some(o => o.id === id)
+}
 
 /** L'offre creee par l'inscription publique. */
 export const OFFRE_INSCRIPTION = 'starter'

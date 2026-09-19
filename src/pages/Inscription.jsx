@@ -16,7 +16,7 @@ import {
   PLAN_1_LABEL, PLAN_1_PRIX_MENSUEL, PLAN_1_MAX_UTILISATEURS,
   PLAN_1_SOCLE, PLAN_1_MODULES_DETAIL,
 } from '../lib/plan1'
-import { OFFRES, TARIF_FONDATEUR, PRIX_UTILISATEUR_SUP, PLAFOND_FORFAIT, MODULES_A_VENIR, bandeEffectif } from '../lib/offres'
+import { OFFRES, TARIF_FONDATEUR, PRIX_UTILISATEUR_SUP, PLAFOND_FORFAIT, MODULES_A_VENIR, bandeEffectif, choisissableALInscription } from '../lib/offres'
 // Les libelles viennent du registre, jamais recopies : c'est la source.
 import { MODULES_REGISTRY } from '../modules/registry'
 
@@ -381,7 +381,10 @@ export default function Inscription({ onRetourConnexion }) {
               {OFFRES.map(offre => {
                 const surDevis = offre.vendu && offre.prix == null
                 const aVenir = !offre.vendu
-                const choisissable = offre.vendu && offre.prix != null
+                // Le sur-mesure est affiche mais jamais selectionnable :
+                // ses modules et son prix se negocient. Voir
+                // reserveSuperAdmin dans offres.js.
+                const choisissable = choisissableALInscription(offre.id)
                 const actif = choisissable && formule === offre.id
                 const fondateurIci = offre.id === 'starter' && places != null && places > 0
 
