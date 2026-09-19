@@ -26,6 +26,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { telechargerXlsx } from '../lib/xlsx'
+import { peutExporter } from '../lib/droitsExport'
 import { FONDATEURS_MAX } from '../lib/offres'
 import {
   LARGEURS_EXPORT, LARGEURS_EXPORT_ENTREPRISE, construireLignesExport,
@@ -53,7 +54,7 @@ const carte = { background: '#fff', border: '0.5px solid #E5E7EB', borderRadius:
 const th = { textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '8px 10px', borderBottom: '1px solid #E5E7EB', whiteSpace: 'nowrap' }
 const td = { fontSize: 13, padding: '9px 10px', borderBottom: '1px solid #F3F4F6', whiteSpace: 'nowrap' }
 
-export default function SuperAdminFacturation() {
+export default function SuperAdminFacturation({ profile = null }) {
   const [periode, setPeriode] = useState(premierDuMois(new Date()))
   const [direct, setDirect] = useState([])
   const [releves, setReleves] = useState([])
@@ -150,6 +151,12 @@ export default function SuperAdminFacturation() {
   }
 
   const exporter = () => {
+    // Meme regle que partout : le refus est dans la fonction, pas sur le
+    // bouton. Cet ecran n'est atteignable que par un super admin, mais
+    // une page qui se protege elle-meme survit au jour ou le routage
+    // change.
+    if (!peutExporter(profile)) return
+
     // On exporte le RELEVE FIGE, pas le calcul en direct : un export sert
     // a facturer, et le direct change encore a chaque embauche. Tant que
     // la periode n'est pas figee, il n'y a rien a exporter.
@@ -205,6 +212,7 @@ export default function SuperAdminFacturation() {
   }
 
   const exporterEntreprise = () => {
+    if (!peutExporter(profile)) return
     if (!detail) return
     telechargerXlsx(
       nomFichierExportEntreprise(detail.ligne.nom),

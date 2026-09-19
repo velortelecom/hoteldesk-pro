@@ -1133,7 +1133,7 @@ async function createEmploye(entrepriseId) {
       )}
 
       {onglet === 'facturation' && (
-        <SuperAdminFacturation />
+        <SuperAdminFacturation profile={profile} />
       )}
 
       {onglet === 'demandes' && (

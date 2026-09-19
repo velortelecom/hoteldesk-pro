@@ -165,7 +165,9 @@ export default function PointageModule({ profile, permissions: permissionsLoader
             erreur={erreurPointages}
           />
         )}
-        {activeTab === 'paie' && <ExportPaie profile={profile} permissions={permissions} />}
+        {/* Pas de prop `permissions` : le droit d'exporter se lit sur le
+            profil, jamais sur un objet que cet ecran-ci fabrique. */}
+        {activeTab === 'paie' && <ExportPaie profile={profile} />}
         {activeTab === 'sites' && <GestionSitesPointage sites={sites} />}
         {activeTab === 'parametres' && (
           <ParametresPointage

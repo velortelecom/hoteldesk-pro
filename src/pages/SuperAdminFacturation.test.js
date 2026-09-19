@@ -22,6 +22,9 @@ import { act } from 'react-dom/test-utils'
 // noie alors la sortie d'avertissements qui masquent les vraies erreurs.
 global.IS_REACT_ACT_ENVIRONMENT = true
 
+// Cet ecran n'existe que pour un super admin ; le test doit le dire.
+const PROFIL_SUPER_ADMIN = { id: 'sa-1', role: 'employe', is_super_admin: true }
+
 // Les mockAppels enregistres par le double.
 const mockAppels = { rpc: [], from: [], eq: [], order: [] }
 let mockReponseGlobal = { data: [], error: null }
@@ -81,7 +84,7 @@ async function afficher() {
   conteneur = document.createElement('div')
   document.body.appendChild(conteneur)
   racine = createRoot(conteneur)
-  await act(async () => { racine.render(<SuperAdminFacturation />) })
+  await act(async () => { racine.render(<SuperAdminFacturation profile={PROFIL_SUPER_ADMIN} />) })
   return conteneur
 }
 

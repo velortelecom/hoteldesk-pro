@@ -9,6 +9,7 @@
 // =====================================================================
 import React, { useCallback, useEffect, useState } from 'react'
 import { telechargerXlsx } from '../../../lib/xlsx'
+import { MESSAGE_EXPORT_REFUSE, peutExporter } from '../../../lib/droitsExport.js'
 import { getEvenementsMois } from '../services.js'
 import { formaterDuree } from '../journees.js'
 import {
@@ -29,7 +30,7 @@ function moisProposes(aujourdhui = new Date()) {
   return out
 }
 
-export default function ExportPaie({ profile, permissions }) {
+export default function ExportPaie({ profile }) {
   const [periode, setPeriode] = useState(() => {
     const d = new Date()
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
@@ -40,7 +41,11 @@ export default function ExportPaie({ profile, permissions }) {
   const [chargement, setChargement] = useState(true)
   const [erreur, setErreur] = useState(null)
 
-  const peutExporter = permissions?.canExport === true
+  // Le droit d'exporter ne se lit PAS dans un objet `permissions` recu
+  // en props : celui-la est fabrique par l'appelant et pourrait, un
+  // jour, dependre de l'offre souscrite. Il se lit sur le profil, et
+  // nulle part ailleurs -- quelle que soit l'offre du client.
+  const autorise = peutExporter(profile)
 
   const charger = useCallback(async () => {
     setChargement(true)
@@ -65,6 +70,10 @@ export default function ExportPaie({ profile, permissions }) {
   useEffect(() => { charger() }, [charger])
 
   const exporter = () => {
+    // LE REFUS EST ICI, pas sur le bouton. `disabled` est un attribut du
+    // DOM : on l'enleve en trois secondes avec la console du navigateur.
+    if (!peutExporter(profile)) return
+
     telechargerXlsx(
       nomFichierPaie(periode),
       'Heures ' + libelleMois(periode),
@@ -98,21 +107,21 @@ export default function ExportPaie({ profile, permissions }) {
           <button
             type="button"
             onClick={exporter}
-            disabled={!peutExporter || journees.length === 0 || !!erreur}
+            disabled={!autorise || journees.length === 0 || !!erreur}
             style={{
               padding: '0.5rem 1rem', borderRadius: 8, border: 'none', fontWeight: 600,
               fontSize: '0.875rem',
-              background: (!peutExporter || journees.length === 0 || !!erreur) ? '#d1d5db' : '#0f766e',
+              background: (!autorise || journees.length === 0 || !!erreur) ? '#d1d5db' : '#0f766e',
               color: 'white',
-              cursor: (!peutExporter || journees.length === 0 || !!erreur) ? 'not-allowed' : 'pointer',
+              cursor: (!autorise || journees.length === 0 || !!erreur) ? 'not-allowed' : 'pointer',
             }}
           >
             Exporter vers Excel
           </button>
 
-          {!peutExporter && (
+          {!autorise && (
             <span style={{ fontSize: '0.8125rem', color: '#6b7280' }}>
-              Reserve aux responsables.
+              {MESSAGE_EXPORT_REFUSE}
             </span>
           )}
         </div>

@@ -17,6 +17,12 @@
 //   C'est une decision, pas un oubli : n'ajoutez pas de bouton
 //   « exporter mes heures » pour rendre service. Un test le refuse.
 // =====================================================================
+import { peutExporter } from '../../lib/droitsExport.js'
+
+// canExport n'est pas recopie ici : il est DERIVE de droitsExport.js.
+// Recopier la valeur, c'est ecrire la meme regle a deux endroits -- et
+// le jour ou l'un des deux change, c'est toujours celui qu'on a oublie
+// qui fait loi a l'ecran.
 export const ROLE_POINTAGE_PERMISSIONS = {
   employe: {
     canView: true,
@@ -24,7 +30,7 @@ export const ROLE_POINTAGE_PERMISSIONS = {
     canEdit: false,
     canDelete: false,
     canManageSettings: false,
-    canExport: false,
+    canExport: peutExporter({ role: 'employe' }),
   },
   responsable: {
     canView: true,
@@ -32,7 +38,7 @@ export const ROLE_POINTAGE_PERMISSIONS = {
     canEdit: true,
     canDelete: false,
     canManageSettings: true,
-    canExport: true,
+    canExport: peutExporter({ role: 'responsable' }),
   },
   admin: {
     canView: true,
@@ -40,7 +46,7 @@ export const ROLE_POINTAGE_PERMISSIONS = {
     canEdit: true,
     canDelete: true,
     canManageSettings: true,
-    canExport: true,
+    canExport: peutExporter({ role: 'admin' }),
   },
   super_admin: {
     canView: true,
@@ -48,7 +54,7 @@ export const ROLE_POINTAGE_PERMISSIONS = {
     canEdit: true,
     canDelete: true,
     canManageSettings: true,
-    canExport: true,
+    canExport: peutExporter({ is_super_admin: true }),
   },
 }
 

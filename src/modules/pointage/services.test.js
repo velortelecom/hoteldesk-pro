@@ -288,9 +288,23 @@ describe('l export de paie', () => {
   const ecran = codeSeul('components', 'ExportPaie.jsx')
   const permissions = codeSeul('permissions.js')
 
-  test('un salarie ne peut pas exporter les heures de ses collegues', () => {
-    expect(permissions).toMatch(/canExport: false/)
-    expect(ecran).toMatch(/permissions\?\.canExport === true/)
+  test('un salarie ne peut pas exporter, et la regle vient d ailleurs', () => {
+    // La regle a demenage dans lib/droitsExport.js : une seule source
+    // pour toute l'application, et indifferente a l'offre souscrite.
+    // permissions.js la DERIVE au lieu de recopier « canExport: false »,
+    // pour que les deux ne puissent pas diverger.
+    expect(permissions).toMatch(/peutExporter\(\{ role: 'employe' \}\)/)
+    expect(permissions).not.toMatch(/canExport: (true|false)/)
+
+    // Et l'ecran ne lit plus l'objet permissions recu en props : il
+    // pourrait, demain, dependre de l'offre.
+    expect(ecran).toMatch(/peutExporter\(profile\)/)
+    expect(ecran).not.toMatch(/permissions\?\.canExport/)
+  })
+
+  test('le refus est dans la fonction, pas seulement sur le bouton', () => {
+    // `disabled` est un attribut du DOM ; on l'enleve en trois secondes.
+    expect(ecran).toMatch(/if \(!peutExporter\(profile\)\) return/)
   })
 
   test('l ecran previent avant d exporter un total incomplet', () => {
